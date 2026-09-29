@@ -271,3 +271,6 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 
 .steps { padding-left: 20px; margin: 6px 0; }
 .steps li { margin: 4px 0; }
+
+.rain24 { font-size: 12.5px; font-weight: 600; }
+.row-item .val small { font-weight: 400; color: var(--muted); }

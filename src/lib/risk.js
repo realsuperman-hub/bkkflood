@@ -10,7 +10,7 @@ export const RISK = [
   { id: 3, key: 'danger', label: 'อันตราย', color: '#d7263d', advice: 'ย้ายรถและของมีค่าทันที ตัดไฟชั้นล่างหากน้ำเข้าบ้าน และเตรียมอพยพหากน้ำสูงเร็ว โทร 1669 เมื่อเหตุฉุกเฉิน' },
 ];
 
-export function assess({ rain, tide, gauges = [], upstream, elevation, regional, nearby }) {
+export function assess({ rain, tide, gauges = [], upstream, elevation, regional, nearby, obs }) {
   const reasons = [];
   let score = 0;
   const add = (pts, text) => {
@@ -25,6 +25,13 @@ export function assess({ rain, tide, gauges = [], upstream, elevation, regional,
     if (nearby.heavy >= 1) add(3, `มีผู้แจ้ง กทม. ว่าน้ำท่วมสูงในรัศมี 1 กม. (${nearby.heavy} จุดหนัก จาก ${n} เรื่อง ใน 12 ชม.)`);
     else if (nearby.medium >= 1 || nearby.light >= 3) add(2, `มีผู้แจ้ง กทม. ว่าน้ำท่วมขังในรัศมี 1 กม. (${n} เรื่อง ใน 12 ชม.)`);
     else if (n >= 1) add(1, `มีผู้แจ้ง กทม. ว่ามีน้ำท่วมขังเล็กน้อยในรัศมี 1 กม. (${n} เรื่อง)`);
+  }
+
+  if (obs) {
+    if (obs.r1 >= 30) add(3, `ฝนตรวจวัดจริงตกหนักมาก ≈ ${obs.r1} มม. ใน 1 ชม. ล่าสุด ที่${obs.r1Name} (${obs.r1Km.toFixed(1)} กม.)`);
+    else if (obs.r1 >= 10) add(2, `ฝนตรวจวัดจริงตกหนัก ≈ ${obs.r1} มม. ใน 1 ชม. ล่าสุด ที่${obs.r1Name} (${obs.r1Km.toFixed(1)} กม.)`);
+    else if (obs.r1 >= 2.5) add(1, `ฝนกำลังตก ≈ ${obs.r1} มม. ใน 1 ชม. ล่าสุด ที่${obs.r1Name} (${obs.r1Km.toFixed(1)} กม.)`);
+    if (obs.r24 >= 90) add(1, `ฝนสะสม 24 ชม. ที่วัดได้จริง ≈ ${obs.r24} มม. ที่${obs.r24Name} — ดินและท่อระบายอิ่มน้ำ`);
   }
 
   if (rain) {

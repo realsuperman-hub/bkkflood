@@ -2,11 +2,12 @@
 import { nearestStations, distKm } from './geo.js';
 import { loadRain, loadTide, loadUpstreamTrend } from './forecast.js';
 import { assess } from './risk.js';
+import { nearestRain, observedAround } from './rain-obs.js';
 
 const val = (r) => (r.status === 'fulfilled' ? r.value : null);
 
 // ctx: { stations, floods, now?, rainAt? }  — rainAt=[lat,lng] lets the notifier share forecast calls between nearby places.
-export async function evaluatePoint(lat, lng, { stations, floods, now = Date.now(), rainAt } = {}) {
+export async function evaluatePoint(lat, lng, { stations, floods, rainObs = [], now = Date.now(), rainAt } = {}) {
   const [rlat, rlng] = rainAt || [lat, lng];
   const [rainR, tideR, upR] = await Promise.allSettled([loadRain(rlat, rlng), loadTide(), loadUpstreamTrend()]);
   const rain = val(rainR);
@@ -26,11 +27,14 @@ export async function evaluatePoint(lat, lng, { stations, floods, now = Date.now
   const metro = stations.filter((s) => !s.upstream && !s.stale);
   const regional = { over: metro.filter((s) => s.level === 5).length, total: metro.length };
 
+  const obs = observedAround(rainObs, lat, lng);
+  const rainNear = nearestRain(rainObs, lat, lng, { maxKm: 12, limit: 3 });
+
   const errors = [];
   if (!rain) errors.push('พยากรณ์ฝน (Open-Meteo)');
   if (!tide) errors.push('น้ำทะเลหนุน (Open-Meteo)');
   if (!stations.length) errors.push('สถานีวัดน้ำ (ThaiWater)');
 
-  const risk = assess({ rain, tide, gauges, upstream, elevation: rain?.elevation, regional, nearby });
-  return { lat, lng, rain, tide, upstreamTrend, gauges, upstream, nearFloods, nearby, errors, risk, at: Date.now() };
+  const risk = assess({ rain, tide, gauges, upstream, elevation: rain?.elevation, regional, nearby, obs });
+  return { lat, lng, rain, tide, upstreamTrend, gauges, upstream, nearFloods, nearby, obs, rainNear, errors, risk, at: Date.now() };
 }

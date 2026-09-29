@@ -7,6 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { evaluatePoint } from '../src/lib/evaluate-core.js';
 import { inBounds } from '../src/lib/geo.js';
 import { STALE_MS } from '../src/lib/thaiwater.js';
+import { RAIN_STALE_MS } from '../src/lib/rain-obs.js';
 import { decide, nextState, sanitizePlaces, placeKey, buildMessage } from '../src/lib/notify-logic.js';
 
 const arg = (n) => {
@@ -24,7 +25,8 @@ const stations = (await readJson('public/data/stations.json').catch(() => ({ sta
   stale: s.t === null || now - s.t > STALE_MS,
 }));
 const floods = (await readJson('public/data/floods.json').catch(() => ({ floods: [] }))).floods.filter((f) => now - f.t < 24 * 3600e3);
-console.log(`data: ${stations.length} stations, ${floods.length} flood complaints`);
+const rainObs = (await readJson('public/data/rain.json').catch(() => ({ gauges: [] }))).gauges.map((g) => ({ ...g, stale: g.t === null || now - g.t > RAIN_STALE_MS }));
+console.log(`data: ${stations.length} stations, ${floods.length} flood complaints, ${rainObs.length} rain gauges`);
 
 let db = null;
 let messaging = null;
@@ -49,7 +51,7 @@ function evalPlace(p) {
   if (!cache.has(k)) {
     // forecast models are ~10 km grids, so share one forecast call between nearby places
     const rainAt = [Math.round(p.lat * 10) / 10, Math.round(p.lng * 10) / 10];
-    cache.set(k, evaluatePoint(p.lat, p.lng, { stations, floods, now, rainAt }));
+    cache.set(k, evaluatePoint(p.lat, p.lng, { stations, floods, rainObs, now, rainAt }));
   }
   return cache.get(k);
 }

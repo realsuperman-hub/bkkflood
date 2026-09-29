@@ -3,7 +3,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
-import { loadStations, loadFloods } from './lib/data.js';
+import { loadStations, loadFloods, loadRainObs } from './lib/data.js';
+import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
 import { evaluate } from './lib/evaluate.js';
 import { createStore, isActive, hasVoted, DEPTHS, PASSABLE } from './lib/store.js';
@@ -147,6 +148,20 @@ function initLayers() {
   });
 
   Object.entries(SEVERITY).forEach(([l, s]) => map.addImage(`warn-${l}`, warnImage(s.color), { pixelRatio: 2 }));
+  map.addSource('rainobs', { type: 'geojson', data: emptyFC });
+  map.addLayer({
+    id: 'rainobs',
+    type: 'circle',
+    source: 'rainobs',
+    layout: { visibility: 'none' },
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['get', 'r1'], 0, 5, 10, 9, 30, 14],
+      'circle-color': ['get', 'color'],
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2,
+      'circle-opacity': ['case', ['get', 'stale'], 0.4, 0.95],
+    },
+  });
   map.addSource('floods', { type: 'geojson', data: emptyFC });
   map.addLayer({
     id: 'floods-halo',
@@ -196,6 +211,7 @@ function initLayers() {
 
   refreshStationsLayer();
   refreshFloodsLayer();
+  refreshRainLayer();
   refreshReportsLayer();
 }
 
@@ -208,6 +224,20 @@ function refreshStationsLayer() {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
       properties: { id: s.id, color: LEVELS[s.level].color, stale: s.stale },
+    })),
+  });
+}
+
+function refreshRainLayer() {
+  const src = map?.getSource('rainobs');
+  if (!src) return;
+  src.setData({
+    type: 'FeatureCollection',
+    features: state.rainObs.map((g) => ({
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [g.lng, g.lat] },
+      // colour by the 1 h rate when known, otherwise by the 24 h total
+      properties: { id: g.id, r1: g.r1 ?? 0, stale: g.stale, color: (g.r1 !== null ? intensity1h(g.r1) : intensity24h(g.r24)).color },
     })),
   });
 }
@@ -321,6 +351,16 @@ function stationPopup(s) {
     ${s.q !== null ? `<p class="small">ปริมาณน้ำ <b>${Math.round(s.q).toLocaleString('th-TH')}</b> ลบ.ม./วินาที</p>` : ''}
     <p class="muted tiny">${s.t ? `อัปเดต ${fmtTime(s.t)} น.` : ''}${s.stale ? ' · <b>ข้อมูลเก่า อาจไม่ตรงปัจจุบัน</b>' : ''}</p>
     <button class="btn btn-sm btn-primary" data-act="station-forecast" data-id="${esc(s.id)}">ดูพยากรณ์ตรงนี้</button></div>`);
+}
+
+function rainPopup(g) {
+  const i1 = intensity1h(g.r1);
+  const i24 = intensity24h(g.r24);
+  openPopup([g.lng, g.lat], `<div class="pp">
+    <div class="pp-title">${esc(g.name || 'สถานีวัดฝน')}</div><div class="muted small">${esc(g.prov)} · ${esc(g.agency)}</div>
+    <p class="small">1 ชม. ล่าสุด: <b style="color:${i1.color}">${g.r1 ?? '—'} มม.</b> (${i1.label})<br>สะสม 24 ชม.: <b style="color:${i24.color}">${g.r24 ?? '—'} มม.</b> (${i24.label})</p>
+    <p class="muted tiny">${g.t ? `ข้อมูล ${fmtTime(g.t)} น.` : ''}${g.stale ? ' · <b>ข้อมูลเก่า</b>' : ''} · ที่มา: ThaiWater</p>
+    <button class="btn btn-sm btn-primary" data-act="point-forecast" data-lat="${g.lat}" data-lng="${g.lng}">ดูพยากรณ์ตรงนี้</button></div>`);
 }
 
 function floodPopup(f) {
@@ -565,6 +605,13 @@ const actions = {
     $('#panel').dataset.open = 'false';
     selectPoint(+lat, +lng, { fly: true });
   },
+  'fly-rain': ({ id }) => {
+    const g = state.rainObs.find((x) => String(x.id) === id);
+    if (!g) return;
+    $('#panel').dataset.open = 'false';
+    map.flyTo({ center: [g.lng, g.lat], zoom: 13 });
+    rainPopup(g);
+  },
   'fly-flood': ({ id }) => {
     const f = state.floods.find((x) => String(x.id) === id);
     if (!f) return;
@@ -678,6 +725,7 @@ document.addEventListener('change', (e) => {
     emit();
   }
 });
+$('#ly-rain').addEventListener('change', (e) => map.setLayoutProperty('rainobs', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-gauges').addEventListener('change', (e) => map.setLayoutProperty('stations', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-reports').addEventListener('change', (e) => map.setLayoutProperty('reports', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-radar').addEventListener('change', (e) => setRadar(e.target.checked));
@@ -750,6 +798,20 @@ async function reloadStations() {
   emit();
 }
 
+async function reloadRainObs() {
+  try {
+    const r = await loadRainObs();
+    state.rainObs = r.gauges;
+    state.rainObsAt = r.at;
+    state.rainObsSrc = r.source;
+    state.rainObsError = null;
+  } catch (e) {
+    state.rainObsError = e.message || String(e);
+  }
+  refreshRainLayer();
+  emit();
+}
+
 async function reloadFloods() {
   try {
     const r = await loadFloods();
@@ -806,11 +868,14 @@ async function main() {
 
   map.on('click', (e) => {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
-    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'stations'] })[0];
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'rainobs', 'stations'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     if (hit) {
       if (['reports', 'report-lines', 'report-areas'].includes(hit.layer.id)) {
         const r = state.reports.find((x) => x.id === hit.properties.id);
         if (r) reportPopup(r);
+      } else if (hit.layer.id === 'rainobs') {
+        const g = state.rainObs.find((x) => String(x.id) === String(hit.properties.id));
+        if (g) rainPopup(g);
       } else if (hit.layer.id === 'floods') {
         const f = state.floods.find((x) => String(x.id) === String(hit.properties.id));
         if (f) floodPopup(f);
@@ -822,7 +887,7 @@ async function main() {
     }
     selectPoint(e.lngLat.lat, e.lngLat.lng);
   });
-  ['reports', 'report-lines', 'report-areas', 'floods', 'stations'].forEach((l) => {
+  ['reports', 'report-lines', 'report-areas', 'floods', 'rainobs', 'stations'].forEach((l) => {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   });
@@ -839,12 +904,13 @@ async function main() {
   });
   const stationsP = reloadStations();
   const floodsP = reloadFloods();
+  const rainP = reloadRainObs();
 
   await loaded;
   map.resize();
   map.jumpTo({ center: [BKK_CENTER.lng, BKK_CENTER.lat], zoom: 10.3 });
   initLayers();
-  await Promise.all([storeP, stationsP, floodsP]);
+  await Promise.all([storeP, stationsP, floodsP, rainP]);
   refreshStationsLayer();
   refreshFloodsLayer();
   render();
@@ -867,6 +933,7 @@ async function main() {
 
   setInterval(reloadStations, 10 * 60 * 1000);
   setInterval(reloadFloods, 5 * 60 * 1000);
+  setInterval(reloadRainObs, 10 * 60 * 1000);
   setInterval(() => {
     refreshOverview();
     refreshSaved();

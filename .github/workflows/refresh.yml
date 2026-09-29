@@ -34,6 +34,7 @@ jobs:
         run: |
           mkdir -p public/data
           node scripts/fetch-stations.mjs || { echo "stations fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/stations.json -o public/data/stations.json || true; }
+          node scripts/fetch-rain.mjs || { echo "rain fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/rain.json -o public/data/rain.json || true; }
           node scripts/fetch-floods.mjs || { echo "floods fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/floods.json -o public/data/floods.json || true; }
       - run: npm run build
       - name: Deploy to Firebase Hosting

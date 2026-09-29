@@ -7,6 +7,7 @@ import { RISK } from '../lib/risk.js';
 import { SEVERITY } from '../lib/traffy.js';
 import { distKm } from '../lib/geo.js';
 import { validQuery } from '../lib/search.js';
+import { intensity1h, intensity24h } from '../lib/rain-obs.js';
 
 export const BKK_CENTER = { lat: 13.7563, lng: 100.5018 };
 
@@ -68,6 +69,69 @@ function tideChart(tide) {
     <line x1="0" y1="${y(0)}" x2="${W}" y2="${y(0)}" stroke="#8a94a3" stroke-dasharray="3 3"/>
     <path d="${path}" fill="none" stroke="#0b6fa8" stroke-width="2"/>
     <circle cx="${x(pk)}" cy="${y(v[pk])}" r="4" fill="#d7263d"/></svg>`;
+}
+
+/* ───────── observed rain + next-3-hours ───────── */
+const mm = (v) => (v === null || v === undefined ? '—' : `${v % 1 ? v.toFixed(1) : v}`);
+
+const rainRow = (g, extra = '') => {
+  const i1 = intensity1h(g.r1);
+  const i24 = intensity24h(g.r24);
+  return `<button class="row-item" data-act="fly-rain" data-id="${esc(g.id)}">
+    <span class="dot" style="background:${g.stale ? '#8a94a3' : i1.color}"></span>
+    <span class="grow"><b>${esc(g.name || 'สถานีวัดฝน')}</b>
+      <small>${esc(g.prov)}${extra} · ${g.t ? `ข้อมูล ${fmtTime(g.t)} น.` : ''}${g.stale ? ' · <b>ข้อมูลเก่า</b>' : ''}</small></span>
+    <span class="val"><span style="color:${i1.color}">${mm(g.r1)}</span><small> มม./ชม.</small><br><span class="rain24" style="color:${i24.color}">${mm(g.r24)}<small> มม./24ชม.</small></span></span></button>`;
+};
+
+function rainObsOverviewCard() {
+  const g = state.rainObs;
+  if (!g.length) return state.rainObsError ? `<section class="card"><h3>ฝนตรวจวัดจริง</h3><p class="note">โหลดข้อมูลสถานีวัดฝนไม่สำเร็จ (${esc(state.rainObsError)})</p></section>` : '';
+  const fresh = g.filter((x) => !x.stale);
+  const wet = fresh.filter((x) => (x.r1 ?? 0) > 0);
+  const top = [...fresh].filter((x) => (x.r1 ?? 0) > 0 || (x.r24 ?? 0) >= 35).sort((a, b) => (b.r1 ?? 0) - (a.r1 ?? 0) || (b.r24 ?? 0) - (a.r24 ?? 0)).slice(0, 5);
+  const heaviest1 = fresh.reduce((m, x) => ((x.r1 ?? 0) > (m?.r1 ?? -1) ? x : m), null);
+  return `<section class="card"><h3>ฝนตรวจวัดจริงตอนนี้</h3>
+    <p class="small">${wet.length ? `<b>${wet.length}</b> จาก ${fresh.length} สถานีวัดฝนรอบ กทม. รายงานว่ามีฝนตกใน 1 ชม. ล่าสุด${heaviest1 && heaviest1.r1 > 0 ? ` · หนักสุด <b>${mm(heaviest1.r1)} มม.</b> ที่${esc(heaviest1.name)}` : ''}` : `ไม่มีสถานีวัดฝนรอบ กทม. รายงานฝนตกใน 1 ชม. ล่าสุด (${fresh.length} สถานีที่มีข้อมูลสด)`}</p>
+    ${top.length ? `<div class="list">${top.map((x) => rainRow(x)).join('')}</div>` : ''}
+    <p class="muted tiny">ที่มา: ThaiWater (สสน.) และหน่วยงานเครือข่าย · ${state.rainObsAt ? `ข้อมูล ณ ${fmtTime(state.rainObsAt)} น.` : ''} สถานีส่วนใหญ่อัปเดตทุก 1 ชม. จึงอาจช้ากว่าฝนจริงได้ · ปริมาณฝนคือน้ำฝนที่วัดได้ที่จุดสถานี ไม่ใช่ทั้งพื้นที่</p></section>`;
+}
+
+// Next ~3 hours from the model hours we already fetched (models refresh hourly; not radar)
+function next3hCard(f) {
+  const rain = f.rain;
+  if (!rain) return '';
+  const H = rain.hours.slice(0, 3);
+  const med = H.reduce((s, h) => s + h.med, 0);
+  const hi = H.reduce((s, h) => s + h.hi, 0);
+  const peak = H.reduce((m, h) => (h.med > m.med ? h : m), H[0]);
+  const top = Math.max(5, Math.ceil(Math.max(...H.map((h) => h.hi)) / 5) * 5);
+  const W = 300;
+  const T = 70;
+  const bw = W / H.length;
+  const y = (v) => T - (v / top) * (T - 12);
+  const bars = H.map((h, i) => `<rect x="${i * bw + 10}" y="${y(h.hi)}" width="${bw - 20}" height="${T - y(h.hi)}" rx="3" fill="#bcd9ee"/>
+    <rect x="${i * bw + 10}" y="${y(h.med)}" width="${bw - 20}" height="${T - y(h.med)}" rx="3" fill="#0b6fa8"/>
+    <text x="${i * bw + bw / 2}" y="${T + 13}" text-anchor="middle" class="ax">${fmtHourKey(h.t)}</text>
+    <text x="${i * bw + bw / 2}" y="${Math.min(y(h.hi) - 3, T - 2)}" text-anchor="middle" class="ax">${h.med}</text>`).join('');
+  const verdict = med >= 30 ? 'ฝนหนักใน 3 ชม. ข้างหน้า' : med >= 10 ? 'มีฝนพอสมควรใน 3 ชม. ข้างหน้า' : med >= 2 ? 'ฝนเล็กน้อยใน 3 ชม. ข้างหน้า' : 'ยังไม่มีสัญญาณฝนใน 3 ชม. ข้างหน้า';
+  return `<section class="card"><h3>ฝนพยากรณ์ 3 ชั่วโมงข้างหน้า</h3>
+    <p class="small"><b>${verdict}</b> — รวม ≈ ${Math.round(med * 10) / 10} มม. (โมเดลที่ฝนมากสุด ≈ ${Math.round(hi * 10) / 10} มม.)${peak.med >= 1 ? ` · ช่วงหนักสุดประมาณ ${fmtHourKey(peak.t)} น. ≈ ${peak.med} มม./ชม.` : ''}</p>
+    <svg class="chart" viewBox="0 0 ${W} ${T + 18}" role="img" aria-label="ฝนพยากรณ์รายชั่วโมง 3 ชั่วโมงข้างหน้า">${bars}</svg>
+    <div class="legend-row"><span><i style="background:#0b6fa8"></i>ค่ากลางของโมเดล (มม./ชม.)</span><span><i style="background:#bcd9ee"></i>โมเดลที่ฝนมากสุด</span></div>
+    <p class="muted tiny">คำนวณจากโมเดลสภาพอากาศ (อัปเดตรายชั่วโมง) ไม่ใช่เรดาร์ — ฝนตกเป็นกลุ่มเล็กๆ ระยะสั้นอาจคลาดเคลื่อนได้มาก ดูเรดาร์ที่ปุ่ม "เลเยอร์" ประกอบ</p></section>`;
+}
+
+function rainNearCard(f) {
+  const near = f.rainNear || [];
+  if (!state.rainObs.length) return '';
+  const o = f.obs;
+  return `<section class="card"><h3>ฝนตรวจวัดจริงใกล้จุดนี้</h3>${
+    near.length
+      ? `${o && o.r1 > 0 ? `<p class="small">ฝนตกเมื่อ 1 ชม. ที่ผ่านมา สูงสุด <b>${mm(o.r1)} มม.</b> ที่${esc(o.r1Name)} (${o.r1Km.toFixed(1)} กม.)</p>` : '<p class="small">สถานีใกล้เคียงไม่รายงานฝนตกใน 1 ชม. ล่าสุด</p>'}
+         <div class="list">${near.map((g) => rainRow(g, ` · ${g.km.toFixed(1)} กม.`)).join('')}</div>`
+      : '<p class="muted small">ไม่มีสถานีวัดฝนภายใน 12 กม. จากจุดนี้</p>'
+  }<p class="muted tiny">ที่มา: ThaiWater · ข้อมูลบางสถานีเก่ากว่า 1 ชม. ดูเวลากำกับแต่ละแถว</p></section>`;
 }
 
 /* ───────── flood complaints (Traffy / BMA) ───────── */
@@ -202,7 +266,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · โมเดล Open-Meteo Marine (ค่าประมาณ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${tideCard}`;
+  return `${floodsOverviewCard()}${rainObsOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${tideCard}`;
 }
 
 export function forecastTab() {
@@ -249,6 +313,8 @@ export function forecastTab() {
 
   return `${riskCard(f, title)}
     ${nearCard}
+    ${rainNearCard(f)}
+    ${next3hCard(f)}
     <section class="card"><h3>ฝนพยากรณ์ 48 ชั่วโมง</h3>${nums}${rainChart(rain)}</section>
     <section class="card"><h3>สถานีวัดน้ำใกล้เคียง</h3>${gaugeList}</section>
     <section class="card">${saveRow}</section>${saved}`;
@@ -341,7 +407,7 @@ export function helpTab() {
   <section class="card"><h3>แหล่งข้อมูลและเครดิต</h3>
     <p class="small">เว็บนี้รวมข้อมูลสาธารณะเพื่อช่วยตัดสินใจ ไม่ใช่ประกาศของทางราชการ ขอขอบคุณแหล่งข้อมูล:</p>
     <ul class="small src"><li><b>จุดน้ำท่วม:</b> Traffy Fondue / กรุงเทพมหานคร (เรื่องร้องเรียนของประชาชน)</li>
-    <li><b>ระดับน้ำ/ฝนสถานี:</b> ThaiWater (สถาบันสารสนเทศทรัพยากรน้ำ) · กรมชลประทาน</li>
+    <li><b>ระดับน้ำ และฝนตรวจวัดจริง:</b> ThaiWater (สถาบันสารสนเทศทรัพยากรน้ำ) · กรมชลประทาน และหน่วยงานเครือข่ายสถานีวัดฝน</li>
     <li><b>พยากรณ์ฝน น้ำทะเลหนุน น้ำเหนือ:</b> Open-Meteo (ECMWF, NOAA GFS, DWD ICON, GloFAS)</li>
     <li><b>เรดาร์ฝน:</b> RainViewer · <b>แผนที่:</b> © OpenStreetMap contributors</li></ul>
     <p class="muted tiny">รูปที่ส่งเข้ามาจะถูกลบพิกัด/ข้อมูลกล้อง (EXIF) ก่อนอัปโหลด ไม่เก็บเบอร์โทร รายงานจะหายจากแผนที่ใน 4 ชม. หากไม่มีผู้ยืนยัน แต่ข้อมูลอาจยังถูกเก็บในระบบจนกว่าผู้จัดทำจะลบ</p></section>

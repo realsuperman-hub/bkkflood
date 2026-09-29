@@ -1,5 +1,6 @@
 import { TW_URL, normalizeStations, STALE_MS } from './thaiwater.js';
 import { traffyUrl, normalizeFloods, FLOOD_WINDOW_MS } from './traffy.js';
+import { RAIN_URL, normalizeRain, RAIN_STALE_MS } from './rain-obs.js';
 
 const SNAPSHOT_MAX_AGE = 30 * 60 * 1000;
 
@@ -53,3 +54,24 @@ export async function loadFloods() {
 
 // A snapshot can be minutes/hours old: drop anything that has since left the 24 h window.
 const prune = (floods, now = Date.now()) => floods.filter((f) => now - f.t < FLOOD_WINDOW_MS);
+
+// Observed rain gauges. Snapshot first (~30 KB); the raw ThaiWater response is 4.5 MB for all of Thailand, so it is only a fallback.
+const restaleRain = (gauges, now = Date.now()) => gauges.map((g) => ({ ...g, stale: g.t === null || now - g.t > RAIN_STALE_MS }));
+export async function loadRainObs() {
+  let snap = null;
+  try {
+    const r = await fetch(`${import.meta.env.BASE_URL}data/rain.json`, { cache: 'no-cache' });
+    if (r.ok) snap = await r.json();
+  } catch {
+    /* no snapshot */
+  }
+  if (snap?.gauges && Date.now() - snap.generatedAt < 45 * 60 * 1000) return { gauges: restaleRain(snap.gauges), at: snap.generatedAt, source: 'snapshot' };
+  try {
+    const res = await fetch(RAIN_URL, { signal: AbortSignal.timeout(45000) });
+    if (!res.ok) throw new Error(`ThaiWater rain HTTP ${res.status}`);
+    return { gauges: normalizeRain(await res.json()), at: Date.now(), source: 'live' };
+  } catch (e) {
+    if (snap?.gauges) return { gauges: restaleRain(snap.gauges), at: snap.generatedAt, source: 'snapshot-old' };
+    throw e;
+  }
+}

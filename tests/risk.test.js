@@ -93,3 +93,14 @@ test('nearby complaints raise the score (observed flooding beats a dry forecast)
   assert.equal(h.score, 3);
   assert.equal(h.level, 1);
 });
+
+test('observed rain at nearby gauges raises the score and is explained', () => {
+  const rain = { next24: 0, peakHour: 0, past48: 0, max24: 0, min24: 0 };
+  const obs = (r1, r24 = 0) => ({ r1, r1Name: 'สถานีทดสอบ', r1Km: 2.3, r24, r24Name: 'สถานีทดสอบ', r24Km: 2.3, n: 3 });
+  assert.equal(assess({ rain, obs: obs(0) }).score, 0);
+  assert.equal(assess({ rain, obs: obs(3) }).score, 1);
+  assert.equal(assess({ rain, obs: obs(15) }).score, 2);
+  const heavy = assess({ rain, obs: obs(45, 120) });
+  assert.equal(heavy.score, 4);
+  assert.match(heavy.reasons[0].text, /ฝนตรวจวัดจริง.*45/);
+});
