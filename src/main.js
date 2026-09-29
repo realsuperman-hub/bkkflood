@@ -3,7 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
-import { loadStations, loadFloods, loadRainObs } from './lib/data.js';
+import { loadStations, loadFloods, loadRainObs, loadAccuracy } from './lib/data.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
 import { evaluate } from './lib/evaluate.js';
@@ -15,6 +15,7 @@ import { TAB_RENDER, BKK_CENTER } from './ui/panel.js';
 import { openReportDialog } from './ui/report.js';
 import { matchFloods, matchStations, matchReports, geocode, validQuery } from './lib/search.js';
 import { pushStatus, enablePush, disablePush, syncPush } from './lib/push.js';
+import { SITE_URL, lineLink, shareNative, siteShare, pointShare } from './lib/share.js';
 import { KINDS, MIN_VERTS, MAX_VERTS, toGeometry, unflatten, validate, describe, lengthM, areaM2, fmtLen, fmtArea, anchor } from './lib/shape.js';
 
 const $ = (s) => document.querySelector(s);
@@ -512,6 +513,15 @@ function addVertex(lat, lng) {
   refreshDraft();
 }
 
+async function doShare(payload) {
+  try {
+    const r = await shareNative(payload);
+    if (r === 'copied') toast('คัดลอกข้อความและลิงก์แล้ว — วางส่งต่อได้เลย');
+  } catch {
+    toast(payload.url, 8000);
+  }
+}
+
 /* ───────────── search ───────────── */
 function fitTo(pts) {
   const b = new maplibregl.LngLatBounds();
@@ -588,6 +598,26 @@ const actions = {
       state.push = { ...pushStatus(), error: e.message || String(e) };
     }
     emit();
+  },
+  'share-site': () => doShare(siteShare()),
+  'line-site': () => window.open(lineLink(siteShare().text, SITE_URL), '_blank', 'noopener'),
+  'copy-site': async () => {
+    try {
+      await navigator.clipboard.writeText(SITE_URL);
+      toast('คัดลอกลิงก์แล้ว');
+    } catch {
+      toast(SITE_URL, 8000);
+    }
+  },
+  'share-point': () => {
+    const f = state.selected;
+    if (f) doShare(pointShare(f.lat, f.lng, state.forecast));
+  },
+  'line-point': () => {
+    const f = state.selected;
+    if (!f) return;
+    const s = pointShare(f.lat, f.lng, state.forecast);
+    window.open(lineLink(s.text, s.url), '_blank', 'noopener');
   },
   'clear-search': () => {
     state.search = null;
@@ -923,6 +953,7 @@ async function main() {
   if (m) selectPoint(+m[1], +m[3], { fly: true });
 
   state.push = pushStatus();
+  loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
   emit();
   window.addEventListener('online', () => { renderBanner(); reloadStations(); reloadFloods(); });
   window.addEventListener('offline', renderBanner);

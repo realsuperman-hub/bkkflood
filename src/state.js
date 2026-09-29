@@ -30,6 +30,7 @@ export const state = {
   savedEval: {}, // id -> evaluate() result
   overview: null, // evaluate() result for Bangkok centre
   tab: 'overview',
+  accuracy: null, // accuracy.json or null
   push: null, // { ok, reason?, permission, enabled, busy?, error? }
   search: null, // { q, status: 'loading'|'done', floods, stations, reports, places }
   district: '', // district filter in the flood-points tab

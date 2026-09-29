@@ -66,7 +66,8 @@ const parseTs = (s) => {
 const first = (v) => (Array.isArray(v) ? v[0] : v);
 const isFlood = (v) => (Array.isArray(v) ? v : [v]).some((x) => String(x).includes('น้ำท่วม'));
 
-export function normalizeFloods(raw, now = Date.now()) {
+// opts.history: keep resolved reports and any age (used only to grade past forecasts)
+export function normalizeFloods(raw, now = Date.now(), opts = {}) {
   const feats = raw?.features;
   if (!Array.isArray(feats)) throw new Error('Traffy: unexpected response shape');
 
@@ -75,12 +76,13 @@ export function normalizeFloods(raw, now = Date.now()) {
     const p = f.properties || {};
     const c = f.geometry?.coordinates;
     if (!c || !isFlood(p.problem_type_fondue)) continue;
-    if (['finish', 'irrelevant'].includes(p.state_type_latest)) continue; // resolved / not a real report
+    if (p.state_type_latest === 'irrelevant') continue;
+    if (!opts.history && p.state_type_latest === 'finish') continue; // resolved
     const [lng, lat] = c;
     if (!inBounds(lat, lng)) continue;
     const t = parseTs(p.timestamp);
     const act = parseTs(p.last_activity) ?? t;
-    if (t === null || now - Math.max(t, act) > FLOOD_WINDOW_MS) continue;
+    if (t === null || (!opts.history && now - Math.max(t, act) > FLOOD_WINDOW_MS)) continue;
 
     const text = String(p.description || '').replace(/\s+/g, ' ').trim();
     const { lvl, depth, help } = classify(text);
@@ -105,6 +107,9 @@ export function normalizeFloods(raw, now = Date.now()) {
   }
   return out.sort((a, b) => b.lvl - a.lvl || b.t - a.t);
 }
+
+// One calendar day (Bangkok) of reports — used for grading past forecasts.
+export const traffyDayUrl = (day) => `${TRAFFY_URL}?limit=2500&start_date=${day}&end_date=${day}`;
 
 // Traffy ignores its own filter params, so we request a date window and filter locally.
 export function traffyUrl(now = Date.now()) {

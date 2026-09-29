@@ -75,3 +75,12 @@ export async function loadRainObs() {
     throw e;
   }
 }
+
+// Published accuracy report (may not exist yet).
+export async function loadAccuracy() {
+  const r = await fetch(`${import.meta.env.BASE_URL}data/accuracy.json`, { cache: 'no-cache' });
+  if (!r.ok) throw new Error(`accuracy HTTP ${r.status}`);
+  const j = await r.json();
+  if (!j || typeof j.samples !== 'number') throw new Error('accuracy: unexpected shape');
+  return j;
+}

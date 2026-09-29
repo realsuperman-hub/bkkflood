@@ -36,6 +36,16 @@ jobs:
           node scripts/fetch-stations.mjs || { echo "stations fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/stations.json -o public/data/stations.json || true; }
           node scripts/fetch-rain.mjs || { echo "rain fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/rain.json -o public/data/rain.json || true; }
           node scripts/fetch-floods.mjs || { echo "floods fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/floods.json -o public/data/floods.json || true; }
+      - name: Accuracy report (every 6 h; other runs reuse the live one)
+        continue-on-error: true
+        run: |
+          mkdir -p public/data
+          H=$(date -u +%H); M=$(date -u +%M)
+          if { [ $((10#$H % 6)) -eq 0 ] && [ $((10#$M)) -lt 15 ]; } || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            node scripts/evaluate-accuracy.mjs || curl -sf https://bkkflood.web.app/data/accuracy.json -o public/data/accuracy.json || true
+          else
+            curl -sf https://bkkflood.web.app/data/accuracy.json -o public/data/accuracy.json || true
+          fi
       - run: npm run build
       - name: Deploy to Firebase Hosting
         run: npx --yes firebase-tools@latest deploy --only hosting --project bkkflood-d54cc
@@ -43,6 +53,9 @@ jobs:
         # a notifier failure must never block the data refresh above
         continue-on-error: true
         run: node scripts/notify.mjs
+      - name: Log forecast for accuracy tracking
+        continue-on-error: true
+        run: node scripts/log-eval.mjs
       - name: Remove credentials
         if: always()
         run: rm -f "$GOOGLE_APPLICATION_CREDENTIALS"

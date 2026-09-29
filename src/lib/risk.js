@@ -13,9 +13,11 @@ export const RISK = [
 export function assess({ rain, tide, gauges = [], upstream, elevation, regional, nearby, obs }) {
   const reasons = [];
   let score = 0;
-  const add = (pts, text) => {
+  let fcScore = 0; // part driven by forecasts/terrain only (no observed floods, gauges or rain) — used to grade forecast skill
+  const add = (pts, text, kind = 'obs') => {
     if (pts > 0) {
       score += pts;
+      if (kind === 'fc') fcScore += pts;
       reasons.push({ pts, text });
     }
   };
@@ -36,13 +38,13 @@ export function assess({ rain, tide, gauges = [], upstream, elevation, regional,
 
   if (rain) {
     const r24 = rain.next24;
-    add(r24 >= 100 ? 4 : r24 >= 60 ? 3 : r24 >= 30 ? 2 : r24 >= 10 ? 1 : 0, `ฝนพยากรณ์ 24 ชม. ข้างหน้า ≈ ${r24} มม.`);
-    add(rain.peakHour >= 60 ? 2 : rain.peakHour >= 30 ? 1 : 0, `ช่วงฝนหนักสุด ≈ ${rain.peakHour} มม./ชม. (ระบบระบายน้ำ กทม. รับได้ราว 60 มม./ชม.)`);
-    add(rain.past48 >= 60 ? 1 : 0, `ฝนสะสมย้อนหลัง 2 วัน ≈ ${rain.past48} มม. ท่อและคลองอาจยังไม่ระบายหมด`);
+    add(r24 >= 100 ? 4 : r24 >= 60 ? 3 : r24 >= 30 ? 2 : r24 >= 10 ? 1 : 0, `ฝนพยากรณ์ 24 ชม. ข้างหน้า ≈ ${r24} มม.`, 'fc');
+    add(rain.peakHour >= 60 ? 2 : rain.peakHour >= 30 ? 1 : 0, `ช่วงฝนหนักสุด ≈ ${rain.peakHour} มม./ชม. (ระบบระบายน้ำ กทม. รับได้ราว 60 มม./ชม.)`, 'fc');
+    add(rain.past48 >= 60 ? 1 : 0, `ฝนสะสมย้อนหลัง 2 วัน ≈ ${rain.past48} มม. ท่อและคลองอาจยังไม่ระบายหมด`, 'fc');
   }
 
   const wet = rain && rain.next24 >= 10;
-  if (tide?.high && wet) add(1, `น้ำทะเลหนุนสูง (≈ ${tide.peak} ม.รทก.) ตรงกับช่วงฝนตก ทำให้ระบายน้ำออกทะเลช้าลง`);
+  if (tide?.high && wet) add(1, `น้ำทะเลหนุนสูง (≈ ${tide.peak} ม.รทก.) ตรงกับช่วงฝนตก ทำให้ระบายน้ำออกทะเลช้าลง`, 'fc');
 
   const worst = [...gauges].sort((a, b) => b.level - a.level || (b.over ?? -9) - (a.over ?? -9))[0];
   if (worst && !worst.stale) {
@@ -62,7 +64,7 @@ export function assess({ rain, tide, gauges = [], upstream, elevation, regional,
   if (upstream?.q >= 2400) add(1, `น้ำเหนือที่เขื่อนเจ้าพระยาไหลลงมา ${Math.round(upstream.q).toLocaleString('th-TH')} ลบ.ม./วินาที (ค่อนข้างสูง)`);
 
   if (elevation !== null && elevation !== undefined && elevation <= 1.5) {
-    add(1, `พื้นที่ต่ำ (ความสูงโดยประมาณ ${elevation} ม.รทก. — ข้อมูลหยาบ คลาดเคลื่อนได้ ±1 ม.)`);
+    add(1, `พื้นที่ต่ำ (ความสูงโดยประมาณ ${elevation} ม.รทก. — ข้อมูลหยาบ คลาดเคลื่อนได้ ±1 ม.)`, 'fc');
   }
 
   reasons.sort((a, b) => b.pts - a.pts);
@@ -72,5 +74,5 @@ export function assess({ rain, tide, gauges = [], upstream, elevation, regional,
   if (rain && rain.max24 >= 30 && rain.min24 < 10) {
     notes.push(`แบบจำลองสภาพอากาศไม่ตรงกัน (ฝน 24 ชม.: ${rain.min24}–${rain.max24} มม.) ควรเผื่อกรณีฝนมากกว่าที่แสดง`);
   }
-  return { score, level, ...RISK[level], reasons, notes };
+  return { score, fcScore, level, ...RISK[level], reasons, notes };
 }

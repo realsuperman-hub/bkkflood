@@ -266,7 +266,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · โมเดล Open-Meteo Marine (ค่าประมาณ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${rainObsOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${tideCard}`;
+  return `${floodsOverviewCard()}${rainObsOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${tideCard}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {
@@ -309,7 +309,9 @@ export function forecastTab() {
     <button class="btn btn-sm" data-act="save-place" data-label="ที่จอดรถ">🚗 ที่จอดรถ</button>
     <button class="btn btn-sm" data-act="save-place" data-label="ที่ทำงาน">🏢 ที่ทำงาน</button>
     ${already ? `<button class="btn btn-sm btn-ghost" data-act="del-place" data-id="${esc(already.id)}">ลบจุดที่บันทึก</button>` : ''}
-    <button class="btn btn-sm btn-ghost" data-act="copy-link">คัดลอกลิงก์จุดนี้</button></div>`;
+    <button class="btn btn-sm" data-act="line-point">ส่งทางไลน์</button>
+    <button class="btn btn-sm" data-act="share-point">แชร์จุดนี้</button>
+    <button class="btn btn-sm btn-ghost" data-act="copy-link">คัดลอกลิงก์</button></div>`;
 
   return `${riskCard(f, title)}
     ${nearCard}
@@ -387,6 +389,25 @@ export function reportsTab() {
   return `${searchCard()}${govt}${mine}`;
 }
 
+const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`);
+
+function accuracyCard() {
+  const a = state.accuracy;
+  if (!a) return '';
+  const head = '<h3>ความแม่นยำของระบบเตือน (ทดลอง)</h3>';
+  const foot = `<p class="muted tiny">วัดจากเรื่องแจ้งน้ำท่วมระดับปานกลาง/หนักที่ประชาชนแจ้ง กทม. ภายใน 24 ชม. หลังการประเมิน ในรัศมี 2 กม. — เป็นตัวแทนที่ไม่สมบูรณ์ (พื้นที่คนน้อยมักแจ้งน้อย) · อัปเดต ${a.generatedAt ? fmtTime(a.generatedAt) : ''} น.</p>`;
+  if (!a.ready) {
+    return `<section class="card">${head}<p class="small">กำลังเก็บข้อมูลเพื่อตรวจสอบ: มีผลประเมินครบ 24 ชม. แล้ว <b>${a.samples.toLocaleString('th-TH')}</b> ตัวอย่าง (${a.days} วัน, ${a.events} เหตุการณ์) — จะแสดงผลเมื่อมีอย่างน้อย ${a.need.minDays} วันและ ${a.need.minEvents} เหตุการณ์</p>${foot}</section>`;
+  }
+  const lv = a.byLevel.find((x) => x.th === 2) || a.byLevel[0];
+  const p = a.persistence;
+  return `<section class="card">${head}
+    <p class="small">ย้อนดู ${a.days} วัน (${a.samples.toLocaleString('th-TH')} ตัวอย่าง) ทุกครั้งที่ระบบเตือนระดับ <b>"เตรียมย้ายของ" ขึ้นไป</b>:</p>
+    <div class="stats"><div><b>${pct(lv.pod)}</b><small>ของเหตุน้ำท่วมจริง ที่ระบบเตือนไว้ก่อน</small></div><div><b>${pct(lv.far === null ? null : 1 - lv.far)}</b><small>ของการเตือน ที่มีเหตุท่วมตามมาจริง</small></div><div><b>${lv.warned.toLocaleString('th-TH')}</b><small>ครั้งที่เตือน</small></div><div><b>${pct(a.baseRate)}</b><small>สัดส่วนที่ท่วมโดยรวม</small></div></div>
+    <p class="small">เทียบกับวิธีง่ายๆ "เมื่อวานที่นี่ท่วม วันนี้ก็ท่วม": จับเหตุได้ ${pct(p.pod)}, เตือนถูก ${pct(p.far === null ? null : 1 - p.far)} ${lv.pod !== null && p.pod !== null && lv.pod < p.pod ? '— <b>ในช่วงที่วัด ระบบเรายังไม่ดีกว่าวิธีง่ายๆ</b> ควรอ่านการเตือนควบคู่กับจุดที่มีคนแจ้งจริงบนแผนที่' : ''}</p>
+    ${foot}</section>`;
+}
+
 export function helpTab() {
   const tel = (n, t, sub) => `<a class="tel" href="tel:${n}"><b>${n}</b><span>${t}<small>${sub}</small></span></a>`;
   return `<section class="card"><h3>เบอร์ฉุกเฉิน (แตะเพื่อโทร)</h3>
@@ -404,6 +425,7 @@ export function helpTab() {
     <li>ตัดวงจรไฟชั้นล่างเมื่อน้ำเริ่มเข้า ห้ามแตะปลั๊กไฟขณะยืนในน้ำ</li>
     <li>อย่าขับรถลุยน้ำลึกเกินครึ่งล้อ หากเครื่องดับห้ามสตาร์ทซ้ำ</li>
     <li>เตรียมอาหาร น้ำดื่ม ยา ไฟฉาย และช่องทางติดต่อครอบครัว</li></ul></section>
+  ${accuracyCard()}
   <section class="card"><h3>แหล่งข้อมูลและเครดิต</h3>
     <p class="small">เว็บนี้รวมข้อมูลสาธารณะเพื่อช่วยตัดสินใจ ไม่ใช่ประกาศของทางราชการ ขอขอบคุณแหล่งข้อมูล:</p>
     <ul class="small src"><li><b>จุดน้ำท่วม:</b> Traffy Fondue / กรุงเทพมหานคร (เรื่องร้องเรียนของประชาชน)</li>
@@ -411,6 +433,9 @@ export function helpTab() {
     <li><b>พยากรณ์ฝน น้ำทะเลหนุน น้ำเหนือ:</b> Open-Meteo (ECMWF, NOAA GFS, DWD ICON, GloFAS)</li>
     <li><b>เรดาร์ฝน:</b> RainViewer · <b>แผนที่:</b> © OpenStreetMap contributors</li></ul>
     <p class="muted tiny">รูปที่ส่งเข้ามาจะถูกลบพิกัด/ข้อมูลกล้อง (EXIF) ก่อนอัปโหลด ไม่เก็บเบอร์โทร รายงานจะหายจากแผนที่ใน 4 ชม. หากไม่มีผู้ยืนยัน แต่ข้อมูลอาจยังถูกเก็บในระบบจนกว่าผู้จัดทำจะลบ</p></section>
+  <section class="card"><h3>ส่งต่อให้เพื่อนบ้าน</h3>
+    <p class="small">ยิ่งมีคนใช้และแจ้งมาก ข้อมูลยิ่งครบ — ช่วยกันส่งต่อลิงก์ให้คนในพื้นที่เสี่ยง</p>
+    <div class="row wrap"><button class="btn btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn" data-act="share-site">แชร์…</button><button class="btn btn-ghost" data-act="copy-site">คัดลอกลิงก์</button></div></section>
   <section class="card credit"><h3>ผู้จัดทำ</h3>
     <p class="small">นาย เอกสิทธิ์ จิตรสถาพร<br>ติดต่อ: <a href="mailto:aggasit.j@gmail.com">aggasit.j@gmail.com</a></p></section>`;
 }
