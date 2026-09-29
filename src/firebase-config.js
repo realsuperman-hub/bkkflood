@@ -9,3 +9,6 @@ export const firebaseConfig = {
 
 // Web Push certificate (public key) from Firebase console > Cloud Messaging. null = SDK default key.
 export const vapidKey = null;
+
+// App Check (reCAPTCHA Enterprise, score-based) site key — public. Registered for the web app in Firebase App Check.
+export const appCheckSiteKey = '6LcXy9UtAAAAAL0LqloSZQC8AOMEv7tbABH6Sl2n';

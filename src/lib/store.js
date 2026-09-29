@@ -1,7 +1,7 @@
 // Crowd-report storage. Two backends behind one interface:
 //  - firebase: Firestore + anonymous auth (no login screen for the user)
 //  - local:    localStorage demo mode when no Firebase config is present
-import { firebaseConfig } from '../firebase-config.js';
+import { firebaseConfig, appCheckSiteKey } from '../firebase-config.js';
 import { unflatten } from './shape.js';
 
 export const REPORT_TTL_H = 4; // a report disappears unless someone re-confirms it
@@ -107,12 +107,23 @@ function createLocalStore() {
 
 /* ───────────── Firebase backend ───────────── */
 async function createFirebaseStore() {
-  const [{ initializeApp }, auth, fs] = await Promise.all([
+  const [{ initializeApp }, auth, fs, appCheck] = await Promise.all([
     import('firebase/app'),
     import('firebase/auth'),
     import('firebase/firestore'),
+    import('firebase/app-check'),
   ]);
   const app = initializeApp(firebaseConfig);
+  // App Check must start before Auth/Firestore make their first request. It proves requests come from our real site
+  // (reCAPTCHA Enterprise), so scripts cannot mass-create anonymous accounts or spam the database with the public API key.
+  // If reCAPTCHA cannot load (ad-blocker, offline) we carry on: reads/writes then fail only if enforcement is on.
+  try {
+    if (appCheckSiteKey) {
+      appCheck.initializeAppCheck(app, { provider: new appCheck.ReCaptchaEnterpriseProvider(appCheckSiteKey), isTokenAutoRefreshEnabled: true });
+    }
+  } catch (e) {
+    console.warn('App Check init failed', e);
+  }
   const db = fs.initializeFirestore(app, {
     localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }),
   });

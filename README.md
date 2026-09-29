@@ -16,6 +16,14 @@
 ปุ่ม "แจ้งจุดน้ำท่วม" มี 3 โหมด: ปักหมุดจุด · วาดถนนช่วงที่ท่วม (แตะตามแนวถนน 2–40 จุด) · วาดพื้นที่ (3–40 จุด) แสดงความยาว/ขนาดอัตโนมัติ เก็บใน Firestore เป็น `kind` + `geom` (`[lat,lng,lat,lng,...]`) โค้ดอยู่ `src/lib/shape.js`, กฎตรวจใน `firestore.rules` (ทดสอบด้วย `npm run test:rules`)
 ยังไม่มีการ "ปรับเส้นให้ตรงถนนอัตโนมัติ" — ลอง OSRM map-matching แล้วผลเพี้ยน (confidence 0)
 
+## App Check (กันบอต/สคริปต์ใช้ Firebase ของเรา)
+- เว็บส่ง "หลักฐานว่ามาจากเว็บจริง" (reCAPTCHA Enterprise แบบคะแนน ไม่มีให้ผู้ใช้กดรูป) ไปกับทุกคำขอ Firestore/Auth · โค้ดอยู่ใน `src/lib/store.js` (`initializeAppCheck`), คีย์สาธารณะใน `src/firebase-config.js`
+- ตั้งค่าที่ Google Cloud: reCAPTCHA key `bkkflood-web` (โดเมน bkkflood.web.app, bkkflood-d54cc.web.app/.firebaseapp.com, localhost) + Firebase App Check ผูกกับ Web app, อายุโทเคน 7 วัน
+- **ถ้าเปิดบังคับ (Enforce) แล้วมีปัญหา** — ปิดด้วยคำสั่ง (ต้อง login gcloud): 
+  `curl -X PATCH -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "x-goog-user-project: bkkflood-d54cc" -H "Content-Type: application/json" -d '{"enforcementMode":"UNENFORCED"}' "https://firebaseappcheck.googleapis.com/v1/projects/bkkflood-d54cc/services/firestore.googleapis.com?updateMask=enforcementMode"` (แทน `firestore.googleapis.com` ด้วย `identitytoolkit.googleapis.com` สำหรับ Auth)
+- **โควตา:** reCAPTCHA ฟรี 10,000 ครั้ง/เดือน (1 ครั้ง ≈ 1 เครื่องต่อ 7 วัน) เกินแล้วต้องผูกบัญชีเรียกเก็บเงิน — ถ้าเต็มขณะเปิดบังคับ ผู้ใช้ใหม่จะส่งรายงาน/เปิดแจ้งเตือนไม่ได้ (การดูแผนที่/ข้อมูลไม่กระทบ เพราะไม่ผ่าน Firestore)
+- ตัวส่งแจ้งเตือนใช้ Admin SDK ไม่ผ่าน App Check
+
 ## ฝนตรวจวัดจริง + ฝน 3 ชม. ข้างหน้า
 - **ฝนตรวจวัดจริง:** ThaiWater `rain_24h` (ทั่วประเทศ 4.5 MB) → `scripts/fetch-rain.mjs` กรองเหลือ ~150 สถานีรอบ กทม. → `public/data/rain.json` (~30 KB) แสดงในแท็บสถานการณ์ ("ฝนตรวจวัดจริงตอนนี้"), แท็บพยากรณ์จุด (สถานีใกล้จุดนั้น ≤12 กม.) และเลเยอร์ "สถานีวัดฝน" บนแผนที่ · คิดเข้าคะแนนความเสี่ยงและตัวส่งแจ้งเตือนด้วย (`src/lib/rain-obs.js`)
 - สถานีส่วนใหญ่อัปเดตรายชั่วโมง และมีบางสถานีเงียบเกิน 3 ชม. (ถือเป็น "ข้อมูลเก่า" ไม่นำมาคิดคะแนน) · `rain_1h` ว่างในบางสถานี
