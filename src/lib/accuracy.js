@@ -17,8 +17,14 @@ export function sampleGrid() {
   return pts;
 }
 
-// Compact log record: p = [[index, level, score, fcScore, obsScore], ...]
-export const makeRecord = (t, results) => ({ t, v: 1, p: results.map((r) => [r.i, r.level, r.score, r.fcScore, r.obsScore]) });
+// Compact log record. Firestore forbids nested arrays, so p is FLAT with stride 5: [index, level, score, fcScore, obsScore, index, ...]
+export const STRIDE = 5;
+export const makeRecord = (t, results) => ({ t, v: 2, p: results.flatMap((r) => [r.i, r.level, r.score, r.fcScore, r.obsScore]) });
+const rows = (rec) => {
+  const out = [];
+  for (let k = 0; k + STRIDE <= rec.p.length; k += STRIDE) out.push(rec.p.slice(k, k + STRIDE));
+  return out;
+};
 
 const near = (a, b) => Math.abs(a[0] - b[0]) < 0.03 && Math.abs(a[1] - b[1]) < 0.03 && distKm(a[0], a[1], b[0], b[1]) <= RADIUS_KM;
 
@@ -29,7 +35,7 @@ export function labelSamples(records, complaints, grid, now = Date.now()) {
   for (const rec of records) {
     if (rec.t + HORIZON_MS > now) continue; // the 24 h outcome window is not complete yet
     const win = hot.filter((c) => c.t > rec.t - HORIZON_MS && c.t <= rec.t + HORIZON_MS);
-    for (const [i, level, score, fcScore, obsScore] of rec.p) {
+    for (const [i, level, score, fcScore, obsScore] of rows(rec)) {
       const g = grid[i];
       if (!g) continue;
       let event = false;
