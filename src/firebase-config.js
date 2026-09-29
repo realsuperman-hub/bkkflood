@@ -4,7 +4,9 @@ export const firebaseConfig = {
   "apiKey": "AIzaSyCYBgHfgDKYDnjIhLJLjChZOE05XYjy4R8",
   "authDomain": "bkkflood-d54cc.firebaseapp.com",
   "projectId": "bkkflood-d54cc",
-  "appId": "1:660111617024:web:cbcd374a5032c81b7d3ce5"
+  "appId": "1:660111617024:web:cbcd374a5032c81b7d3ce5",
+  "storageBucket": "bkkflood-d54cc.firebasestorage.app",
+  "messagingSenderId": "660111617024" // required by Cloud Messaging (push); it is the Firebase project number
 };
 
 // Web Push certificate (public key) from Firebase console > Cloud Messaging. null = SDK default key.
