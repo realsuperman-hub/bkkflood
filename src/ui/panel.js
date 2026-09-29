@@ -304,22 +304,29 @@ export function forecastTab() {
   }${floodsSourceNote()}</section>`;
 
   const already = state.saved.find((p) => Math.abs(p.lat - f.lat) < 1e-4 && Math.abs(p.lng - f.lng) < 1e-4);
-  const saveRow = `<div class="row wrap"><span class="small muted">บันทึกจุดนี้เป็น:</span>
-    <button class="btn btn-sm" data-act="save-place" data-label="บ้าน">🏠 บ้าน</button>
-    <button class="btn btn-sm" data-act="save-place" data-label="ที่จอดรถ">🚗 ที่จอดรถ</button>
-    <button class="btn btn-sm" data-act="save-place" data-label="ที่ทำงาน">🏢 ที่ทำงาน</button>
-    ${already ? `<button class="btn btn-sm btn-ghost" data-act="del-place" data-id="${esc(already.id)}">ลบจุดที่บันทึก</button>` : ''}
+  // Right under the risk card — this is what unlocks the home-screen risk chips and push alerts, so it must not be buried
+  const saveCard = `<section class="card hint"><h3>📌 บันทึกจุดนี้</h3>
+    <p class="small">บันทึกแล้วจะเห็นความเสี่ยงของจุดนี้ทันทีทุกครั้งที่เปิดเว็บ และเปิดรับแจ้งเตือนได้</p>
+    <div class="row wrap" style="margin-top:6px">
+    <button class="btn btn-primary" data-act="save-place" data-label="บ้าน">🏠 บ้าน</button>
+    <button class="btn btn-primary" data-act="save-place" data-label="ที่จอดรถ">🚗 ที่จอดรถ</button>
+    <button class="btn btn-primary" data-act="save-place" data-label="ที่ทำงาน">🏢 ที่ทำงาน</button>
+    ${already ? `<button class="btn btn-ghost" data-act="del-place" data-id="${esc(already.id)}">ลบจุดที่บันทึก</button>` : ''}</div>
+    ${already ? `<p class="small">✅ บันทึกไว้แล้วเป็น "${esc(already.label)}" — ไปแท็บ "สถานการณ์" เพื่อเปิดแจ้งเตือน</p>` : ''}</section>`;
+
+  const shareRow = `<div class="row wrap"><span class="small muted">ส่งจุดนี้ให้เพื่อน:</span>
     <button class="btn btn-sm" data-act="line-point">ส่งทางไลน์</button>
     <button class="btn btn-sm" data-act="share-point">แชร์จุดนี้</button>
     <button class="btn btn-sm btn-ghost" data-act="copy-link">คัดลอกลิงก์</button></div>`;
 
   return `${riskCard(f, title)}
+    ${saveCard}
     ${nearCard}
     ${rainNearCard(f)}
     ${next3hCard(f)}
     <section class="card"><h3>ฝนพยากรณ์ 48 ชั่วโมง</h3>${nums}${rainChart(rain)}</section>
     <section class="card"><h3>สถานีวัดน้ำใกล้เคียง</h3>${gaugeList}</section>
-    <section class="card">${saveRow}</section>${saved}`;
+    <section class="card">${shareRow}</section>${saved}`;
 }
 
 function searchCard() {

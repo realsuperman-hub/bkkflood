@@ -690,7 +690,7 @@ const actions = {
     state.saved.push({ id: `p${Date.now().toString(36)}`, label, lat: f.lat, lng: f.lng });
     state.saved = state.saved.slice(-4);
     savePlaces();
-    toast(`บันทึก "${label}" แล้ว จะแสดงความเสี่ยงทุกครั้งที่เปิดเว็บ`);
+    toast(`บันทึก "${label}" แล้ว — ไปแท็บ "สถานการณ์" เพื่อเปิดแจ้งเตือน`, 7000);
     refreshSaved();
     syncPush(state.saved).catch(() => {});
   },
