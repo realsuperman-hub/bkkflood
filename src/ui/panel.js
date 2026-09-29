@@ -208,8 +208,9 @@ function pushCard() {
   } else if (p.permission === 'denied') {
     body = '<p class="note">คุณปิดสิทธิ์การแจ้งเตือนของเว็บนี้ไว้ — เปิดได้ที่การตั้งค่าเว็บไซต์ของเบราว์เซอร์ (ไอคอนแม่กุญแจข้างชื่อเว็บ) แล้วรีเฟรช</p>';
   } else if (p.enabled) {
-    body = `<p class="small">🔔 <b>เปิดอยู่</b> — จะแจ้งเมื่อจุดที่บันทึกไว้ (${n} จุด) เสี่ยงสูงขึ้น หรือมีผู้แจ้ง กทม. ว่าท่วมหนักใกล้จุดนั้น (ไม่เกิน 1 ครั้งต่อ 2 ชม.)</p>
-      <div class="row"><button class="btn btn-sm" data-act="push-disable" ${p.busy ? 'disabled' : ''}>ปิดแจ้งเตือน</button></div>`;
+    const ver = p.verified === true ? '<p class="small">✅ ลงทะเบียนกับเซิร์ฟเวอร์เรียบร้อยแล้ว</p>' : p.verified === false ? '<p class="note">⚠ เครื่องนี้บอกว่าเปิดอยู่ แต่<b>ไม่พบการลงทะเบียนบนเซิร์ฟเวอร์</b> จึงจะยังไม่ได้รับแจ้งเตือน — กด "ลงทะเบียนใหม่" ด้านล่าง</p>' : '';
+    body = `${ver}<p class="small">🔔 <b>เปิดอยู่</b> — จะแจ้งเมื่อจุดที่บันทึกไว้ (${n} จุด) เสี่ยงสูงขึ้น หรือมีผู้แจ้ง กทม. ว่าท่วมหนักใกล้จุดนั้น (ไม่เกิน 1 ครั้งต่อ 2 ชม.)</p>
+      <div class="row wrap">${p.verified === false ? `<button class="btn btn-primary" data-act="push-enable" ${p.busy ? 'disabled' : ''}>ลงทะเบียนใหม่</button>` : ''}<button class="btn btn-sm" data-act="push-disable" ${p.busy ? 'disabled' : ''}>ปิดแจ้งเตือน</button></div>`;
   } else if (!n) {
     body = '<p class="small">บันทึกจุดของคุณ (บ้าน/ที่จอดรถ) ก่อน — แตะแผนที่แล้วกด "บันทึกจุดนี้เป็น" ที่แท็บพยากรณ์จุด จากนั้นกลับมาเปิดแจ้งเตือน</p>';
   } else {

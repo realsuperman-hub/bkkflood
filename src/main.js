@@ -14,7 +14,7 @@ import { esc, ago, fmtTime, toast } from './lib/util.js';
 import { TAB_RENDER, BKK_CENTER } from './ui/panel.js';
 import { openReportDialog } from './ui/report.js';
 import { matchFloods, matchStations, matchReports, geocode, validQuery } from './lib/search.js';
-import { pushStatus, enablePush, disablePush, syncPush } from './lib/push.js';
+import { pushStatus, enablePush, disablePush, syncPush, verifyPush } from './lib/push.js';
 import { SITE_URL, lineLink, shareNative, siteShare, pointShare } from './lib/share.js';
 import { KINDS, MIN_VERTS, MAX_VERTS, toGeometry, unflatten, validate, describe, lengthM, areaM2, fmtLen, fmtArea, anchor } from './lib/shape.js';
 
@@ -581,7 +581,7 @@ const actions = {
     try {
       await enablePush(state.saved);
       toast('เปิดแจ้งเตือนแล้ว');
-      state.push = pushStatus();
+      state.push = { ...pushStatus(), verified: await verifyPush() };
     } catch (e) {
       state.push = { ...pushStatus(), error: e.message || String(e) };
     }
@@ -953,6 +953,7 @@ async function main() {
   if (m) selectPoint(+m[1], +m[3], { fly: true });
 
   state.push = pushStatus();
+  verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
   loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
   emit();
   window.addEventListener('online', () => { renderBanner(); reloadStations(); reloadFloods(); });

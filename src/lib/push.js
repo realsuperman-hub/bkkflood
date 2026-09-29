@@ -85,3 +85,14 @@ export async function disablePush() {
     ls.set(TOKEN, null);
   }
 }
+
+// Does the SERVER really hold this device's subscription? (The local flag alone can be stale or wrong.)
+export async function verifyPush() {
+  if (!pushStatus().enabled) return null;
+  try {
+    const doc = await state.store.getSub();
+    return !!(doc && doc.enabled && doc.token && doc.token === ls.get(TOKEN));
+  } catch {
+    return false;
+  }
+}
