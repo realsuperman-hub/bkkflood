@@ -45,11 +45,11 @@ npm run test:rules   # ทดสอบกฎ Firestore (ต้องมี Java 
 เรื่องร้องเรียน "น้ำท่วม" ของประชาชนใน กทม. ดึงจาก API สาธารณะ แล้วจัดระดับ หนัก/ปานกลาง/เล็กน้อย **จากข้อความที่ผู้แจ้งเขียน** (ระดับน้ำเป็น ซม., คำว่าเข่า/เอว, รถผ่านไม่ได้, น้ำเข้าบ้าน ฯลฯ + จำนวนเรื่องใกล้เคียง 300 ม.) — กฎอยู่ใน `src/lib/traffy.js` มีเทสต์ใน `tests/traffy.test.js`
 - API ตัวจริงหนัก ~2 MB และกรองประเภทเองไม่ได้ จึงมี `npm run data` สร้าง `public/data/floods.json` (~260 KB, ~60 KB gzip) ให้ CDN เสิร์ฟ
 - ถ้า snapshot เก่ากว่า 2 ชม. เว็บจะไปดึง API ตัวจริงโดยตรง (หนักทั้งฝั่งผู้ใช้และ Traffy) → **ควรตั้งเวลารัน `npm run data` + build + deploy ทุก ~10–15 นาที**
-- **GitHub Actions (ทางเลือกที่ไม่ต้องเปิดคอม):** ไฟล์ `.github/workflows/refresh.yml` พร้อมแล้ว ต้องสร้าง repo (แนะนำ public เพราะ private มีนาทีฟรี 2,000/เดือน แต่งานนี้ใช้ ~2,900) + secret `FIREBASE_SERVICE_ACCOUNT` แล้วปิดงาน Task Scheduler เพื่อไม่ให้ deploy ซ้ำ
-- **ตั้งเวลาอัตโนมัติแล้ว:** Windows Task Scheduler งาน `BKKFLOOD-refresh` รัน `scripts/refresh.ps1` ทุก 15 นาที (ดึงข้อมูล → คัดลอกเข้า dist → deploy hosting, ~15 วินาที) บันทึกผลใน `refresh.log`
-  - ทำงานเฉพาะตอน **เปิดเครื่อง + login Windows + ต่ออินเทอร์เน็ต + `firebase login` ยังไม่หมดอายุ** — ถ้าเครื่องปิด ข้อมูลบนเว็บจะค้าง (เกิน 2 ชม. เว็บจะสลับไปดึงตรงจาก Traffy)
-  - ดู/หยุด/ลบ: `Get-ScheduledTask BKKFLOOD-refresh` · `Disable-ScheduledTask BKKFLOOD-refresh` · `Unregister-ScheduledTask BKKFLOOD-refresh -Confirm:$false`
-  - แก้โค้ดแอปแล้วต้อง `npm run build` ก่อน (สคริปต์รีเฟรชเฉพาะข้อมูล ไม่ build ใหม่)
+- **อัปเดตอัตโนมัติด้วย GitHub Actions (ใช้งานจริงอยู่):** repo `realsuperman-hub/bkkflood` (public) · workflow `.github/workflows/refresh.yml` รันทุก ~15 นาที (GitHub อาจล่าช้าได้หลายนาที) ดึงข้อมูล → build → deploy ขึ้น bkkflood.web.app
+  - รหัสลับ: secret `FIREBASE_SERVICE_ACCOUNT` = คีย์ของบัญชีบริการ `bkkflood-deployer@bkkflood-d54cc.iam.gserviceaccount.com` (สิทธิ์ Firebase Hosting Admin เท่านั้น) — ถ้ารั่วให้ลบคีย์ที่ Google Cloud → IAM → Service Accounts แล้วสร้างใหม่
+  - **ทุกการ push เข้า `main` จะ deploy ขึ้นเว็บจริงทันที**
+  - GitHub จะ **ปิด schedule อัตโนมัติถ้า repo ไม่มีกิจกรรมเลย 60 วัน** — ถ้าข้อมูลบนเว็บค้าง ให้เข้าแท็บ Actions แล้วกด Enable/Run workflow
+  - งาน Windows `BKKFLOOD-refresh` (`scripts/refresh.ps1`) **ปิดไว้แล้ว** เพราะมันจะ deploy โค้ด dist เก่าจากเครื่องทับของใหม่ ห้ามเปิดพร้อมกัน
 - ยังไม่ได้ตรวจเงื่อนไขการใช้งานข้อมูล Traffy Fondue อย่างเป็นทางการ
 
 ## ข้อมูลสถานีวัดน้ำ
