@@ -35,6 +35,10 @@ function render() {
   document.querySelectorAll('.tabs [role=tab]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === state.tab)));
   const n = state.reports.length + state.floods.filter((f) => f.lvl === 3).length;
   $('#reports-count').textContent = n ? String(n) : '';
+  const nb = $('#nav-badge');
+  nb.hidden = !n;
+  nb.textContent = n > 99 ? '99+' : String(n);
+  document.querySelectorAll('[data-nav]').forEach((b) => b.classList.toggle('on', b.dataset.nav === state.tab));
   renderBanner();
   renderPeek();
 }
@@ -733,6 +737,18 @@ document.addEventListener('click', (e) => {
 });
 
 document.querySelectorAll('.tabs [role=tab]').forEach((t) => t.addEventListener('click', () => setTab(t.dataset.tab)));
+// phone bottom bar: tapping the tab that is already open folds the sheet away (familiar tab-bar behaviour)
+document.querySelectorAll('[data-nav]').forEach((b) =>
+  b.addEventListener('click', () => {
+    const p = $('#panel');
+    if (state.tab === b.dataset.nav && p.dataset.open === 'true') {
+      p.dataset.open = 'false';
+      return;
+    }
+    setTab(b.dataset.nav);
+  }),
+);
+$('#nav-report').addEventListener('click', () => $('#btn-report').click());
 $('#grabber').addEventListener('click', () => {
   const p = $('#panel');
   p.dataset.open = p.dataset.open === 'true' ? 'false' : 'true';

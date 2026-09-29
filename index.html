@@ -35,14 +35,17 @@
     <div id="map" aria-label="แผนที่น้ำท่วม"></div>
 
     <header class="topbar">
-      <div class="brand"><img class="brand-logo" src="/logo.svg" alt="" width="28" height="28" />BKKFLOOD</div>
+      <div class="brand" role="img" aria-label="BKKFLOOD"><img class="brand-logo" src="/logo.svg" alt="" width="28" height="28" /><span class="brand-text">BKKFLOOD</span></div>
       <div class="topbar-actions">
-        <button id="btn-layers" class="chip-btn" aria-haspopup="true" aria-expanded="false">เลเยอร์</button>
+        <button id="btn-layers" class="chip-btn" aria-haspopup="true" aria-expanded="false" aria-label="เลเยอร์แผนที่">
+          <svg class="ly-ic" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 3 2.5 8.5 12 14l9.5-5.5L12 3Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m2.5 13 9.5 5.5 9.5-5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+          <span class="ly-txt">เลเยอร์</span>
+        </button>
       </div>
     </header>
 
     <form id="search" class="searchbar" role="search">
-      <input id="search-q" type="search" placeholder="ค้นหาถนน / ซอย / เขต / สถานที่" enterkeyhint="search" autocomplete="off" aria-label="ค้นหาถนน ซอย เขต หรือสถานที่" maxlength="80" />
+      <input id="search-q" type="search" placeholder="ค้นหาถนน / ซอย / เขต" enterkeyhint="search" autocomplete="off" aria-label="ค้นหาถนน ซอย เขต หรือสถานที่" maxlength="80" />
       <button type="submit" aria-label="ค้นหา"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
     </form>
 
@@ -73,6 +76,15 @@
       </nav>
       <div id="tab-body" class="tab-body" role="tabpanel"></div>
     </aside>
+
+    <nav id="bottom-nav" class="bottom-nav" aria-label="เมนูหลัก">
+      <button class="nav-item" type="button" data-nav="overview" aria-label="สถานการณ์"><span class="nav-ic"><svg class="ni " viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span><span class="nav-lb">สถานการณ์</span></button>
+      <button class="nav-item" type="button" data-nav="forecast" aria-label="พยากรณ์จุด"><span class="nav-ic"><svg class="ni " viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 1 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.4"/></svg></span><span class="nav-lb">พยากรณ์จุด</span></button>
+      <button class="nav-report" id="nav-report" type="button" aria-label="แจ้งจุดน้ำท่วม"><span class="nav-fab"><svg class="ni " viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span><span class="nav-lb">แจ้งท่วม</span></button>
+      <button class="nav-item" type="button" data-nav="reports" aria-label="จุดท่วม"><span class="nav-ic"><svg class="ni " viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.2 2.9 19.5a1 1 0 0 0 .86 1.5h16.48a1 1 0 0 0 .86-1.5L12 4.2Z"/><path d="M12 10v4.2M12 17.4v.01"/></svg><span class="nav-badge" id="nav-badge" hidden></span></span><span class="nav-lb">จุดท่วม</span></button>
+      <button class="nav-item" type="button" data-nav="help" aria-label="ช่วยเหลือ"><span class="nav-ic"><svg class="ni " viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.6"/><path d="m14.6 14.6 3.4 3.4M9.4 14.6 6 18M6 6l3.4 3.4M18 6l-3.4 3.4"/></svg></span><span class="nav-lb">ช่วยเหลือ</span></button>
+    </nav>
+
 
     <div class="fab-col">
       <button id="btn-locate" class="fab fab-small" aria-label="ไปยังตำแหน่งของฉัน">
