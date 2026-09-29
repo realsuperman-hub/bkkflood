@@ -18,6 +18,7 @@
 
 ## App Check (กันบอต/สคริปต์ใช้ Firebase ของเรา)
 - เว็บส่ง "หลักฐานว่ามาจากเว็บจริง" (reCAPTCHA Enterprise แบบคะแนน ไม่มีให้ผู้ใช้กดรูป) ไปกับทุกคำขอ Firestore/Auth · โค้ดอยู่ใน `src/lib/store.js` (`initializeAppCheck`), คีย์สาธารณะใน `src/firebase-config.js`
+- **สถานะ: เปิดบังคับ (Enforced) แล้วทั้ง Firestore และ Auth** (ทดสอบแล้ว: คำขอที่ไม่มีโทเคนถูกปฏิเสธ, ผู้เข้าชมใหม่สมัครผู้ใช้/เขียนข้อมูลได้, ตัวส่งแจ้งเตือนทำงานปกติ) — เว็บเวอร์ชันเก่าที่ยังไม่รีเฟรชจะเขียนไม่ได้จนกว่าจะโหลดใหม่
 - ตั้งค่าที่ Google Cloud: reCAPTCHA key `bkkflood-web` (โดเมน bkkflood.web.app, bkkflood-d54cc.web.app/.firebaseapp.com, localhost) + Firebase App Check ผูกกับ Web app, อายุโทเคน 7 วัน
 - **ถ้าเปิดบังคับ (Enforce) แล้วมีปัญหา** — ปิดด้วยคำสั่ง (ต้อง login gcloud): 
   `curl -X PATCH -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "x-goog-user-project: bkkflood-d54cc" -H "Content-Type: application/json" -d '{"enforcementMode":"UNENFORCED"}' "https://firebaseappcheck.googleapis.com/v1/projects/bkkflood-d54cc/services/firestore.googleapis.com?updateMask=enforcementMode"` (แทน `firestore.googleapis.com` ด้วย `identitytoolkit.googleapis.com` สำหรับ Auth)
@@ -93,3 +94,7 @@ npm run test:rules   # ทดสอบกฎ Firestore (ต้องมี Java 
 - ความสูงพื้นที่ (DEM ~90 ม.) หยาบ คลาดเคลื่อนได้ ±1 ม.
 - ยังไม่ได้เชื่อมข้อมูล กทม. (สำนักการระบายน้ำ), GISTDA, เขื่อน, กรมอุตุฯ (ต้องขอ token/หา endpoint)
 - คะแนนความเสี่ยงเป็นกฎเริ่มต้น ต้องเทียบกับเหตุการณ์จริงก่อนเชื่อถือสูง
+
+
+## หมายเหตุสำหรับคนดูแล (บทเรียน)
+- บน Windows + Git Bash คำสั่ง Firebase CLI ที่ขึ้นต้นด้วย `/` (เช่น `firebase firestore:delete /reports`) จะถูกแปลงเป็น `C:/Program Files/Git/reports` แล้ว "สำเร็จ" โดยไม่ลบอะไร — ใช้ `MSYS_NO_PATHCONV=1` หรือ PowerShell แล้วตรวจผลด้วย REST ทุกครั้ง
