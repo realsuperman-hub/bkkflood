@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="BKKFLOOD">
+  <defs><clipPath id="g"><rect width="64" height="64" rx="15"/></clipPath></defs>
+  <rect width="64" height="64" rx="15" fill="#0B3D5C"/>
+  <g clip-path="url(#g)">
+    <rect x="12" y="9" width="12" height="46" rx="2" fill="#FFFFFF"/>
+    <g stroke="#0B3D5C" stroke-width="2.4" stroke-linecap="round"><path d="M12 17h7M12 25h5M12 33h7M12 41h5M12 49h7"/></g>
+    <path d="M24 30 q6 -5 12 0 t12 0 t12 0 V64 H24 Z" fill="#3BB4F2"/>
+    <path d="M24 40 q6 -5 12 0 t12 0 t12 0 V64 H24 Z" fill="#1683C9"/>
+    <path d="M44 18 L51 26 H46.5 V33 H41.5 V26 H37 Z" fill="#FFC21A"/>
+  </g>
+</svg>

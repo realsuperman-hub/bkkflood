@@ -1,0 +1,12 @@
+node_modules
+dist
+.firebase
+*-debug.log
+firestore-debug.log
+ui-debug.log
+refresh.log
+
+ext/
+.claude/
+public/data/*.json
+*.tmp

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>BKKFLOOD — น้ำท่วม กทม.และปริมณฑล</title>
+  <meta name="description" content="แผนที่ระดับน้ำ พยากรณ์ฝนและน้ำทะเลหนุน 48 ชม. และรายงานจุดน้ำท่วมจากประชาชน สำหรับกรุงเทพฯ และปริมณฑล" />
+  <meta name="theme-color" content="#0b3d5c" />
+  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+  <link rel="apple-touch-icon" href="/logo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <div id="app">
+    <div id="map" aria-label="แผนที่น้ำท่วม"></div>
+
+    <header class="topbar">
+      <div class="brand"><img class="brand-logo" src="/logo.svg" alt="" width="28" height="28" />BKKFLOOD</div>
+      <div class="topbar-actions">
+        <button id="btn-layers" class="chip-btn" aria-haspopup="true" aria-expanded="false">เลเยอร์</button>
+      </div>
+    </header>
+
+    <form id="search" class="searchbar" role="search">
+      <input id="search-q" type="search" placeholder="ค้นหาถนน / ซอย / เขต / สถานที่" enterkeyhint="search" autocomplete="off" aria-label="ค้นหาถนน ซอย เขต หรือสถานที่" maxlength="80" />
+      <button type="submit" aria-label="ค้นหา"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.4"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+    </form>
+
+    <div id="layers-pop" class="layers-pop" hidden>
+      <label><input type="checkbox" id="ly-floods" checked /> จุดน้ำท่วม (แจ้ง กทม.)</label>
+      <label><input type="checkbox" id="ly-gauges" checked /> สถานีวัดระดับน้ำ</label>
+      <label><input type="checkbox" id="ly-reports" checked /> รายงานจากประชาชน</label>
+      <label><input type="checkbox" id="ly-radar" /> เรดาร์ฝน (ย้อนหลัง ~2 ชม.)</label>
+      <div id="radar-time" class="muted small" hidden></div>
+      <hr />
+      <div class="legend">
+        <div class="legend-title">สถานะระดับน้ำ</div>
+        <div id="legend-items"></div>
+      </div>
+    </div>
+
+    <div id="banner" class="banner" hidden></div>
+
+    <aside id="panel" class="panel" data-open="false" aria-label="ข้อมูลและพยากรณ์">
+      <button id="grabber" class="grabber" aria-label="ขยายหรือย่อแผงข้อมูล"><span></span></button>
+      <div id="peek" class="peek" hidden></div>
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="overview" aria-selected="true">สถานการณ์</button>
+        <button role="tab" data-tab="forecast" aria-selected="false">พยากรณ์จุด</button>
+        <button role="tab" data-tab="reports" aria-selected="false">จุดท่วม <span id="reports-count" class="count"></span></button>
+        <button role="tab" data-tab="help" aria-selected="false">ช่วยเหลือ</button>
+      </nav>
+      <div id="tab-body" class="tab-body" role="tabpanel"></div>
+    </aside>
+
+    <div class="fab-col">
+      <button id="btn-locate" class="fab fab-small" aria-label="ไปยังตำแหน่งของฉัน">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
+      </button>
+      <button id="btn-report" class="fab fab-report">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
+        แจ้งจุดน้ำท่วม
+      </button>
+    </div>
+
+    <div id="pickbar" class="pickbar" hidden>
+      <div class="pick-pin" aria-hidden="true"></div>
+      <div class="pickbar-card">
+        <div class="seg" role="group" aria-label="รูปแบบการแจ้ง">
+          <button type="button" data-pmode="point" aria-pressed="true">📍 ปักหมุดจุด</button>
+          <button type="button" data-pmode="line" aria-pressed="false">〰 วาดถนนช่วงที่ท่วม</button>
+          <button type="button" data-pmode="area" aria-pressed="false">⬠ วาดพื้นที่</button>
+        </div>
+        <p id="pick-hint" class="small muted"></p>
+        <div id="draw-stats" class="small draw-stats" hidden></div>
+        <div class="pickbar-actions">
+          <button id="pick-gps" class="btn">ใช้ตำแหน่งฉัน</button>
+          <button id="draw-add" class="btn" hidden>+ จุดกลางจอ</button>
+          <button id="draw-undo" class="btn" hidden>↶ ย้อนกลับ</button>
+          <button id="draw-clear" class="btn btn-ghost" hidden>ล้าง</button>
+          <button id="pick-ok" class="btn btn-primary">ยืนยัน</button>
+          <button id="pick-cancel" class="btn btn-ghost">ยกเลิก</button>
+        </div>
+      </div>
+    </div>
+
+    <dialog id="report-dialog" class="dialog"></dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

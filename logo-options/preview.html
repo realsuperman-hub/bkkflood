@@ -1,0 +1,36 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ตัวเลือกโลโก้ BKKFLOOD</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#0B3D5C;--blue:#0B6FA8}
+body{margin:0;font-family:'Noto Sans Thai',sans-serif;background:#f4f7fa;color:#14202b;padding:24px}
+h1{font-size:20px;margin:0 0 4px}p.sub{margin:0 0 20px;color:#5b6876}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:16px;max-width:1100px}
+.card{background:#fff;border:1px solid #dbe3ea;border-radius:16px;padding:20px}
+.tag{font-weight:700;color:#5b6876;font-size:13px}
+.lockup{display:flex;align-items:center;gap:12px;margin:14px 0}
+.lockup img{width:64px;height:64px}
+.word{font-weight:700;font-size:34px;letter-spacing:.02em;line-height:1}
+.word b{color:var(--navy)}.word i{font-style:normal;color:var(--blue)}
+.tagline{font-size:12.5px;color:#5b6876;letter-spacing:.02em;margin-top:4px;font-weight:400}
+.row{display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:8px;background:var(--navy);color:#fff;padding:6px 14px 6px 8px;border-radius:999px;font-weight:700;letter-spacing:.06em;font-size:15px}
+.pill img{width:26px;height:26px}
+.small{display:flex;gap:10px;align-items:center;font-size:12px;color:#5b6876}
+.small img{border-radius:4px}
+h3{margin:0;font-size:17px}.why{font-size:13.5px;color:#3c4a57;margin:6px 0 0}
+</style></head><body>
+<h1>ตัวเลือกโลโก้ BKKFLOOD</h1><p class="sub">แต่ละแบบแสดง 3 ขนาด: โลโก้เต็ม · ป้ายบนแถบหัวเว็บ · ไอคอนเล็ก (แท็บเบราว์เซอร์/มือถือ)</p>
+<div class="grid" id="g"></div>
+<script>
+const opts=[
+ ['A','ป้ายเตือนน้ำท่วม','a-warning.svg','สื่อ "ระวัง/เตือนภัย" ทันทีแบบป้ายจราจร อ่านออกแม้ไม่ต้องอ่านตัวหนังสือ เหมาะกับเว็บเตือนภัย'],
+ ['B','บ้านจมน้ำ','b-house.svg','เรียบ ตรงตัวที่สุด: บ้าน + น้ำขึ้นท่วม เหมือนตัวอย่างที่คุณเลือก ดูเป็นแอปมืออาชีพ'],
+ ['C','หมุดแผนที่จมน้ำ','c-pin.svg','สื่อ "แผนที่ + จุดน้ำท่วม" ตรงกับหน้าที่จริงของเว็บ (ปักหมุดจุดท่วม)'],
+ ['D','ไม้วัดระดับน้ำ','d-gauge.svg','สื่อ "วัดระดับน้ำ + น้ำกำลังขึ้น" ตรงกับข้อมูลสถานีวัดน้ำ ดูเทคนิคและน่าเชื่อถือ']];
+document.getElementById('g').innerHTML=opts.map(([k,n,f,w])=>`<div class="card"><div class="tag">แบบ ${k}</div><h3>${n}</h3>
+<div class="lockup"><img src="${f}" alt=""><div><div class="word"><b>BKK</b><i>FLOOD</i></div><div class="tagline">น้ำท่วม กทม. และปริมณฑล</div></div></div>
+<div class="row"><span class="pill"><img src="${f}" alt="">BKKFLOOD</span>
+<span class="small"><img src="${f}" width="32" height="32" alt=""><img src="${f}" width="16" height="16" alt="">ไอคอนเล็ก</span></div>
+<p class="why">${w}</p></div>`).join('');
+</script></body></html>

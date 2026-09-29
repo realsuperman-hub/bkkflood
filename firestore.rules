@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    function validReport() {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['lat','lng','kind','geom','depth','passable','note','thumb','photoCount','uid',
+                               'createdAt','lastConfirmedAt','expiresAt','stillCount','goneCount','wrongCount'])
+        && d.lat is number && d.lat >= 13.3 && d.lat <= 14.4
+        && d.lng is number && d.lng >= 99.9 && d.lng <= 101.1
+        && validShape(d)
+        && d.depth in ['wet','ankle','knee','waist','above']
+        && d.passable in ['all','high','none']
+        && d.note is string && d.note.size() <= 300
+        && d.thumb is string && d.thumb.size() <= 20000 && d.thumb.matches('^data:image/jpeg;base64,.*')
+        && d.photoCount is int && d.photoCount >= 1 && d.photoCount <= 3
+        && d.uid == request.auth.uid
+        && d.createdAt == request.time && d.lastConfirmedAt == request.time
+        && d.expiresAt is timestamp
+        && d.expiresAt > request.time + duration.value(47, 'h')
+        && d.expiresAt < request.time + duration.value(49, 'h')
+        && d.stillCount == 0 && d.goneCount == 0 && d.wrongCount == 0;
+    }
+
+    // point: no geometry. line: 2–40 vertices. area: 3–40 vertices. geom = [lat1,lng1,lat2,lng2,...]
+    function validShape(d) {
+      return !('kind' in d) || d.kind == 'point' && !('geom' in d)
+        || d.kind == 'line' && d.geom is list && d.geom.size() >= 4 && d.geom.size() <= 80 && d.geom.size() % 2 == 0
+           && d.geom[0] is number && d.geom[0] >= 13.3 && d.geom[0] <= 14.4 && d.geom[1] is number && d.geom[1] >= 99.9 && d.geom[1] <= 101.1
+        || d.kind == 'area' && d.geom is list && d.geom.size() >= 6 && d.geom.size() <= 80 && d.geom.size() % 2 == 0
+           && d.geom[0] is number && d.geom[0] >= 13.3 && d.geom[0] <= 14.4 && d.geom[1] is number && d.geom[1] >= 99.9 && d.geom[1] <= 101.1;
+    }
+
+    // At most one new report per user per minute; the same batch must stamp users/{uid}.
+    function rateOk() {
+      let u = /databases/$(database)/documents/users/$(request.auth.uid);
+      return getAfter(u).data.lastReportAt == request.time
+        && (!exists(u) || request.time > get(u).data.lastReportAt + duration.value(60, 's'));
+    }
+
+    // A vote = one new votes/{uid} doc + exactly one counter incremented by 1 in the same batch.
+    function validVoteUpdate(reportId) {
+      let vote = /databases/$(database)/documents/reports/$(reportId)/votes/$(request.auth.uid);
+      let n = request.resource.data;
+      let o = resource.data;
+      let t = getAfter(vote).data.type;
+      return n.diff(o).affectedKeys().hasOnly(['stillCount','goneCount','wrongCount','lastConfirmedAt'])
+        && !exists(vote) && existsAfter(vote)
+        && (
+          (t == 'still' && n.stillCount == o.stillCount + 1 && n.goneCount == o.goneCount
+             && n.wrongCount == o.wrongCount && n.lastConfirmedAt == request.time)
+          || (t == 'gone' && n.goneCount == o.goneCount + 1 && n.stillCount == o.stillCount
+             && n.wrongCount == o.wrongCount && n.lastConfirmedAt == o.lastConfirmedAt)
+          || (t == 'wrong' && n.wrongCount == o.wrongCount + 1 && n.stillCount == o.stillCount
+             && n.goneCount == o.goneCount && n.lastConfirmedAt == o.lastConfirmedAt)
+        );
+    }
+
+    match /reports/{reportId} {
+      allow read: if true;
+      allow create: if signedIn() && validReport() && rateOk();
+      allow update: if signedIn() && validVoteUpdate(reportId);
+      allow delete: if false;
+
+      match /photos/{n} {
+        allow read: if true;
+        allow create: if signedIn()
+          && request.resource.data.keys().hasOnly(['data','uid'])
+          && request.resource.data.uid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/reports/$(reportId)).data.uid == request.auth.uid
+          && request.resource.data.data is string
+          && request.resource.data.data.size() <= 250000
+          && request.resource.data.data.matches('^data:image/jpeg;base64,.*')
+          && n in ['0','1','2'];
+        allow update, delete: if false;
+      }
+
+      match /votes/{uid} {
+        allow read: if false;
+        allow create: if signedIn() && uid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['type','at'])
+          && request.resource.data.type in ['still','gone','wrong']
+          && request.resource.data.at == request.time;
+        allow update, delete: if false;
+      }
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && uid == request.auth.uid;
+      allow create, update: if signedIn() && uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['lastReportAt'])
+        && request.resource.data.lastReportAt == request.time;
+      allow delete: if false;
+    }
+  }
+}

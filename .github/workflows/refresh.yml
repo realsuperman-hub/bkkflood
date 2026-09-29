@@ -1,0 +1,39 @@
+name: refresh-data
+# Rebuilds the data snapshots (Traffy flood complaints + ThaiWater gauges) and publishes to Firebase Hosting.
+# Needs the repo secret FIREBASE_SERVICE_ACCOUNT (JSON key of a service account with "Firebase Hosting Admin").
+on:
+  schedule:
+    - cron: '*/15 * * * *' # GitHub may delay scheduled runs by several minutes
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: Fetch live data (if a source fails, keep the snapshot that is currently live)
+        run: |
+          mkdir -p public/data
+          node scripts/fetch-stations.mjs || { echo "stations fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/stations.json -o public/data/stations.json || true; }
+          node scripts/fetch-floods.mjs || { echo "floods fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/floods.json -o public/data/floods.json || true; }
+      - run: npm run build
+      - name: Deploy to Firebase Hosting
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx --yes firebase-tools@latest deploy --only hosting --project bkkflood-d54cc
+          rm -f "$RUNNER_TEMP/sa.json"
