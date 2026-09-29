@@ -112,3 +112,25 @@ test('drawn shapes: valid line/area accepted; malformed geometry rejected', asyn
   await attempt({ kind: 'line', geom: Array.from({ length: 82 }, () => 13.75) }, false); // > 40 vertices
   await attempt({ kind: 'line' }, false); // missing geom
 });
+
+test('push subscriptions: owner-only, validated, and clients cannot touch server-written fields', async () => {
+  const { setDoc, getDoc, deleteDoc } = await import('firebase/firestore');
+  const a = env.authenticatedContext('ua').firestore();
+  const b = env.authenticatedContext('ub').firestore();
+  const token = 'T'.repeat(60);
+  const place = { lat: 13.75, lng: 100.5, label: 'บ้าน' };
+  const sub = (o = {}) => ({ token, places: [place], enabled: true, updatedAt: serverTimestamp(), ...o });
+  await assertSucceeds(setDoc(doc(a, 'subs', 'ua'), sub(), { merge: true })); // create
+  await assertSucceeds(setDoc(doc(a, 'subs', 'ua'), sub({ places: [place, place] }), { merge: true })); // update
+  await assertFails(setDoc(doc(a, 'subs', 'ub'), sub(), { merge: true })); // someone else's doc id
+  await assertFails(getDoc(doc(b, 'subs', 'ua'))); // others cannot read
+  await assertSucceeds(getDoc(doc(a, 'subs', 'ua')));
+  await assertFails(setDoc(doc(a, 'subs', 'ua'), sub({ lastSentAt: 1 }), { merge: true })); // server-only field
+  await assertFails(setDoc(doc(a, 'subs', 'ua'), sub({ state: { x: { level: 0 } } }), { merge: true }));
+  await assertFails(setDoc(doc(b, 'subs', 'ub'), sub({ token: 'short' }), { merge: true }));
+  await assertFails(setDoc(doc(b, 'subs', 'ub'), sub({ places: [] }), { merge: true }));
+  await assertFails(setDoc(doc(b, 'subs', 'ub'), sub({ places: Array(5).fill(place) }), { merge: true }));
+  await assertFails(setDoc(doc(b, 'subs', 'ub'), sub({ enabled: 'yes' }), { merge: true }));
+  await assertFails(deleteDoc(doc(b, 'subs', 'ua')));
+  await assertSucceeds(deleteDoc(doc(a, 'subs', 'ua')));
+});

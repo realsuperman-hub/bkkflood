@@ -1,0 +1,52 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ตัวอย่างไอคอนแอปบนหน้าจอโฮม</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Noto Sans Thai',sans-serif;background:#eef2f6;color:#14202b;padding:24px}
+h1{font-size:20px;margin:0 0 4px}p.sub{margin:0 0 22px;color:#5b6876}
+.row{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.col{display:flex;flex-direction:column;align-items:center;gap:8px}
+.cap{font-weight:700;font-size:14px}.note{font-size:12.5px;color:#5b6876;max-width:250px;text-align:center}
+.phone{width:250px;height:470px;border-radius:34px;background:linear-gradient(160deg,#274a63,#0e2333 70%);padding:22px 16px;box-shadow:0 12px 34px rgba(11,61,92,.35);border:6px solid #111;position:relative}
+.notch{position:absolute;top:8px;left:50%;transform:translateX(-50%);width:70px;height:16px;background:#111;border-radius:10px}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px 6px;margin-top:22px}
+.app{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:9.5px;color:#fff}
+.ic{width:46px;height:46px;background:#8aa;}
+.ios .ic{border-radius:10.5px}
+.and .ic{border-radius:50%}
+.us .ic{background:none}.us img{width:46px;height:46px;display:block}
+.ios .us img{border-radius:10.5px}
+.and .us img{border-radius:50%}
+.dock{position:absolute;left:12px;right:12px;bottom:14px;height:62px;border-radius:22px;background:rgba(255,255,255,.18);display:flex;justify-content:space-around;align-items:center}
+.dock .ic{width:44px;height:44px}
+.big{display:flex;gap:18px;align-items:flex-end}
+.big img{display:block;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.safe{position:relative;width:160px;height:160px}
+.safe img{width:160px;height:160px;border-radius:50%;display:block}
+.safe::after{content:'';position:absolute;inset:0;border-radius:50%;border:2px dashed #ffb703}
+</style></head><body>
+<h1>ไอคอนแอป BKKFLOOD บนหน้าจอโฮม (โลโก้ B)</h1>
+<p class="sub">ผู้ใช้กด "เพิ่มลงหน้าจอโฮม" แล้วจะได้ไอคอนนี้ — ชื่อใต้ไอคอนคือ BKKFLOOD</p>
+<div class="row">
+  <div class="col"><div class="cap">iPhone</div>
+    <div class="phone ios"><div class="notch"></div><div class="grid" id="g1"></div><div class="dock"><div class="ic" style="background:#5a8"></div><div class="ic" style="background:#58a"></div><div class="ic" style="background:#a85"></div><div class="ic" style="background:#a58"></div></div></div>
+    <div class="note">มุมโค้งใส่โดย iOS เอง ไอคอนเป็นสี่เหลี่ยมเต็มไม่มีมุมโปร่งใส</div></div>
+  <div class="col"><div class="cap">Android</div>
+    <div class="phone and"><div class="notch"></div><div class="grid" id="g2"></div><div class="dock"><div class="ic" style="background:#5a8"></div><div class="ic" style="background:#58a"></div><div class="ic" style="background:#a85"></div><div class="ic" style="background:#a58"></div></div></div>
+    <div class="note">Android ตัดเป็นวง/มุมโค้งตามรุ่น (ใช้เวอร์ชัน maskable ให้บ้านอยู่ในโซนปลอดภัย)</div></div>
+  <div class="col"><div class="cap">ขนาดจริง</div>
+    <div class="big"><img src="/icons/apple-touch-icon.png" width="120" height="120" style="border-radius:27px" alt=""><img src="/icons/icon-192.png" width="72" height="72" style="border-radius:16px" alt=""><img src="/icons/icon-192.png" width="40" height="40" style="border-radius:9px" alt=""></div>
+    <div class="cap" style="margin-top:14px">โซนปลอดภัย (maskable)</div>
+    <div class="safe"><img src="/icons/icon-maskable-512.png" alt=""></div>
+    <div class="note">วงประสีส้ม = ส่วนที่ Android อาจตัด บ้านและน้ำต้องอยู่ในวง</div></div>
+</div>
+<script>
+const others=['กล้อง','นาฬิกา','ข้อความ','รูปภาพ','โน้ต','ตั้งค่า','เพลง','ปฏิทิน','แผนที่','อีเมล','กระเป๋า'];
+const col=['#7a9','#79a','#a97','#a79','#9a7','#97a','#8aa','#a88','#88a','#aa8','#8a8'];
+for(const id of ['g1','g2']){
+  const g=document.getElementById(id);
+  g.innerHTML=others.slice(0,4).map((n,i)=>`<div class="app"><div class="ic" style="background:${col[i]}"></div>${n}</div>`).join('')
+   +`<div class="app us"><div class="ic"><img src="/icons/${id==='g1'?'apple-touch-icon':'icon-maskable-512'}.png" alt=""></div><b>BKKFLOOD</b></div>`
+   +others.slice(4,10).map((n,i)=>`<div class="app"><div class="ic" style="background:${col[i+4]}"></div>${n}</div>`).join('');
+}
+</script></body></html>

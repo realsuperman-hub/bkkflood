@@ -130,6 +130,31 @@ function savedChips() {
     .join('')}</div>`;
 }
 
+function pushCard() {
+  const p = state.push;
+  if (!p || p.reason === 'no-backend') return '';
+  const n = state.saved.length;
+  const consent = '<p class="muted tiny">เปิดแล้วระบบจะเก็บ <b>พิกัดของจุดที่บันทึก</b> และรหัสอุปกรณ์บนเซิร์ฟเวอร์ เพื่อส่งแจ้งเตือนเท่านั้น ปิดเมื่อไรก็ได้ (ข้อมูลถูกลบ) · การแจ้งเตือนเป็นการประเมินอัตโนมัติ อาจคลาดเคลื่อนหรือล่าช้า ไม่ใช่ประกาศทางการ</p>';
+  let body;
+  if (p.reason === 'ios-install') {
+    body = `<p class="small">บน iPhone/iPad ต้อง <b>เพิ่มเว็บนี้ลงหน้าจอโฮมก่อน</b> จึงจะรับแจ้งเตือนได้:</p>
+      <ol class="small steps"><li>กดปุ่มแชร์ <b>⬆︎</b> ที่แถบล่างของ Safari</li><li>เลือก <b>"เพิ่มลงในหน้าจอโฮม"</b></li><li>เปิดแอป BKKFLOOD จากหน้าจอโฮม แล้วกลับมาที่การ์ดนี้เพื่อเปิดแจ้งเตือน</li></ol>`;
+  } else if (p.reason === 'unsupported') {
+    body = '<p class="small">เบราว์เซอร์นี้ยังไม่รองรับการแจ้งเตือนจากเว็บ ลองใช้ Chrome (Android/คอมพิวเตอร์) หรือ Safari 16.4+ ที่ติดตั้งลงหน้าจอโฮม</p>';
+  } else if (p.permission === 'denied') {
+    body = '<p class="note">คุณปิดสิทธิ์การแจ้งเตือนของเว็บนี้ไว้ — เปิดได้ที่การตั้งค่าเว็บไซต์ของเบราว์เซอร์ (ไอคอนแม่กุญแจข้างชื่อเว็บ) แล้วรีเฟรช</p>';
+  } else if (p.enabled) {
+    body = `<p class="small">🔔 <b>เปิดอยู่</b> — จะแจ้งเมื่อจุดที่บันทึกไว้ (${n} จุด) เสี่ยงสูงขึ้น หรือมีผู้แจ้ง กทม. ว่าท่วมหนักใกล้จุดนั้น (ไม่เกิน 1 ครั้งต่อ 2 ชม.)</p>
+      <div class="row"><button class="btn btn-sm" data-act="push-disable" ${p.busy ? 'disabled' : ''}>ปิดแจ้งเตือน</button></div>`;
+  } else if (!n) {
+    body = '<p class="small">บันทึกจุดของคุณ (บ้าน/ที่จอดรถ) ก่อน — แตะแผนที่แล้วกด "บันทึกจุดนี้เป็น" ที่แท็บพยากรณ์จุด จากนั้นกลับมาเปิดแจ้งเตือน</p>';
+  } else {
+    body = `<p class="small">รับแจ้งเตือนบนมือถือเมื่อจุดที่บันทึกไว้ (${n} จุด) เสี่ยงท่วมสูงขึ้น แม้ไม่ได้เปิดเว็บอยู่</p>
+      <div class="row"><button class="btn btn-primary" data-act="push-enable" ${p.busy ? 'disabled' : ''}>${p.busy ? 'กำลังเปิด…' : '🔔 เปิดแจ้งเตือน'}</button></div>${consent}`;
+  }
+  return `<section class="card"><h3>แจ้งเตือนอัตโนมัติ</h3>${body}${p.error ? `<p class="note">${esc(p.error)}</p>` : ''}</section>`;
+}
+
 export function overviewTab() {
   const st = state.stations.filter((s) => !s.upstream);
   const counts = [5, 4, 3, 2, 1, 0].map((l) => ({ l, n: st.filter((s) => s.level === l).length })).filter((c) => c.n);
@@ -177,7 +202,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · โมเดล Open-Meteo Marine (ค่าประมาณ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${gaugeCard}${upCard}${tideCard}`;
+  return `${floodsOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${tideCard}`;
 }
 
 export function forecastTab() {

@@ -1,0 +1,19 @@
+{
+  "name": "BKKFLOOD — น้ำท่วม กทม. และปริมณฑล",
+  "short_name": "BKKFLOOD",
+  "description": "ดูจุดน้ำท่วม ระดับน้ำ และความเสี่ยง 48 ชม. ของกรุงเทพฯ และปริมณฑล",
+  "lang": "th",
+  "dir": "ltr",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b3d5c",
+  "theme_color": "#0b3d5c",
+  "categories": ["weather", "navigation", "utilities"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

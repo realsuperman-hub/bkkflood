@@ -1,6 +1,7 @@
 name: refresh-data
-# Rebuilds the data snapshots (Traffy flood complaints + ThaiWater gauges) and publishes to Firebase Hosting.
-# Needs the repo secret FIREBASE_SERVICE_ACCOUNT (JSON key of a service account with "Firebase Hosting Admin").
+# Every ~15 min: refresh live data snapshots, deploy to Firebase Hosting, then send push alerts.
+# Needs the repo secret FIREBASE_SERVICE_ACCOUNT (JSON key of service account bkkflood-deployer with roles
+# Firebase Hosting Admin, Service Usage Consumer, Cloud Datastore User, Firebase Cloud Messaging Admin).
 on:
   schedule:
     - cron: '*/15 * * * *' # GitHub may delay scheduled runs by several minutes
@@ -16,6 +17,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,6 +26,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci --legacy-peer-deps
+      - name: Write credentials
+        env:
+          SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: printf '%s' "$SA_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
       - name: Fetch live data (if a source fails, keep the snapshot that is currently live)
         run: |
           mkdir -p public/data
@@ -30,10 +37,11 @@ jobs:
           node scripts/fetch-floods.mjs || { echo "floods fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/floods.json -o public/data/floods.json || true; }
       - run: npm run build
       - name: Deploy to Firebase Hosting
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          printf '%s' "$GOOGLE_APPLICATION_CREDENTIALS_JSON" > "$RUNNER_TEMP/sa.json"
-          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
-          npx --yes firebase-tools@latest deploy --only hosting --project bkkflood-d54cc
-          rm -f "$RUNNER_TEMP/sa.json"
+        run: npx --yes firebase-tools@latest deploy --only hosting --project bkkflood-d54cc
+      - name: Send push alerts
+        # a notifier failure must never block the data refresh above
+        continue-on-error: true
+        run: node scripts/notify.mjs
+      - name: Remove credentials
+        if: always()
+        run: rm -f "$GOOGLE_APPLICATION_CREDENTIALS"

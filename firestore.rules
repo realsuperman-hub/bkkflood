@@ -87,6 +87,22 @@ service cloud.firestore {
       }
     }
 
+    // Push subscriptions: one doc per anonymous user. Clients may only touch the four fields below;
+    // `state` and `lastSentAt` are written by the notifier (Admin SDK bypasses these rules).
+    function validSub(d) {
+      return d.token is string && d.token.size() > 20 && d.token.size() < 400
+        && d.enabled is bool
+        && d.places is list && d.places.size() >= 1 && d.places.size() <= 4
+        && d.updatedAt == request.time;
+    }
+    match /subs/{uid} {
+      allow read, delete: if signedIn() && uid == request.auth.uid;
+      allow create: if signedIn() && uid == request.auth.uid && validSub(request.resource.data)
+        && request.resource.data.keys().hasOnly(['token','places','enabled','updatedAt']);
+      allow update: if signedIn() && uid == request.auth.uid && validSub(request.resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['token','places','enabled','updatedAt']);
+    }
+
     match /users/{uid} {
       allow read: if signedIn() && uid == request.auth.uid;
       allow create, update: if signedIn() && uid == request.auth.uid

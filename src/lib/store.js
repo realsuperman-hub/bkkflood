@@ -88,6 +88,10 @@ function createLocalStore() {
     async getPhotos(id) {
       return read(PKEY)[id] || [];
     },
+    async saveSub() {
+      throw new Error('ต้องเชื่อมฐานข้อมูลก่อนจึงจะเปิดแจ้งเตือนได้');
+    },
+    async removeSub() {},
     async vote(id, type) {
       if (hasVoted(id)) throw new Error('คุณโหวตรายงานนี้แล้ว');
       const reports = read(KEY);
@@ -182,6 +186,14 @@ async function createFirebaseStore() {
       batch.set(fs.doc(db, 'users', uid), { lastReportAt: fs.serverTimestamp() });
       await batch.commit();
       return ref.id;
+    },
+    async saveSub({ token, places }) {
+      const uid = await ensureUid();
+      await fs.setDoc(fs.doc(db, 'subs', uid), { token, places, enabled: true, updatedAt: fs.serverTimestamp() }, { merge: true });
+    },
+    async removeSub() {
+      const uid = await ensureUid();
+      await fs.deleteDoc(fs.doc(db, 'subs', uid));
     },
     async getPhotos(id) {
       const snap = await fs.getDocs(fs.collection(db, 'reports', id, 'photos'));

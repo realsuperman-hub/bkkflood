@@ -6,3 +6,6 @@ export const firebaseConfig = {
   "projectId": "bkkflood-d54cc",
   "appId": "1:660111617024:web:cbcd374a5032c81b7d3ce5"
 };
+
+// Web Push certificate (public key) from Firebase console > Cloud Messaging. null = SDK default key.
+export const vapidKey = null;

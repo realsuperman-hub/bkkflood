@@ -13,6 +13,7 @@ import { esc, ago, fmtTime, toast } from './lib/util.js';
 import { TAB_RENDER, BKK_CENTER } from './ui/panel.js';
 import { openReportDialog } from './ui/report.js';
 import { matchFloods, matchStations, matchReports, geocode, validQuery } from './lib/search.js';
+import { pushStatus, enablePush, disablePush, syncPush } from './lib/push.js';
 import { KINDS, MIN_VERTS, MAX_VERTS, toGeometry, unflatten, validate, describe, lengthM, areaM2, fmtLen, fmtArea, anchor } from './lib/shape.js';
 
 const $ = (s) => document.querySelector(s);
@@ -63,6 +64,7 @@ function setTab(tab, open = true) {
 function renderBanner() {
   const b = $('#banner');
   const msgs = [];
+  if (!navigator.onLine) msgs.push('ออฟไลน์ — แสดงข้อมูลล่าสุดที่เครื่องบันทึกไว้ (อาจไม่ตรงปัจจุบัน) · เบอร์ฉุกเฉินในแท็บ "ช่วยเหลือ" ยังใช้ได้');
   if (state.store?.mode === 'local') msgs.push('โหมดทดลอง: รายงานที่ส่งจะเห็นเฉพาะในเครื่องนี้ (ยังไม่ได้เชื่อมฐานข้อมูล)');
   if (state.stationsError && !state.stations.length) msgs.push('โหลดข้อมูลสถานีวัดน้ำไม่ได้ในขณะนี้');
   b.hidden = !msgs.length;
@@ -523,6 +525,30 @@ const actions = {
     const s = state.stations.find((x) => String(x.id) === id);
     if (s) selectPoint(s.lat, s.lng);
   },
+  'push-enable': async () => {
+    state.push = { ...pushStatus(), busy: true };
+    emit();
+    try {
+      await enablePush(state.saved);
+      toast('เปิดแจ้งเตือนแล้ว');
+      state.push = pushStatus();
+    } catch (e) {
+      state.push = { ...pushStatus(), error: e.message || String(e) };
+    }
+    emit();
+  },
+  'push-disable': async () => {
+    state.push = { ...pushStatus(), busy: true };
+    emit();
+    try {
+      await disablePush();
+      toast('ปิดแจ้งเตือนแล้ว และลบข้อมูลของคุณออกจากเซิร์ฟเวอร์');
+      state.push = pushStatus();
+    } catch (e) {
+      state.push = { ...pushStatus(), error: e.message || String(e) };
+    }
+    emit();
+  },
   'clear-search': () => {
     state.search = null;
     $('#search-q').value = '';
@@ -589,12 +615,14 @@ const actions = {
     savePlaces();
     toast(`บันทึก "${label}" แล้ว จะแสดงความเสี่ยงทุกครั้งที่เปิดเว็บ`);
     refreshSaved();
+    syncPush(state.saved).catch(() => {});
   },
   'del-place': ({ id }) => {
     state.saved = state.saved.filter((p) => p.id !== id);
     delete state.savedEval[id];
     savePlaces();
     emit();
+    syncPush(state.saved).then(() => { state.push = pushStatus(); emit(); }).catch(() => {});
   },
   'copy-link': async () => {
     const f = state.selected;
@@ -774,6 +802,7 @@ async function main() {
   state.map = map;
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right');
   window.__map = map; // handy for debugging in devtools
+  window.__state = state;
 
   map.on('click', (e) => {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
@@ -826,6 +855,15 @@ async function main() {
   const p = new URLSearchParams(location.search).get('p');
   const m = p && p.match(/^(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)$/);
   if (m) selectPoint(+m[1], +m[3], { fly: true });
+
+  state.push = pushStatus();
+  emit();
+  window.addEventListener('online', () => { renderBanner(); reloadStations(); reloadFloods(); });
+  window.addEventListener('offline', renderBanner);
+  // Production only (dev uses ?sw=1) so Vite hot-reload is never served from a cache
+  if ('serviceWorker' in navigator && (import.meta.env.PROD || location.search.includes('sw=1'))) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
 
   setInterval(reloadStations, 10 * 60 * 1000);
   setInterval(reloadFloods, 5 * 60 * 1000);

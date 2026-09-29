@@ -1,0 +1,5 @@
+[
+  { "id": "t1", "token": "x", "places": [{ "lat": 13.85, "lng": 100.5857, "label": "บ้านทดสอบ" }], "state": {} },
+  { "id": "t2", "token": "y", "places": [{ "lat": 13.7563, "lng": 100.5018, "label": "ที่ทำงาน" }, { "lat": 13.9, "lng": 100.75, "label": "ที่จอดรถ" }], "state": {} },
+  { "id": "t3", "token": "z", "places": [{ "lat": 13.8, "lng": 100.6, "label": "บ้าน" }], "state": {}, "lastSentAt": 9999999999999 }
+]
