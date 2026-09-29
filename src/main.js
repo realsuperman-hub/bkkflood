@@ -952,32 +952,26 @@ async function main() {
   const floodsP = reloadFloods();
   const rainP = reloadRainObs();
 
-  await loaded;
-  map.resize();
-  map.jumpTo({ center: [BKK_CENTER.lng, BKK_CENTER.lat], zoom: 10.3 });
-  initLayers();
-  await Promise.all([storeP, stationsP, floodsP, rainP]);
-  refreshStationsLayer();
-  refreshFloodsLayer();
-  render();
-
-  refreshOverview();
-  refreshSaved();
-
-  const p = new URLSearchParams(location.search).get('p');
-  const m = p && p.match(/^(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)$/);
-  if (m) selectPoint(+m[1], +m[3], { fly: true });
-
-  state.push = pushStatus();
-  verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
-  loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
-  emit();
-  window.addEventListener('online', () => { renderBanner(); reloadStations(); reloadFloods(); });
-  window.addEventListener('offline', renderBanner);
-  // Production only (dev uses ?sw=1) so Vite hot-reload is never served from a cache
+  // Nothing below the data layer may wait for map tiles: on a weak signal the tiles are the slowest thing,
+  // yet risk chips, alerts and offline support must still come up. Production only (dev uses ?sw=1) so Vite HMR is never cached.
   if ('serviceWorker' in navigator && (import.meta.env.PROD || location.search.includes('sw=1'))) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
+  const shared = new URLSearchParams(location.search).get('p');
+  const sharedPt = shared && shared.match(/^(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)$/);
+
+  Promise.all([storeP, stationsP, floodsP, rainP]).then(() => {
+    render();
+    refreshOverview();
+    refreshSaved();
+    if (sharedPt) selectPoint(+sharedPt[1], +sharedPt[3], { fly: true });
+    state.push = pushStatus();
+    verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
+    loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
+    emit();
+  });
+  window.addEventListener('online', () => { renderBanner(); reloadStations(); reloadFloods(); });
+  window.addEventListener('offline', renderBanner);
 
   setInterval(reloadStations, 10 * 60 * 1000);
   setInterval(reloadFloods, 5 * 60 * 1000);
@@ -987,6 +981,12 @@ async function main() {
     refreshSaved();
   }, 15 * 60 * 1000);
   setInterval(refreshReportsLayer, 60 * 1000); // expire old reports without a network round-trip
+
+  await loaded;
+  map.resize();
+  if (!sharedPt) map.jumpTo({ center: [BKK_CENTER.lng, BKK_CENTER.lat], zoom: 10.3 });
+  initLayers();
+  refreshSelectedLayer();
 }
 
 main();
