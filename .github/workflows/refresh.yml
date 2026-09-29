@@ -4,7 +4,7 @@ name: refresh-data
 # Firebase Hosting Admin, Service Usage Consumer, Cloud Datastore User, Firebase Cloud Messaging Admin).
 on:
   schedule:
-    - cron: '*/15 * * * *' # GitHub may delay scheduled runs by several minutes
+    - cron: '7,22,37,52 * * * *' # every 15 min, offset from :00/:15 — GitHub drops/delays scheduled runs at the busy quarter-hour marks
   workflow_dispatch: {}
   push:
     branches: [main]
