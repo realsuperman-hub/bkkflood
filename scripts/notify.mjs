@@ -54,7 +54,11 @@ function evalPlace(p) {
   return cache.get(k);
 }
 
-const DEAD = ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token', 'messaging/invalid-argument'];
+// invalid-argument is ALSO what a malformed payload returns, so only treat it as a dead token when the message says so —
+// otherwise one bug in our payload would delete every real subscription.
+const isDeadToken = (e) =>
+  ['messaging/registration-token-not-registered', 'messaging/invalid-registration-token'].includes(e.code) ||
+  (e.code === 'messaging/invalid-argument' && /registration token/i.test(e.message || ''));
 let sent = 0;
 let skipped = 0;
 let removed = 0;
@@ -90,10 +94,10 @@ for (const sub of subs) {
           notified = true;
           sent++;
         } catch (e) {
-          if (DEAD.includes(e.code)) {
+          if (isDeadToken(e)) {
             await db.doc(`subs/${sub.id}`).delete();
             removed++;
-            console.log(`removed dead subscription ${sub.id} (${e.code})`);
+            console.log(`removed dead subscription ${sub.id} (${e.code}: ${String(e.message).slice(0, 120)})`);
             continue;
           }
           throw e;
