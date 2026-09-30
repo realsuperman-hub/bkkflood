@@ -81,6 +81,9 @@ jobs:
         # a notifier failure must never block the data refresh above
         continue-on-error: true
         run: node scripts/notify.mjs
+      - name: Log radar pixels next to observed rain (evidence for a possible radar nowcast; not used by the app)
+        continue-on-error: true
+        run: node scripts/log-radar.mjs
       - name: Log forecast for accuracy tracking
         continue-on-error: true
         run: node scripts/log-eval.mjs
