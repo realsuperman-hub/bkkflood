@@ -49,15 +49,28 @@ async function getToken() {
   return gt(getMessaging(getApp()), { serviceWorkerRegistration: reg, ...(vapidKey ? { vapidKey } : {}) });
 }
 
+// Runs one step of the opt-in and, if it fails, says which step and why (so "it did not work" becomes diagnosable).
+async function step(name, fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    const detail = `${e?.code || ''} ${e?.message || e}`.trim().slice(0, 160);
+    const err = new Error(`ขั้น "${name}" ไม่สำเร็จ — ${detail}`);
+    err.step = name;
+    throw err;
+  }
+}
+
 export async function enablePush(places) {
   if (!places.length) throw new Error('บันทึกจุดของคุณ (บ้าน/ที่จอดรถ) ก่อน แล้วค่อยเปิดแจ้งเตือน');
   const support = pushSupport();
   if (!support.ok) throw new Error('อุปกรณ์/เบราว์เซอร์นี้ยังเปิดแจ้งเตือนไม่ได้');
-  const perm = await Notification.requestPermission();
+  const perm = await step('ขออนุญาตแจ้งเตือน', () => Notification.requestPermission());
   if (perm !== 'granted') throw new Error('ไม่ได้รับอนุญาตให้แจ้งเตือน — เปิดสิทธิ์ในการตั้งค่าเว็บไซต์ของเบราว์เซอร์');
-  const token = await getToken();
+  const token = await step('ขอรหัสอุปกรณ์ (FCM)', () => getToken());
   if (!token) throw new Error('ขอรหัสอุปกรณ์ไม่สำเร็จ ลองใหม่อีกครั้ง');
-  await state.store.saveSub({ token, places: placesPayload(places) });
+  await step('เข้าสู่ระบบแบบไม่ระบุตัวตน', () => state.store.signIn());
+  await step('บันทึกที่เซิร์ฟเวอร์', () => state.store.saveSub({ token, places: placesPayload(places) }));
   ls.set(FLAG, '1');
   ls.set(TOKEN, token);
 }

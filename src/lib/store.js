@@ -91,6 +91,9 @@ function createLocalStore() {
     async saveSub() {
       throw new Error('ต้องเชื่อมฐานข้อมูลก่อนจึงจะเปิดแจ้งเตือนได้');
     },
+    async signIn() {
+      return null;
+    },
     async removeSub() {},
     async getSub() {
       return null;
@@ -200,6 +203,9 @@ async function createFirebaseStore() {
       batch.set(fs.doc(db, 'users', uid), { lastReportAt: fs.serverTimestamp() });
       await batch.commit();
       return ref.id;
+    },
+    async signIn() {
+      return ensureUid();
     },
     async saveSub({ token, places }) {
       const uid = await ensureUid();
