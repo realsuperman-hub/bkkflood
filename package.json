@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "data": "node scripts/fetch-stations.mjs && node scripts/fetch-floods.mjs && node scripts/fetch-rain.mjs && (node scripts/fetch-traffic.mjs || node -e 0) && (node scripts/fetch-dds.mjs || node -e 0)",
+    "data": "node scripts/fetch-stations.mjs && node scripts/fetch-floods.mjs && node scripts/fetch-rain.mjs && (node scripts/fetch-traffic.mjs || node -e 0) && (node scripts/fetch-dds.mjs || node -e 0) && (node scripts/fetch-dams.mjs || node -e 0)",
     "test": "node --test tests/*.test.js",
     "test:rules": "firebase emulators:exec --only firestore \"node --test tests/rules.emu.mjs\""
   },

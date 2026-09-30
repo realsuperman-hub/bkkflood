@@ -5,6 +5,7 @@ import { DEPTHS, PASSABLE } from '../lib/store.js';
 import { esc, ago, fmtTime, fmtHourKey, fmtDayHour } from '../lib/util.js';
 import { RISK } from '../lib/risk.js';
 import { SEVERITY } from '../lib/traffy.js';
+import { mcmDayToCms, damStatus, outflowTrend } from '../lib/dams.js';
 import { camViewerEnabled } from '../lib/longdo-cams.js';
 import { BMA_LINKS, EVENT_LABEL, SPEED_LEVEL } from '../lib/bma-traffic.js';
 import { distKm } from '../lib/geo.js';
@@ -95,6 +96,31 @@ function tideDays(tide) {
     <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="ระดับน้ำทะเลสูงสุดรายวัน">${bars}</svg>
     <p class="small">${line}</p>
     <p class="muted tiny">เกณฑ์ "สูง" = อยู่ใน 20% สูงสุดของช่วง 14 วันที่ผ่านมา + พยากรณ์ (≥ ${tide.dayThreshold} ม.)</p>`;
+}
+
+// The reservoirs upstream of the Chao Phraya: how full they are and whether they are holding water back or releasing it.
+// Data = Royal Irrigation Department open API, one report per day (million m³/day, shown as m³/s like the river gauges).
+function damsCard() {
+  const d = state.dams;
+  if (!d?.dams?.length) return '';
+  const cms = (v) => (v === null ? '—' : mcmDayToCms(v).toLocaleString('th-TH'));
+  const inSum = d.dams.reduce((s, x) => s + (x.inflow ?? 0), 0);
+  const outSum = d.dams.reduce((s, x) => s + (x.outflow ?? 0), 0);
+  const kept = inSum > 0.05 ? Math.round((1 - outSum / inSum) * 100) : null;
+  const rows = d.dams.map((x) => {
+    const st = damStatus(x);
+    const tr = outflowTrend(x);
+    const pct = x.percent === null ? 0 : Math.min(100, x.percent);
+    const col = ['#2e9e5b', '#d9b300', '#f28c28', '#d7263d'][st.level];
+    return `<div class="dam"><div class="dam-head"><b>เขื่อน${esc(x.name)}</b><span class="tag${st.level >= 2 ? ' warn' : ''}">${st.tag}</span></div>
+      <div class="dam-bar" role="img" aria-label="เก็บน้ำ ${x.percent ?? '—'}%"><span style="width:${pct}%;background:${col}"></span></div>
+      <small>เก็บน้ำ <b>${x.percent ?? '—'}%</b> ของความจุ · ไหลเข้า <b>${cms(x.inflow)}</b> · ระบายออก <b>${cms(x.outflow)}</b> ลบ.ม./วิ${tr === 'rising' ? ' <b>(ระบายเพิ่มขึ้น)</b>' : tr === 'falling' ? ' (ระบายลดลง)' : ''}</small>
+      <small class="muted">${esc(x.river)}</small></div>`;
+  }).join('');
+  return `<section class="card"><h3>เขื่อนต้นน้ำเจ้าพระยา</h3>
+    ${kept !== null ? `<p class="small">เขื่อนหลัก ${d.dams.length} แห่งรับน้ำเข้ารวม <b>${cms(inSum)}</b> ลบ.ม./วิ ระบายออกรวม <b>${cms(outSum)}</b> ลบ.ม./วิ — <b>เก็บน้ำไว้ได้ราว ${kept}%</b> ของน้ำที่ไหลเข้า</p>` : ''}
+    ${rows}
+    <p class="muted tiny">ข้อมูลรายวัน วันที่ ${thDate(d.date)} · ที่มา กรมชลประทาน (API เปิด) · เขื่อนเจ้าพระยา (ชัยนาท) เป็นเขื่อนทดน้ำ ปริมาณระบายดูที่สถานี "ท้ายเขื่อนเจ้าพระยา" ด้านบน · 100% = ความจุเก็บกักปกติ ไม่ใช่ขีดจำกัดของตัวเขื่อน · ค่ารายวัน แปลงจากล้าน ลบ.ม./วัน เป็น ลบ.ม./วิ</p></section>`;
 }
 
 // Whole Chao Phraya route in one fold-out list (north → south): tells whether the water coming down is still rising
@@ -389,6 +415,7 @@ export function overviewTab() {
         ${c13 && !c13.stale && c13.q >= 2400 ? '<p class="note">น้ำท้ายเขื่อนเจ้าพระยาค่อนข้างสูง พื้นที่ริมแม่น้ำควรเฝ้าระวัง</p>' : ''}
         ${riverRoute()}</section>`
     : '';
+  const damCard = damsCard();
 
   const tideCard = ov?.tide
     ? `<section class="card"><h3>น้ำทะเลหนุน</h3>
@@ -398,7 +425,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {

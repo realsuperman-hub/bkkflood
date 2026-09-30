@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { BMA_PAGE, parseCameras } from '../src/lib/bma-traffic.js';
 import { DDS_URL, parseDdsReport } from '../src/lib/dds.js';
+import { DAM_API, normalizeDams } from '../src/lib/dams.js';
 
 const REPO = 'realsuperman-hub/bkkflood';
 const GH = process.env.GH_EXE || 'gh';
@@ -35,6 +36,21 @@ try {
   jobs.push(['dds', { generatedAt: Date.now(), source: 'สำนักการระบายน้ำ กรุงเทพมหานคร', ...parseDdsReport(await page(DDS_URL)) }]);
 } catch (e) {
   console.error('dds:', e.message);
+}
+
+try {
+  const bkk = (off) => new Date(Date.now() + 7 * 3600e3 - off * 86400e3).toISOString().slice(0, 10);
+  const day = async (d) => {
+    const j = JSON.parse(await page(`${DAM_API}/${d}`));
+    return Array.isArray(j.data) && j.data.length ? j : null;
+  };
+  let latest = null;
+  let off = 0;
+  for (; off < 3 && !latest; off++) latest = await day(bkk(off));
+  if (!latest) throw new Error('no report in the last 3 days');
+  jobs.push(['dams', { generatedAt: Date.now(), source: 'กรมชลประทาน (ศูนย์ปฏิบัติการน้ำอัจฉริยะ) — API อ่างเก็บน้ำขนาดใหญ่', ...normalizeDams(latest, await day(bkk(off))) }]);
+} catch (e) {
+  console.error('dams:', e.message);
 }
 
 for (const [name, obj] of jobs) {

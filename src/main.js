@@ -942,6 +942,7 @@ async function reloadTraffic() {
     if (r.roads) { t.roads = r.roads.roads || []; t.roadsFresh = r.roads.freshSegments ?? null; t.roadsTotal = r.roads.totalSegments ?? null; t.roadsAt = r.roads.generatedAt; }
     if (r.cameras) t.cameras = r.cameras.cameras || [];
     if (r.dds) t.dds = r.dds;
+    if (r.dams) state.dams = r.dams;
   } catch {
     /* keep whatever we had */
   }

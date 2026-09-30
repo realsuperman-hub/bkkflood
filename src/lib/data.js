@@ -92,9 +92,9 @@ const snapshot = async (name) => {
   return r.json();
 };
 export async function loadTraffic() {
-  const [events, roads, cameras, dds] = await Promise.allSettled([snapshot('traffic-events'), snapshot('traffic-roads'), snapshot('cameras'), snapshot('dds')]);
+  const [events, roads, cameras, dds, dams] = await Promise.allSettled([snapshot('traffic-events'), snapshot('traffic-roads'), snapshot('cameras'), snapshot('dds'), snapshot('dams')]);
   const v = (x) => (x.status === 'fulfilled' ? x.value : null);
-  return { events: v(events), roads: v(roads), cameras: v(cameras), dds: v(dds) };
+  return { events: v(events), roads: v(roads), cameras: v(cameras), dds: v(dds), dams: v(dams) };
 }
 
 // Longdo Traffic's Bangkok traffic index (public JSON, CORS-enabled). We show the number as-is and link to Longdo for its meaning.
