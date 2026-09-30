@@ -11,6 +11,8 @@ export const BMA_LINKS = {
   bma: 'https://cpudapp.bangkok.go.th/bmatraffic/',
   itic: 'https://live.iticfoundation.org/',
   longdo: 'https://traffic.longdo.com/main/',
+  // Longdo Traffic's own share-link format: opens its live map (cameras + events) centred on a point
+  longdoAt: (lat, lng, zoom = 16) => `https://traffic.longdo.com/?lat=${(+lat).toFixed(6)}&lon=${(+lng).toFixed(6)}&zoom=${zoom}`,
   longdoCameras: 'https://traffic.longdo.com/cameralist', // Longdo's own camera list page (search by camera name/code)
 };
 
