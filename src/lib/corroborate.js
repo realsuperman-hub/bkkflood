@@ -10,8 +10,8 @@ import { distKm } from './geo.js';
 
 export const TIER = {
   multi: { label: 'ยืนยันหลายแหล่ง', color: '#2e9e5b', opacity: 1 },
-  some: { label: 'มีสัญญาณหนุน', color: '#b88700', opacity: 0.88 },
-  single: { label: 'ยังไม่ยืนยัน (สัญญาณเดียว)', color: '#6b7683', opacity: 0.7 },
+  some: { label: 'มีสัญญาณหนุน', color: '#b88700', opacity: 0.92 },
+  single: { label: 'ยังไม่ยืนยัน (สัญญาณเดียว)', color: '#6b7683', opacity: 0.8 },
 };
 
 const H = 3600e3;
