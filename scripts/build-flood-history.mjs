@@ -13,7 +13,9 @@ const since = Date.parse(`${arg('since', '2025-06-01')}T00:00:00+07:00`);
 const cache = arg('cache', 'flood-history-cache');
 const out = arg('out', 'data-static/flood-history.json');
 const PAGE = 1000;
-const CONC = 3;
+const CONC = Number(arg('conc', 2));
+const PAUSE_MS = Number(arg('pause', 3000)); // be gentle: deep offsets are expensive for Traffy's database
+const failed = [];
 const ts = (f) => Date.parse(String(f.properties?.timestamp || '').replace(' ', 'T') + '+07:00');
 
 await mkdir(cache, { recursive: true });
@@ -25,7 +27,7 @@ async function page(offset) {
   } catch {
     /* not cached yet */
   }
-  for (let attempt = 1; attempt <= 4; attempt++) {
+  for (let attempt = 1; attempt <= 6; attempt++) {
     try {
       const res = await fetch(`${TRAFFY_URL}?limit=${PAGE}&offset=${offset}`, { signal: AbortSignal.timeout(120000) });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -38,10 +40,11 @@ async function page(offset) {
       return rec;
     } catch (e) {
       console.error(`offset ${offset} attempt ${attempt}: ${e.message}`);
-      await new Promise((r) => setTimeout(r, 3000 * attempt));
+      await new Promise((r) => setTimeout(r, 10000 * attempt));
     }
   }
-  throw new Error(`offset ${offset} failed`);
+  failed.push(offset); // not cached, so a re-run retries it; the walk continues
+  return { offset, count: -1, failed: true, oldest: null, floods: [] };
 }
 
 // walk backwards in batches of CONC pages until the oldest complaint is older than --since
@@ -54,12 +57,15 @@ while (!done) {
   const batch = await Promise.all(Array.from({ length: CONC }, (_, k) => page(offset + k * PAGE)));
   for (const r of batch) {
     pages += 1;
+    if (r.failed) continue;
     if (!r.count || (r.oldest !== null && r.oldest < since)) done = true;
   }
   offset += CONC * PAGE;
+  await new Promise((r) => setTimeout(r, PAUSE_MS));
   if (pages % 30 === 0) console.log(`${pages} pages, oldest so far ${batch.at(-1).oldest ? dayIso(dayNo(batch.at(-1).oldest)) : '?'}`);
 }
 
+if (failed.length) console.error(`WARNING: ${failed.length} pages failed and are missing (offsets ${failed.join(', ')}) — re-run to fill the gaps`);
 const files = (await readdir(cache)).filter((f) => f.startsWith('p') && f.endsWith('.json'));
 const all = [];
 for (const f of files) {
