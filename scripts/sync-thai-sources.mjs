@@ -19,7 +19,8 @@ const page = async (url) => {
   if (!res.ok) throw new Error(`HTTP ${res.status} ${new URL(url).host}`);
   return res.text();
 };
-const gh = (...args) => execFileSync(GH, args, { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
+// `input` goes through stdin: the base64 payload is far larger than Windows' ~32 KB command-line limit
+const gh = (args, input) => execFileSync(GH, args, { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024, input, stdio: ['pipe', 'pipe', 'pipe'] });
 const strip = (o) => JSON.stringify({ ...o, generatedAt: 0 });
 
 const jobs = [];
@@ -48,7 +49,7 @@ for (const [name, obj] of jobs) {
   let sha;
   let old = null;
   try {
-    const cur = JSON.parse(gh('api', `repos/${REPO}/contents/${path}`));
+    const cur = JSON.parse(gh(['api', `repos/${REPO}/contents/${path}`]));
     sha = cur.sha;
     old = JSON.parse(Buffer.from(cur.content, 'base64').toString('utf8'));
   } catch {
@@ -58,9 +59,8 @@ for (const [name, obj] of jobs) {
     console.log(`${name}: unchanged`);
     continue;
   }
-  const args = ['api', '-X', 'PUT', `repos/${REPO}/contents/${path}`, '-f', `message=data: refresh ${name} from a Thai network`, '-f', `content=${Buffer.from(text).toString('base64')}`, '-f', 'branch=main'];
-  if (sha) args.push('-f', `sha=${sha}`);
-  gh(...args);
+  const body = { message: `data: refresh ${name} from a Thai network`, content: Buffer.from(text).toString('base64'), branch: 'main', ...(sha ? { sha } : {}) };
+  gh(['api', '-X', 'PUT', `repos/${REPO}/contents/${path}`, '--input', '-'], JSON.stringify(body));
   console.log(`${name}: updated in the repo`);
 }
 if (!jobs.length) process.exit(1);
