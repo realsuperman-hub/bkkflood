@@ -38,9 +38,12 @@ jobs:
           node scripts/fetch-floods.mjs || { echo "floods fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/floods.json -o public/data/floods.json || true; }
       - name: Fetch BMA traffic + drainage report (optional sources; missing pieces are copied from the live site)
         run: |
-          node scripts/fetch-traffic.mjs || echo "BMA traffic fetch failed"
-          node scripts/fetch-dds.mjs || echo "DDS report fetch failed"
-          for f in cameras traffic-events traffic-roads dds; do
+          node scripts/fetch-traffic.mjs || echo "BMA traffic fetch failed (cameras.json comes from data-static/)"
+          # cameras + dds cannot be fetched from GitHub's servers (blocked); a Thai-network task keeps data-static/ current
+          for f in cameras dds; do
+            [ -s public/data/$f.json ] || cp "data-static/$f.json" "public/data/$f.json" 2>/dev/null || true
+          done
+          for f in traffic-events traffic-roads; do
             [ -s public/data/$f.json ] || curl -sf "https://bkkflood.web.app/data/$f.json" -o "public/data/$f.json" || true
           done
       - name: Accuracy report (every 6 h; other runs reuse the live one)

@@ -9,6 +9,16 @@ $gh = 'C:\Program Files\GitHub CLI\gh.exe'
 function Log($m) { "$(Get-Date -Format 's') $m" | Add-Content -Path $log -Encoding utf8 }
 
 if (-not (Test-Path $gh)) { Log 'gh.exe not found'; exit 1 }
+
+# Refresh the two BMA sources that GitHub's servers cannot reach (only commits when the content changed)
+$node = (Get-Command node -ErrorAction SilentlyContinue).Source
+if (-not $node) { $node = 'C:\Program Files\nodejs\node.exe' }
+$env:GH_EXE = $gh
+Push-Location $root
+$sync = & $node scripts/sync-thai-sources.mjs 2>&1
+Log ('sync-thai-sources -> exit ' + $LASTEXITCODE + ' ' + (($sync | ForEach-Object { "$_".Trim() } | Where-Object { $_ }) -join ' | '))
+Pop-Location
+
 $out = & $gh workflow run refresh-data --repo realsuperman-hub/bkkflood 2>&1
 $code = $LASTEXITCODE
 Log ("gh workflow run -> exit $code " + (($out | ForEach-Object { "$_".Trim() } | Where-Object { $_ } | Select-Object -Last 1) -join ' '))
