@@ -46,10 +46,31 @@ export function loadRain(lat, lng) {
   return cached(key, 10 * 60 * 1000, async () => {
     const url =
       `${FORECAST}?latitude=${lat}&longitude=${lng}&hourly=precipitation` +
-      `&models=${MODELS.join(',')}&past_days=2&forecast_days=3&timezone=Asia%2FBangkok`;
+      `&models=${MODELS.join(',')}&past_days=7&forecast_days=3&timezone=Asia%2FBangkok`;
     const d = await getJson(url);
     return summarizeRain(d);
   });
+}
+
+// Antecedent Precipitation Index: rain of each of the last 7 days (24 h blocks back from now), each older day counted at
+// K × the day after it. K = 0.8/day ≈ a 3-day half-life, a common choice for fast-draining urban catchments; it is an
+// assumption, not a fitted value — the accuracy log is what should eventually tune it. In steady rain of R mm/day the index
+// settles at R / (1 − K) = 5 R, so a wet-season Bangkok day of ~10 mm gives ≈ 50 mm.
+export const API_K = 0.8;
+export function antecedentIndex(hourlyMed, i0, k = API_K) {
+  let api = 0;
+  let total = 0;
+  let days = 0;
+  for (let d = 0; d < 7; d++) {
+    const to = i0 - d * 24;
+    const from = to - 24;
+    if (from < 0) break;
+    const p = sum(hourlyMed.slice(from, to));
+    api += p * k ** d;
+    total += p;
+    days += 1;
+  }
+  return days >= 3 ? { api: r1(api), past7: r1(total), days } : null;
 }
 
 export function summarizeRain(d, now = Date.now()) {
@@ -75,6 +96,7 @@ export function summarizeRain(d, now = Date.now()) {
     elevation: d.elevation ?? null,
     models: series.length,
     past48: r1(sum(win(med, Math.max(0, i0 - 48), Math.min(48, i0)))),
+    antecedent: antecedentIndex(med, i0),
     next6: r1(sum(win(med, i0, 6))),
     next24: r1(sum(win(med, i0, 24))),
     next48: r1(sum(win(med, i0, 48))),

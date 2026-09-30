@@ -3,7 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
-import { loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -15,6 +15,7 @@ import { esc, ago, fmtTime, toast } from './lib/util.js';
 import { TAB_RENDER, BKK_CENTER } from './ui/panel.js';
 import { openReportDialog } from './ui/report.js';
 import { matchFloods, matchStations, matchReports, matchTraffic, geocode, validQuery } from './lib/search.js';
+import { historyGeoJson } from './lib/flood-history.js';
 import { openCamViewer, camViewerEnabled } from './lib/longdo-cams.js';
 import { pushStatus, enablePush, disablePush, syncPush, verifyPush } from './lib/push.js';
 import { SITE_URL, lineLink, shareNative, siteShare, pointShare } from './lib/share.js';
@@ -143,6 +144,15 @@ function initLayers() {
   map.addSource('traffic-roads', { type: 'geojson', data: emptyFC });
   map.addLayer({ id: 'traffic-roads-casing', type: 'line', source: 'traffic-roads', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 5, 15, 13] } });
   map.addLayer({ id: 'traffic-roads', type: 'line', source: 'traffic-roads', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3, 15, 8] } });
+  map.addSource('repeat', { type: 'geojson', data: emptyFC });
+  map.addLayer({
+    id: 'repeat', type: 'circle', source: 'repeat', layout: { visibility: 'none' },
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 3, 13, 9, 16, 22],
+      'circle-color': ['step', ['get', 'days'], '#f2c200', 4, '#f28c28', 7, '#d7263d'],
+      'circle-opacity': 0.55, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1,
+    },
+  }, 'traffic-roads-casing');
   map.addSource('cameras', { type: 'geojson', data: emptyFC });
   map.addLayer({ id: 'cameras', type: 'circle', source: 'cameras', minzoom: 11, layout: { visibility: 'none' }, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 16, 8], 'circle-color': ['case', ['get', 'flood'], '#00a6c8', '#4a5b6c'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } });
 
@@ -245,6 +255,15 @@ function refreshStationsLayer() {
   });
 }
 
+function refreshRepeatLayer() {
+  if (state.floodHistory?.cells) map?.getSource('repeat')?.setData(historyGeoJson(state.floodHistory.cells));
+}
+function repeatPopup(p, lngLat) {
+  const h = state.floodHistory;
+  openPopup(lngLat, `<div class="pp"><div class="pp-title">จุดที่มีคนแจ้งน้ำท่วมซ้ำ</div>
+    <p class="small">มีการแจ้งน้ำท่วมใน <b>${p.days} วันที่ต่างกัน</b> (รวม ${p.n} เรื่อง) ในช่องพื้นที่ราว 275 ม.</p>
+    <p class="muted tiny">ครั้งแรก ${esc(p.first)} · ล่าสุด ${esc(p.last)}${h ? ` · ข้อมูลแจ้งช่วง ${esc(h.from)} ถึง ${esc(h.to)}` : ''} · เป็นข้อความแจ้งของประชาชน ไม่ใช่ค่าที่วัดได้ ระบุความลึกไม่ได้</p></div>`);
+}
 function refreshTrafficLayers() {
   const t = state.traffic;
   map?.getSource('traffic-roads')?.setData({
@@ -729,6 +748,12 @@ const actions = {
     floodPopup(f);
   },
   'point-forecast': ({ lat, lng }) => selectPoint(+lat, +lng),
+  'show-repeat': ({ lat, lng }) => {
+    $('#ly-repeat').checked = true;
+    map.setLayoutProperty('repeat', 'visibility', 'visible');
+    map.flyTo({ center: [+lng, +lat], zoom: Math.max(map.getZoom(), 14) });
+    if (window.matchMedia('(max-width: 720px)').matches) $('#panel').dataset.open = 'false';
+  },
   'goto-district': ({ d }) => {
     state.district = d;
     state.floodLimit = 40;
@@ -860,6 +885,7 @@ $('#ly-traffic').addEventListener('change', (e) => {
   const v = e.target.checked ? 'visible' : 'none';
   ['traffic-roads-casing', 'traffic-roads', 'traffic-events'].forEach((l) => map.setLayoutProperty(l, 'visibility', v));
 });
+$('#ly-repeat').addEventListener('change', (e) => map.setLayoutProperty('repeat', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-cams').addEventListener('change', (e) => map.setLayoutProperty('cameras', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-rain').addEventListener('change', (e) => map.setLayoutProperty('rainobs', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-gauges').addEventListener('change', (e) => map.setLayoutProperty('stations', 'visibility', e.target.checked ? 'visible' : 'none'));
@@ -1033,7 +1059,7 @@ async function main() {
 
   map.on('click', (e) => {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
-    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     if (hit) {
       if (['reports', 'report-lines', 'report-areas'].includes(hit.layer.id)) {
         const r = state.reports.find((x) => x.id === hit.properties.id);
@@ -1046,6 +1072,8 @@ async function main() {
         if (c) cameraPopup(c);
       } else if (hit.layer.id === 'traffic-roads') {
         roadPopup(hit.properties, e.lngLat);
+      } else if (hit.layer.id === 'repeat') {
+        repeatPopup(hit.properties, e.lngLat);
       } else if (hit.layer.id === 'rainobs') {
         const g = state.rainObs.find((x) => String(x.id) === String(hit.properties.id));
         if (g) rainPopup(g);
@@ -1060,7 +1088,7 @@ async function main() {
     }
     selectPoint(e.lngLat.lat, e.lngLat.lng);
   });
-  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads'].forEach((l) => {
+  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat'].forEach((l) => {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   });
@@ -1097,6 +1125,7 @@ async function main() {
     state.push = pushStatus();
     verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
+    loadFloodHistory().then((h) => { state.floodHistory = h; $('#ly-repeat').closest('label').hidden = false; refreshRepeatLayer(); emit(); }).catch(() => {});
     emit();
   });
   window.addEventListener('online', () => { renderBanner(); reloadStations(); reloadFloods(); });
@@ -1117,6 +1146,7 @@ async function main() {
   map.resize();
   if (!sharedPt) map.jumpTo({ center: [BKK_CENTER.lng, BKK_CENTER.lat], zoom: 10.3 });
   initLayers();
+  refreshRepeatLayer(); // the history may have arrived before the layers existed
   refreshSelectedLayer();
 }
 

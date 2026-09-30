@@ -20,6 +20,7 @@ export const state = {
   rainObsAt: null,
   rainObsSrc: '',
   traffic: { events: [], eventsAt: null, roads: [], roadsFresh: null, roadsTotal: null, roadsAt: null, cameras: [], dds: null, longdo: null },
+  floodHistory: null, // repeat-flood-spot grid (Traffy history) — see src/lib/flood-history.js
   dams: null, // key dams feeding the Chao Phraya (RID open API snapshot)
   floods: [], // Traffy Fondue flood complaints (classified)
   floodsAt: null,

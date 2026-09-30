@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assess } from '../src/lib/risk.js';
 import { normalizeStations, trendOf } from '../src/lib/thaiwater.js';
-import { summarizeRain, summarizeTide, dailyPeaks } from '../src/lib/forecast.js';
+import { summarizeRain, summarizeTide, dailyPeaks, antecedentIndex } from '../src/lib/forecast.js';
 
 const gauge = (o) => ({ name: 'คลองทดสอบ', km: 1.2, level: 3, over: -0.5, trend: 0, stale: false, ...o });
 
@@ -145,4 +145,18 @@ test('dailyPeaks picks each day\'s highest hour, drops thin days, and flags the 
   assert.equal(r.topDay.peak, 2.1);
   assert.equal(r.days.find((x) => x.date === '2026-09-30').high, true);
   assert.equal(r.days.find((x) => x.date === '2026-09-22').high, false);
+});
+
+test('antecedentIndex weights recent days more and settles near R/(1-K) in steady rain', () => {
+  const hours = 24 * 8;
+  const steady = Array.from({ length: hours }, () => 10 / 24); // 10 mm/day
+  const a = antecedentIndex(steady, hours);
+  // 7-day truncation of the geometric series: 10 × (1 − 0.8^7)/(1 − 0.8) ≈ 39.5
+  assert.ok(Math.abs(a.api - 39.5) < 0.3, String(a.api));
+  assert.equal(a.past7, 70);
+  // the same total rain counts for more when it fell yesterday than when it fell a week ago
+  const recent = Array.from({ length: hours }, (_, i) => (i >= hours - 24 ? 24 / 24 * 10 : 0));
+  const old = Array.from({ length: hours }, (_, i) => (i >= hours - 24 * 7 && i < hours - 24 * 6 ? 10 : 0));
+  assert.ok(antecedentIndex(recent, hours).api > antecedentIndex(old, hours).api * 2);
+  assert.equal(antecedentIndex([1, 2, 3], 3), null); // not enough history → no index
 });

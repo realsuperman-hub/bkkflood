@@ -5,6 +5,7 @@ import { DEPTHS, PASSABLE } from '../lib/store.js';
 import { esc, ago, fmtTime, fmtHourKey, fmtDayHour } from '../lib/util.js';
 import { RISK } from '../lib/risk.js';
 import { SEVERITY } from '../lib/traffy.js';
+import { nearbyHistory, dayIso } from '../lib/flood-history.js';
 import { mcmDayToCms, damStatus, outflowTrend } from '../lib/dams.js';
 import { camViewerEnabled } from '../lib/longdo-cams.js';
 import { BMA_LINKS, EVENT_LABEL, SPEED_LEVEL } from '../lib/bma-traffic.js';
@@ -21,6 +22,16 @@ const DISCLAIMER =
 const skeleton = (t) => `<section class="card"><div class="skel"></div><p class="muted small">${t}</p></section>`;
 
 /* ───────── shared components ───────── */
+// Antecedent moisture: how wet the last 7 days were (recent days count more). Shown for context only — it does not change the score yet.
+// Bands are rough: a steady ~10 mm/day wet-season rain gives an index of ≈ 50 mm.
+function wetnessLine(rain) {
+  const a = rain?.antecedent;
+  if (!a) return '';
+  const band = a.api < 25 ? ['ค่อนข้างแห้ง', '#8c5a2b'] : a.api < 75 ? ['ชื้นตามฤดูฝน', '#2e9e5b'] : a.api < 125 ? ['ชื้นมาก', '#f28c28'] : ['อิ่มตัวมาก', '#d7263d'];
+  return `<p class="small wet"><span class="dot" style="background:${band[1]}"></span>ความชื้นสะสม 7 วัน: <b>${band[0]}</b> (ดัชนี ${a.api} มม. · ฝนรวม ${a.past7} มม.)
+    <span class="muted tiny">ท่อและคลองที่ยังไม่ระบายหมด รับฝนใหม่ได้น้อยลง · ค่าประมาณจากโมเดล ยังไม่ได้นับเข้าคะแนนความเสี่ยง</span></p>`;
+}
+
 function riskCard(ev, title) {
   if (!ev) return skeleton('กำลังประเมินความเสี่ยง…');
   const r = ev.risk;
@@ -34,7 +45,7 @@ function riskCard(ev, title) {
   return `<section class="card risk" style="--c:${r.color}">
     <div class="risk-head"><span class="risk-badge">${esc(r.label)}</span><span class="risk-title">${esc(title)}</span></div>
     <p class="advice">${esc(r.advice)}</p>
-    <div class="why">เพราะอะไร</div>${reasons}${notes}${errs}
+    <div class="why">เพราะอะไร</div>${reasons}${notes}${wetnessLine(ev.rain)}${errs}
     <p class="muted tiny">${DISCLAIMER}</p>
   </section>`;
 }
@@ -214,6 +225,21 @@ function ddsListCard() {
   return `<section class="card"><h3>รายงานน้ำท่วมถนนสายหลัก (สนน.) ${state.district ? `· เขต${esc(state.district)}` : ''}</h3>${ddsBanner(d)}
     ${rows.length ? `<div class="list">${rows.slice(0, 40).map(ddsRow).join('')}</div>${rows.length > 40 ? `<p class="muted small">แสดง 40 จาก ${rows.length} จุด — เลือกเขตเพื่อกรอง</p>` : ''}` : '<p class="muted small">ไม่มีรายการในเขตนี้</p>'}
     <p class="muted tiny">ที่มา: สำนักการระบายน้ำ กรุงเทพมหานคร</p></section>`;
+}
+
+// Has this spot flooded before? Counts DIFFERENT DAYS on which citizens reported flooding within ~400 m (Traffy history).
+function repeatHistoryCard(f) {
+  const h = state.floodHistory;
+  if (!h?.cells) return '';
+  const n = nearbyHistory(h.cells, f.lat, f.lng);
+  const span = `${thDate(h.from)} – ${thDate(h.to)}`;
+  const band = n.days >= 7 ? ['ท่วมซ้ำบ่อย', '#d7263d'] : n.days >= 4 ? ['ท่วมซ้ำ', '#f28c28'] : ['เคยท่วมซ้ำ', '#d9a300'];
+  const body = n.days >= 2
+    ? `<p class="small"><span class="tag warn" style="background:${band[1]}22;color:${band[1]}">${band[0]}</span> ในรัศมีราว 400 ม. เคยมีคนแจ้งน้ำท่วมใน <b>${n.days} วันที่ต่างกัน</b> (รวม ${n.n} เรื่อง) · ล่าสุด ${thDate(dayIso(n.last))}</p>
+       <div class="row wrap"><button class="btn btn-sm" data-act="show-repeat" data-lat="${f.lat}" data-lng="${f.lng}">ดูจุดท่วมซ้ำบนแผนที่</button></div>`
+    : `<p class="small">ช่วง ${span} ไม่พบว่ามีคนแจ้งน้ำท่วมซ้ำหลายวันในรัศมีราว 400 ม. — <b>ไม่ได้แปลว่าไม่เคยท่วม</b> คนแจ้งกันเฉพาะบางจุด</p>`;
+  return `<section class="card"><h3>ประวัติน้ำท่วมซ้ำรอบจุดนี้</h3>${body}
+    <p class="muted tiny">นับจากข้อความแจ้งน้ำท่วมของประชาชนใน Traffy Fondue ช่วง ${span} (${h.complaints.toLocaleString('th-TH')} เรื่อง) — เป็นการแจ้ง ไม่ใช่ค่าที่วัดได้ บอกความลึกไม่ได้ และจุดที่คนน้อยแจ้งอาจไม่ขึ้น</p></section>`;
 }
 
 function camerasNearCard(f) {
@@ -485,6 +511,7 @@ export function forecastTab() {
     ${camRow}
     ${saveCard}
     ${nearCard}
+    ${repeatHistoryCard(f)}
     ${camerasNearCard(f)}
     ${rainNearCard(f)}
     ${next3hCard(f)}
