@@ -25,11 +25,11 @@ function loadSdk() {
 }
 
 let map;
-export async function openCamViewer({ lat, lng, zoom = 13 }) {
+export async function openCamViewer({ lat, lng, zoom = 12 }) {
   const dlg = document.getElementById('cam-dialog');
-  dlg.innerHTML = `<div class="cam-head"><b>กล้องจราจร (ผ่าน Longdo Map)</b><span><a class="btn btn-sm" href="${BMA_LINKS.longdoAt(lat, lng)}" target="_blank" rel="noopener">เปิดที่ Longdo ↗</a> <button class="btn btn-sm" data-cam-close>ปิด</button></span></div>
-    <div id="cam-map" class="cam-map"><p class="muted small" style="padding:16px">กำลังโหลดแผนที่…</p></div>
-    <p class="muted tiny cam-foot">แผนที่และกล้องจราจรโดย Longdo Map (Metamedia Technology) · แตะไอคอนกล้องสีชมพูเพื่อดูภาพ (ซูมเข้า/ออกหากไม่เห็น) · กล้องเป็นของ กทม./iTIC</p>`;
+  dlg.innerHTML = `<div class="cam-head"><b>กล้องจราจร (Longdo)</b><span><a class="btn btn-sm" href="${BMA_LINKS.longdoAt(lat, lng)}" target="_blank" rel="noopener">เปิดที่ Longdo ↗</a> <button class="btn btn-sm" data-cam-close>ปิด</button></span></div>
+    <div id="cam-map" class="cam-map"><p class="muted small" style="padding:16px">กำลังโหลดแผนที่… (อาจใช้เวลาสักครู่)</p></div>
+    <p class="muted tiny cam-foot">แผนที่และกล้องจราจรโดย Longdo Map (Metamedia Technology) · หาไอคอนกล้องสีชมพู 🎥 แล้วแตะเพื่อดูภาพ · Longdo มีกล้องในกรุงเทพฯ/ปริมณฑลเพียงราว 60 ตัว ถ้าไม่เห็น ให้เลื่อนหรือซูมออก · กล้องเป็นของ กทม./iTIC</p>`;
   dlg.querySelector('[data-cam-close]').onclick = () => dlg.close();
   if (!dlg.open) dlg.showModal();
   try {
