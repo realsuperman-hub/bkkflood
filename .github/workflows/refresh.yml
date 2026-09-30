@@ -40,7 +40,7 @@ jobs:
         run: |
           node scripts/fetch-traffic.mjs || echo "BMA traffic fetch failed (cameras.json comes from data-static/)"
           # cameras + dds cannot be fetched from GitHub's servers (blocked); a Thai-network task keeps data-static/ current
-          for f in cameras dds; do
+          for f in cameras dds flood-history; do
             [ -s public/data/$f.json ] || cp "data-static/$f.json" "public/data/$f.json" 2>/dev/null || true
           done
           # RID dam API: try from GitHub first; if blocked, use the Thai-network copy, then whatever is live
