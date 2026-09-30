@@ -45,8 +45,10 @@ async function page(offset) {
 }
 
 // walk backwards in batches of CONC pages until the oldest complaint is older than --since
+// (--aggregate-only: skip downloading and summarise whatever pages are already in the cache — an interim snapshot)
+const onlyAggregate = process.argv.includes('--aggregate-only');
 let offset = 0;
-let done = false;
+let done = onlyAggregate;
 let pages = 0;
 while (!done) {
   const batch = await Promise.all(Array.from({ length: CONC }, (_, k) => page(offset + k * PAGE)));
@@ -61,7 +63,12 @@ while (!done) {
 const files = (await readdir(cache)).filter((f) => f.startsWith('p') && f.endsWith('.json'));
 const all = [];
 for (const f of files) {
-  const r = JSON.parse(await readFile(join(cache, f), 'utf8'));
+  let r;
+  try {
+    r = JSON.parse(await readFile(join(cache, f), 'utf8'));
+  } catch {
+    continue; // a page that is still being written by a running download
+  }
   for (const fl of r.floods) if (fl.t >= since) all.push(fl);
 }
 const cells = aggregateHistory(all);
