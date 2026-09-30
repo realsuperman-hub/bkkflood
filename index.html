@@ -52,6 +52,7 @@
     <div id="layers-pop" class="layers-pop" hidden>
       <label><input type="checkbox" id="ly-floods" checked /> จุดน้ำท่วม (แจ้ง กทม.)</label>
       <label hidden><input type="checkbox" id="ly-repeat" /> จุดท่วมซ้ำ (ประวัติแจ้งย้อนหลัง)</label>
+      <label hidden><input type="checkbox" id="ly-windy" /> กล้อง Windy (ภาพย้อนหลัง 24 ชม.)</label>
       <label hidden><input type="checkbox" id="ly-sat" /> น้ำท่วมจากดาวเทียม (GISTDA)</label>
       <label><input type="checkbox" id="ly-traffic" checked /> จราจรติดขัด + เหตุการณ์ (กทม.)</label>
       <label><input type="checkbox" id="ly-cams" /> กล้องจราจร กทม. (ซูมเข้า)</label>
@@ -128,6 +129,7 @@
     <dialog id="report-dialog" class="dialog"></dialog>
     <dialog id="cam-dialog" class="dialog cam-dialog"></dialog>
     <dialog id="yt-dialog" class="dialog cam-dialog"></dialog>
+    <dialog id="windy-dialog" class="dialog cam-dialog"></dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </div>
   <script type="module" src="/src/main.js"></script>

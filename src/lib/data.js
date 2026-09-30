@@ -96,6 +96,8 @@ export const loadFloodHistory = () => snapshot('flood-history');
 export const loadNews = () => snapshot('news');
 // Live Thai camera-like YouTube streams (official API, built by scripts/fetch-youtube-live.mjs); optional
 export const loadYtLive = () => snapshot('youtube-live');
+// Windy webcams in Thailand (metadata + timelapse player links; built by scripts/fetch-windy.mjs); optional
+export const loadWindyCams = () => snapshot('windy-cams');
 // Radar-satellite flood extent from GISTDA (built on a Thai network by scripts/sync-gistda.mjs); optional
 export const loadSatFlood = () => snapshot('gistda-flood');
 export async function loadTraffic() {

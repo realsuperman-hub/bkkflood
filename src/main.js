@@ -3,7 +3,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
-import { loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
+import { loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -169,6 +170,11 @@ function initLayers() {
       'circle-color': '#1c5fd4', 'circle-opacity': 0.45, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 0.6,
     },
   }, 'traffic-roads-casing');
+  map.addSource('windy', { type: 'geojson', data: emptyFC });
+  map.addLayer({
+    id: 'windy', type: 'circle', source: 'windy', minzoom: 8, layout: { visibility: 'none' },
+    paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 3, 13, 6, 16, 9], 'circle-color': '#0e9f8e', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 },
+  });
   map.addSource('cameras', { type: 'geojson', data: emptyFC });
   map.addLayer({ id: 'cameras', type: 'circle', source: 'cameras', minzoom: 11, layout: { visibility: 'none' }, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 16, 8], 'circle-color': ['case', ['get', 'flood'], '#00a6c8', '#4a5b6c'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } });
 
@@ -272,6 +278,22 @@ function refreshStationsLayer() {
   });
 }
 
+function refreshWindyLayer() {
+  const w = state.windyCams;
+  if (!w?.cams) return;
+  map?.getSource('windy')?.setData({
+    type: 'FeatureCollection',
+    features: w.cams.map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lng, c.lat] }, properties: { id: c.id } })),
+  });
+}
+function windyPopup(c) {
+  openPopup([c.lng, c.lat], `<div class="pp"><div class="pp-title">กล้อง (Windy)</div>
+    <p class="small"><b>${esc(c.title)}</b></p>
+    <p class="muted tiny">${c.updated ? `ภาพล่าสุด ${ago(c.updated)}` : ''} · ภาพย้อนหลัง 24 ชม. แบบเร่งเวลา เล่นผ่านตัวเล่นของ Windy</p>
+    <div class="row wrap"><button class="btn btn-sm btn-primary" data-act="windy-open" data-id="${esc(c.id)}">ดูภาพย้อนหลัง 24 ชม.</button>
+    ${c.detail ? `<a class="btn btn-sm" href="${esc(c.detail)}" target="_blank" rel="noopener noreferrer">เปิดที่ Windy ↗</a>` : ''}</div>
+    <p class="muted tiny">Webcams provided by <a href="https://www.windy.com" target="_blank" rel="noopener noreferrer">Windy.com</a> — <a href="${WINDY_CREDIT_URL}" target="_blank" rel="noopener noreferrer">add a webcam</a></p></div>`);
+}
 function refreshSatLayer() {
   const s = state.satFlood;
   if (!s?.cells) return;
@@ -789,6 +811,17 @@ const actions = {
     floodPopup(f);
   },
   'point-forecast': ({ lat, lng }) => selectPoint(+lat, +lng),
+  'windy-open': ({ id }) => {
+    const c = state.windyCams?.cams?.find((x) => x.id === String(id));
+    if (!c || !isWindyPlayer(c.day)) return;
+    const dlg = $('#windy-dialog');
+    dlg.innerHTML = `<div class="cam-head"><b class="clip">${esc(c.title)}</b><span>${c.detail ? `<a class="btn btn-sm" href="${esc(c.detail)}" target="_blank" rel="noopener noreferrer">เปิดที่ Windy ↗</a> ` : ''}<button class="btn btn-sm" data-windy-close>ปิด</button></span></div>
+      <div class="yt-frame"><iframe src="${esc(c.day)}" title="${esc(c.title)}" allow="fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      <p class="muted tiny cam-foot">ภาพเร่งเวลาย้อนหลัง 24 ชม. ของกล้องนี้ (ไม่ใช่ภาพสด) · Webcams provided by <a href="https://www.windy.com" target="_blank" rel="noopener noreferrer">Windy.com</a> — <a href="${WINDY_CREDIT_URL}" target="_blank" rel="noopener noreferrer">add a webcam</a></p>`;
+    dlg.querySelector('[data-windy-close]').onclick = () => dlg.close();
+    dlg.addEventListener('close', () => { dlg.innerHTML = ''; }, { once: true });
+    dlg.showModal();
+  },
   'yt-open': ({ id }) => {
     const v = state.ytLive?.items?.find((x) => x.id === id);
     if (!v || !/^[\w-]{11}$/.test(id)) return;
@@ -944,6 +977,7 @@ $('#ly-traffic').addEventListener('change', (e) => {
   const v = e.target.checked ? 'visible' : 'none';
   ['traffic-roads-casing', 'traffic-roads', 'traffic-events'].forEach((l) => map.setLayoutProperty(l, 'visibility', v));
 });
+$('#ly-windy').addEventListener('change', (e) => map.setLayoutProperty('windy', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-sat').addEventListener('change', (e) => map.setLayoutProperty('sat-flood', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-repeat').addEventListener('change', (e) => map.setLayoutProperty('repeat', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-cams').addEventListener('change', (e) => map.setLayoutProperty('cameras', 'visibility', e.target.checked ? 'visible' : 'none'));
@@ -1122,7 +1156,7 @@ async function main() {
 
   map.on('click', (e) => {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
-    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     if (hit) {
       if (['reports', 'report-lines', 'report-areas'].includes(hit.layer.id)) {
         const r = state.reports.find((x) => x.id === hit.properties.id);
@@ -1139,6 +1173,9 @@ async function main() {
         repeatPopup(hit.properties, e.lngLat);
       } else if (hit.layer.id === 'sat-flood') {
         satPopup(hit.properties, e.lngLat);
+      } else if (hit.layer.id === 'windy') {
+        const c = state.windyCams?.cams?.find((x) => x.id === String(hit.properties.id));
+        if (c) windyPopup(c);
       } else if (hit.layer.id === 'rainobs') {
         const g = state.rainObs.find((x) => String(x.id) === String(hit.properties.id));
         if (g) rainPopup(g);
@@ -1153,7 +1190,7 @@ async function main() {
     }
     selectPoint(e.lngLat.lat, e.lngLat.lng);
   });
-  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood'].forEach((l) => {
+  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy'].forEach((l) => {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   });
@@ -1192,6 +1229,7 @@ async function main() {
     verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
     loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
+    loadWindyCams().then((w) => { state.windyCams = w; $('#ly-windy').closest('label').hidden = false; refreshWindyLayer(); emit(); }).catch(() => {});
     loadYtLive().then((y) => { state.ytLive = y; emit(); }).catch(() => {});
     loadSatFlood().then((s) => { state.satFlood = s; $('#ly-sat').closest('label').hidden = false; refreshSatLayer(); emit(); }).catch(() => {});
     loadFloodHistory().then((h) => { state.floodHistory = h; $('#ly-repeat').closest('label').hidden = false; refreshRepeatLayer(); emit(); }).catch(() => {});
@@ -1217,6 +1255,7 @@ async function main() {
   initLayers();
   refreshRepeatLayer(); // the history may have arrived before the layers existed
   refreshSatLayer();
+  refreshWindyLayer();
   refreshSelectedLayer();
 }
 

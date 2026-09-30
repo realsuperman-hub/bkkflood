@@ -295,13 +295,17 @@ function repeatHistoryCard(f) {
 
 function camerasNearCard(f) {
   const t = state.traffic;
-  if (!t.cameras.length && !t.events.length) return '';
+  const windy = (state.windyCams?.cams || []).map((c) => ({ ...c, km: distKm(f.lat, f.lng, c.lat, c.lng) })).filter((c) => c.km <= 3).sort((a, b) => a.km - b.km).slice(0, 4);
+  if (!t.cameras.length && !t.events.length && !windy.length) return '';
   const near = t.cameras.map((c) => ({ ...c, km: distKm(f.lat, f.lng, c.lat, c.lng) })).filter((c) => c.km <= 3).sort((a, b) => a.km - b.km).slice(0, 4);
   const evs = t.events.map((e) => ({ ...e, km: distKm(f.lat, f.lng, e.lat, e.lng) })).filter((e) => e.km <= 3).sort((a, b) => (b.kind === 'flood') - (a.kind === 'flood') || a.km - b.km);
   return `<section class="card"><h3>สภาพถนนรอบจุดนี้ (ภายใน 3 กม.)</h3>
     ${evs.length ? `<div class="why">เหตุการณ์จราจรวันนี้ (กทม.)</div><div class="list">${evs.slice(0, 4).map((e) => evRow(e, ` · ${e.km.toFixed(1)} กม.`)).join('')}</div>` : '<p class="small">ไม่มีเหตุการณ์จราจรที่ กทม. ประกาศรอบจุดนี้วันนี้</p>'}
     ${near.length ? `<div class="why">กล้องจราจรใกล้เคียง — ดูภาพสดที่เว็บทางการ</div><div class="list">${near.map((c) => `<button class="row-item" data-act="fly-camera" data-id="${esc(c.id)}"><span class="dot" style="background:${c.flood ? '#00a6c8' : '#4a5b6c'}"></span>
       <span class="grow"><b>${esc(c.name)}</b><small>${c.km.toFixed(1)} กม.${c.flood ? ' · จุดเฝ้าระวังน้ำท่วม' : ''}${c.desc && c.desc !== '-' ? ` · ${esc(c.desc)}` : ''}</small></span></button>`).join('')}</div>` : '<p class="muted small">ไม่มีกล้อง กทม. ภายใน 3 กม. (ครอบคลุมเฉพาะกรุงเทพฯ)</p>'}
+    ${windy.length ? `<div class="why">กล้องจาก Windy ใกล้จุดนี้ — ดูภาพย้อนหลัง 24 ชม.</div><div class="list">${windy.map((c) => `<button class="row-item" data-act="windy-open" data-id="${esc(c.id)}"><span class="dot" style="background:#0e9f8e"></span>
+      <span class="grow"><b>${esc(c.title)}</b><small>${c.km.toFixed(1)} กม.${c.updated ? ` · ภาพล่าสุด ${ago(c.updated)}` : ''}</small></span></button>`).join('')}</div>
+      <p class="muted tiny">Webcams provided by <a href="https://www.windy.com" target="_blank" rel="noopener noreferrer">Windy.com</a> — <a href="https://www.windy.com/webcams/add" target="_blank" rel="noopener noreferrer">add a webcam</a></p>` : ''}
     <div class="row wrap">${camViewerEnabled() ? `<button class="btn btn-sm btn-primary" data-act="cam-viewer" data-lat="${f.lat}" data-lng="${f.lng}">📷 ดูภาพกล้องสดรอบจุดนี้</button>` : ''}
     <a class="btn btn-sm${camViewerEnabled() ? '' : ' btn-primary'}" href="${BMA_LINKS.longdoAt(f.lat, f.lng)}" target="_blank" rel="noopener">เปิดใน Longdo Traffic ↗</a></div>
     ${linkBtns()}

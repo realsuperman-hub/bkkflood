@@ -20,6 +20,7 @@ export const state = {
   rainObsAt: null,
   rainObsSrc: '',
   traffic: { events: [], eventsAt: null, roads: [], roadsFresh: null, roadsTotal: null, roadsAt: null, cameras: [], dds: null, longdo: null },
+  windyCams: null, // Windy.com webcams (timelapse players)
   ytLive: null, // live YouTube camera-like streams in Thailand (unverified)
   satFlood: null, // GISTDA radar-satellite flood extent (cells + province totals)
   news: null, // flood headlines from Thai outlets' RSS (headline + link only)
