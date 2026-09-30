@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { aggregateHistory, nearbyHistory, historyGeoJson, cellOf, dayNo, CELL } from '../src/lib/flood-history.js';
+import { aggregateHistory, nearbyHistory, historyGeoJson, cellOf, dayNo, CELL, mergeCells, servedSnapshot } from '../src/lib/flood-history.js';
 
 const T = (iso) => Date.parse(`${iso}T10:00:00+07:00`);
 const rep = (id, lat, lng, iso, lvl = 2) => ({ id, lat, lng, t: T(iso), lvl });
@@ -45,4 +45,21 @@ test('nearbyHistory looks at the 3×3 cells around a point; geojson centres are 
   assert.deepEqual([i, j], [cells[0][0], cells[0][1]]);
   assert.ok(Math.abs(lat - 13.7801) < CELL);
   assert.equal(g.features[0].properties.days, 3);
+});
+
+test('mergeCells adds later days to existing cells; servedSnapshot keeps only repeat cells', () => {
+  const early = aggregateHistory([rep('a', 13.7801, 100.5401, '2026-09-01'), rep('b', 13.9001, 100.7001, '2026-09-01')], { minDays: 1 });
+  const later = aggregateHistory([rep('c', 13.7801, 100.5401, '2026-09-05', 3), rep('d', 13.6001, 100.4001, '2026-09-05')], { minDays: 1 });
+  const merged = mergeCells(early, later);
+  assert.equal(merged.length, 3);
+  const c = merged.find((x) => x[0] === cellOf(13.7801, 100.5401)[0] && x[1] === cellOf(13.7801, 100.5401)[1]);
+  assert.equal(c[2], 2); // two different days now
+  assert.equal(c[3], 2);
+  assert.equal(c[4], 3); // worst severity kept
+  assert.equal(c[5], dayNo(T('2026-09-01')));
+  assert.equal(c[6], dayNo(T('2026-09-05')));
+  const snap = servedSnapshot({ from: '2026-09-01', to: '2026-09-05', complaints: 4, cells: merged }, { now: 1 });
+  assert.equal(snap.cells.length, 1); // only the cell reported on ≥ 2 days is served
+  assert.equal(snap.complaints, 4);
+  assert.equal(mergeCells(early, []).length, early.length);
 });

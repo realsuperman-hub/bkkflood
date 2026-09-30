@@ -6,12 +6,15 @@
 import { mkdir, readFile, writeFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { TRAFFY_URL, normalizeFloods } from '../src/lib/traffy.js';
-import { aggregateHistory, CELL, dayIso, dayNo } from '../src/lib/flood-history.js';
+import { aggregateHistory, dayIso, dayNo, servedSnapshot } from '../src/lib/flood-history.js';
 
 const arg = (k, d) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split('=')[1] ?? d;
 const since = Date.parse(`${arg('since', '2025-06-01')}T00:00:00+07:00`);
 const cache = arg('cache', 'flood-history-cache');
 const out = arg('out', 'data-static/flood-history.json');
+const stateOut = arg('state', 'data-static/flood-history-state.json');
+// --until=YYYY-MM-DD: last COMPLETE day to include (the daily updater continues from the next day)
+const untilArg = arg('until', null);
 const PAGE = 1000;
 const CONC = Number(arg('conc', 2));
 const PAUSE_MS = Number(arg('pause', 3000)); // be gentle: deep offsets are expensive for Traffy's database
@@ -75,19 +78,18 @@ for (const f of files) {
   } catch {
     continue; // a page that is still being written by a running download
   }
-  for (const fl of r.floods) if (fl.t >= since) all.push(fl);
+  for (const fl of r.floods) if (fl.t >= since && (!untilArg || dayNo(fl.t) <= dayNo(Date.parse(`${untilArg}T12:00:00+07:00`)))) all.push(fl);
 }
-const cells = aggregateHistory(all);
 const times = all.map((f) => f.t);
-const snap = {
-  generatedAt: Date.now(),
-  source: 'Traffy Fondue (กทม.) — ข้อความแจ้งน้ำท่วมย้อนหลัง',
+// the full state keeps EVERY cell (also one-day ones) so the daily updater can add days without double counting
+const state = {
   from: dayIso(dayNo(Math.min(...times))),
-  to: dayIso(dayNo(Math.max(...times))),
-  cell: CELL,
+  to: untilArg || dayIso(dayNo(Math.max(...times))),
   complaints: all.length,
-  cells,
+  cells: aggregateHistory(all, { minDays: 1 }),
 };
 await mkdir('data-static', { recursive: true });
+await writeFile(stateOut, JSON.stringify(state));
+const snap = servedSnapshot(state);
 await writeFile(out, JSON.stringify(snap));
-console.log(`wrote ${out}: ${all.length} flood complaints ${snap.from} → ${snap.to}, ${cells.length} repeat cells (≥2 days), top cell ${cells[0]?.[2]} days`);
+console.log(`wrote ${out}: ${all.length} flood complaints ${state.from} → ${state.to}, ${snap.cells.length} repeat cells (≥2 days), ${state.cells.length} cells in the state, top cell ${snap.cells[0]?.[2]} days`);

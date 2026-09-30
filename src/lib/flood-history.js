@@ -36,6 +36,38 @@ export function aggregateHistory(floods, { minDays = 2 } = {}) {
   return cells.sort((a, b) => b[2] - a[2] || b[3] - a[3]);
 }
 
+// Add newly finished days to an existing grid. The day sets are disjoint by construction (the caller only passes days after
+// `state.to`), so each cell's day count simply adds up. Cells are [i, j, days, complaints, maxSeverity, firstDay, lastDay].
+export function mergeCells(oldCells, newCells) {
+  const m = new Map(oldCells.map((c) => [`${c[0]},${c[1]}`, [...c]]));
+  for (const c of newCells) {
+    const k = `${c[0]},${c[1]}`;
+    const o = m.get(k);
+    if (!o) m.set(k, [...c]);
+    else {
+      o[2] += c[2];
+      o[3] += c[3];
+      o[4] = Math.max(o[4], c[4]);
+      o[5] = Math.min(o[5], c[5]);
+      o[6] = Math.max(o[6], c[6]);
+    }
+  }
+  return [...m.values()].sort((a, b) => b[2] - a[2] || b[3] - a[3]);
+}
+
+// The snapshot the browser downloads: only cells reported on ≥ minDays different days (the full state file keeps every cell)
+export function servedSnapshot(state, { minDays = 2, now = Date.now() } = {}) {
+  return {
+    generatedAt: now,
+    source: 'Traffy Fondue (กทม.) — ข้อความแจ้งน้ำท่วมย้อนหลัง',
+    from: state.from,
+    to: state.to,
+    cell: CELL,
+    complaints: state.complaints,
+    cells: state.cells.filter((c) => c[2] >= minDays),
+  };
+}
+
 // The 3×3 block of cells around a point (≈ 400 m): the worst repeat count nearby and the total complaints.
 export function nearbyHistory(cells, lat, lng) {
   if (!Array.isArray(cells)) return null;

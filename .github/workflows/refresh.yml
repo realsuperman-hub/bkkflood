@@ -17,6 +17,8 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write # the daily repeat-flood history update commits data-static/ back (GITHUB_TOKEN pushes do not start another run)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,6 +50,18 @@ jobs:
           for f in traffic-events traffic-roads; do
             [ -s public/data/$f.json ] || curl -sf "https://bkkflood.web.app/data/$f.json" -o "public/data/$f.json" || true
           done
+      - name: Extend the repeat-flood history (adds a day once it is over; otherwise a no-op)
+        continue-on-error: true
+        run: |
+          node scripts/update-flood-history.mjs
+          cp data-static/flood-history.json public/data/flood-history.json
+          if ! git diff --quiet -- data-static; then
+            git config user.name "bkkflood-bot"
+            git config user.email "actions@users.noreply.github.com"
+            git add data-static/flood-history.json data-static/flood-history-state.json
+            git commit -m "data: extend repeat-flood history"
+            git pull --rebase origin main && git push origin HEAD:main || echo "history commit not pushed (it will be recomputed next run)"
+          fi
       - name: Accuracy report (every 6 h; other runs reuse the live one)
         continue-on-error: true
         run: |
