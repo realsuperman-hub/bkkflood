@@ -64,6 +64,12 @@ jobs:
             git commit -m "data: extend repeat-flood history"
             git pull --rebase origin main && git push origin HEAD:main || echo "history commit not pushed (it will be recomputed next run)"
           fi
+      - name: Live YouTube camera-like streams (official API; reuses the live copy for an hour to stay inside the free quota)
+        continue-on-error: true
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+        run: |
+          node scripts/fetch-youtube-live.mjs || curl -sf https://bkkflood.web.app/data/youtube-live.json -o public/data/youtube-live.json || true
       - name: Accuracy report (every 6 h; other runs reuse the live one)
         continue-on-error: true
         run: |

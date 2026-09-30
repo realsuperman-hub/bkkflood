@@ -23,6 +23,18 @@ const DISCLAIMER =
 const skeleton = (t) => `<section class="card"><div class="skel"></div><p class="muted small">${t}</p></section>`;
 
 /* ───────── shared components ───────── */
+// Live YouTube streams in Thailand whose titles look like cameras (found with the official API; unverified, played in YouTube's own embed).
+// No thumbnails on purpose: loading them would send the visitor's address to YouTube before they chose to watch anything.
+function ytLiveCard() {
+  const y = state.ytLive;
+  const items = (y?.items || []).slice(0, 8);
+  if (!items.length) return '';
+  return `<section class="card"><h3>กล้องสดบน YouTube (ยังไม่ยืนยัน)</h3>
+    <div class="list">${items.map((v) => `<button class="row-item" data-act="yt-open" data-id="${esc(v.id)}"><span class="dot" style="background:#d7263d"></span>
+      <span class="grow"><b>${esc(v.title)}</b><small>${esc(v.channel)}${v.viewers !== null ? ` · กำลังดู ${v.viewers.toLocaleString('th-TH')} คน` : ''}</small></span></button>`).join('')}</div>
+    <p class="muted tiny">ค้นหาอัตโนมัติจากสตรีมสดในไทยที่ชื่อเกี่ยวกับกล้อง/จราจร/แม่น้ำ/น้ำท่วม · ใครก็เปิดสตรีมได้ เราไม่ได้ตรวจสอบเนื้อหาและยืนยันไม่ได้ว่าเป็นกล้องจริง · ภาพเล่นผ่านตัวเล่นของ YouTube เมื่อคุณกดเท่านั้น${y.generatedAt ? ` · อัปเดต ${fmtTime(y.generatedAt)} น.` : ''}</p></section>`;
+}
+
 // Flood water seen by radar satellites (GISTDA). Shows the outskirts and the upstream provinces well, dense city streets badly.
 function satFloodCard() {
   const s = state.satFlood;
@@ -500,7 +512,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {

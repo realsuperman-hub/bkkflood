@@ -3,7 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
-import { loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -789,6 +789,18 @@ const actions = {
     floodPopup(f);
   },
   'point-forecast': ({ lat, lng }) => selectPoint(+lat, +lng),
+  'yt-open': ({ id }) => {
+    const v = state.ytLive?.items?.find((x) => x.id === id);
+    if (!v || !/^[\w-]{11}$/.test(id)) return;
+    const dlg = $('#yt-dialog');
+    dlg.innerHTML = `<div class="cam-head"><b class="clip">${esc(v.title)}</b><span><a class="btn btn-sm" href="https://www.youtube.com/watch?v=${id}" target="_blank" rel="noopener noreferrer">เปิดที่ YouTube ↗</a> <button class="btn btn-sm" data-yt-close>ปิด</button></span></div>
+      <div class="yt-frame"><iframe src="https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0" title="${esc(v.title)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+      <p class="muted tiny cam-foot">สตรีมสดจาก YouTube ช่อง "${esc(v.channel)}" — เว็บนี้ไม่ได้ตรวจสอบเนื้อหา และยืนยันไม่ได้ว่าเป็นกล้องจริงหรือตรงกับชื่อ ภาพอาจเปลี่ยนหรือหยุดได้ทุกเมื่อ</p>`;
+    const close = () => { dlg.close(); dlg.innerHTML = ''; }; // emptying the dialog also stops the video
+    dlg.querySelector('[data-yt-close]').onclick = close;
+    dlg.addEventListener('close', () => { dlg.innerHTML = ''; }, { once: true });
+    dlg.showModal();
+  },
   'show-sat': () => {
     $('#ly-sat').checked = true;
     map.setLayoutProperty('sat-flood', 'visibility', 'visible');
@@ -1180,6 +1192,7 @@ async function main() {
     verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
     loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
+    loadYtLive().then((y) => { state.ytLive = y; emit(); }).catch(() => {});
     loadSatFlood().then((s) => { state.satFlood = s; $('#ly-sat').closest('label').hidden = false; refreshSatLayer(); emit(); }).catch(() => {});
     loadFloodHistory().then((h) => { state.floodHistory = h; $('#ly-repeat').closest('label').hidden = false; refreshRepeatLayer(); emit(); }).catch(() => {});
     emit();
