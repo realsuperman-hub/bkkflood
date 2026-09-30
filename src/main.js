@@ -15,6 +15,7 @@ import { esc, ago, fmtTime, toast } from './lib/util.js';
 import { TAB_RENDER, BKK_CENTER } from './ui/panel.js';
 import { openReportDialog } from './ui/report.js';
 import { matchFloods, matchStations, matchReports, matchTraffic, geocode, validQuery } from './lib/search.js';
+import { openCamViewer } from './lib/longdo-cams.js';
 import { pushStatus, enablePush, disablePush, syncPush, verifyPush } from './lib/push.js';
 import { SITE_URL, lineLink, shareNative, siteShare, pointShare } from './lib/share.js';
 import { KINDS, MIN_VERTS, MAX_VERTS, toGeometry, unflatten, validate, describe, lengthM, areaM2, fmtLen, fmtArea, anchor } from './lib/shape.js';
@@ -803,6 +804,8 @@ const actions = {
     }
   },
 };
+
+actions['cam-viewer'] = ({ lat, lng }) => openCamViewer({ lat: +lat, lng: +lng });
 
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
