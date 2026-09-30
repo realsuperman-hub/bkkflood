@@ -5,6 +5,7 @@ import { DEPTHS, PASSABLE } from '../lib/store.js';
 import { esc, ago, fmtTime, fmtHourKey, fmtDayHour } from '../lib/util.js';
 import { RISK } from '../lib/risk.js';
 import { SEVERITY } from '../lib/traffy.js';
+import { camViewerEnabled } from '../lib/longdo-cams.js';
 import { BMA_LINKS, EVENT_LABEL, SPEED_LEVEL } from '../lib/bma-traffic.js';
 import { distKm } from '../lib/geo.js';
 import { validQuery } from '../lib/search.js';
@@ -159,9 +160,10 @@ function camerasNearCard(f) {
     ${evs.length ? `<div class="why">เหตุการณ์จราจรวันนี้ (กทม.)</div><div class="list">${evs.slice(0, 4).map((e) => evRow(e, ` · ${e.km.toFixed(1)} กม.`)).join('')}</div>` : '<p class="small">ไม่มีเหตุการณ์จราจรที่ กทม. ประกาศรอบจุดนี้วันนี้</p>'}
     ${near.length ? `<div class="why">กล้องจราจรใกล้เคียง — ดูภาพสดที่เว็บทางการ</div><div class="list">${near.map((c) => `<button class="row-item" data-act="fly-camera" data-id="${esc(c.id)}"><span class="dot" style="background:${c.flood ? '#00a6c8' : '#4a5b6c'}"></span>
       <span class="grow"><b>${esc(c.name)}</b><small>${c.km.toFixed(1)} กม.${c.flood ? ' · จุดเฝ้าระวังน้ำท่วม' : ''}${c.desc && c.desc !== '-' ? ` · ${esc(c.desc)}` : ''}</small></span></button>`).join('')}</div>` : '<p class="muted small">ไม่มีกล้อง กทม. ภายใน 3 กม. (ครอบคลุมเฉพาะกรุงเทพฯ)</p>'}
-    <div class="row wrap"><a class="btn btn-sm btn-primary" href="${BMA_LINKS.longdoAt(f.lat, f.lng)}" target="_blank" rel="noopener">📷 ดูกล้องสดรอบจุดนี้ (Longdo Traffic) ↗</a></div>
+    <div class="row wrap"><a class="btn btn-sm btn-primary" href="${BMA_LINKS.longdoAt(f.lat, f.lng)}" target="_blank" rel="noopener">📷 ดูกล้องสดรอบจุดนี้ (Longdo Traffic) ↗</a>
+    ${camViewerEnabled() ? `<button class="btn btn-sm" data-act="cam-viewer" data-lat="${f.lat}" data-lng="${f.lng}">ทดลอง: ดูในแอป</button>` : ''}</div>
     ${linkBtns()}
-    <p class="muted tiny">เว็บนี้ไม่ได้ดึงหรือเก็บภาพกล้อง — ปุ่มด้านบนพาไปดูภาพสดที่เว็บของ Longdo และเจ้าของกล้อง</p></section>`;
+    <p class="muted tiny">${camViewerEnabled() ? 'ภาพกล้องแสดงที่เว็บ/แผนที่ของ Longdo โดยตรง เว็บนี้ไม่ได้ดึงหรือเก็บภาพ' : 'เว็บนี้ไม่แสดงภาพกล้อง — กดปุ่มด้านบนเพื่อดูภาพสดที่เว็บของเจ้าของกล้อง แล้วค้นหาชื่อกล้อง'}</p></section>`;
 }
 
 function rainObsOverviewCard() {
