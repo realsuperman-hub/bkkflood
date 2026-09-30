@@ -15,7 +15,7 @@ import { esc, ago, fmtTime, toast } from './lib/util.js';
 import { TAB_RENDER, BKK_CENTER } from './ui/panel.js';
 import { openReportDialog } from './ui/report.js';
 import { matchFloods, matchStations, matchReports, matchTraffic, geocode, validQuery } from './lib/search.js';
-import { openCamViewer } from './lib/longdo-cams.js';
+import { openCamViewer, camViewerEnabled } from './lib/longdo-cams.js';
 import { pushStatus, enablePush, disablePush, syncPush, verifyPush } from './lib/push.js';
 import { SITE_URL, lineLink, shareNative, siteShare, pointShare } from './lib/share.js';
 import { KINDS, MIN_VERTS, MAX_VERTS, toGeometry, unflatten, validate, describe, lengthM, areaM2, fmtLen, fmtArea, anchor } from './lib/shape.js';
@@ -805,7 +805,15 @@ const actions = {
   },
 };
 
-actions['cam-viewer'] = ({ lat, lng }) => openCamViewer({ lat: +lat, lng: +lng });
+actions['cam-viewer'] = ({ lat, lng, zoom }) => openCamViewer({ lat: +lat, lng: +lng, ...(zoom ? { zoom: +zoom } : {}) });
+// one-tap access: the floating "กล้องสด" button opens the camera map at whatever the map is currently showing
+if (camViewerEnabled()) {
+  $('#btn-cams').hidden = false;
+  $('#btn-cams').addEventListener('click', () => {
+    const c = map.getCenter();
+    openCamViewer({ lat: c.lat, lng: c.lng, zoom: Math.min(15, Math.max(12, Math.round(map.getZoom()))) });
+  });
+}
 
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');

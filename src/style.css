@@ -167,6 +167,8 @@ p { margin: 6px 0; }
 }
 .fab { border: 0; border-radius: 999px; box-shadow: var(--shadow); display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
 .fab-small { background: #fff; width: 48px; height: 48px; justify-content: center; color: var(--brand); }
+.fab-cam { background: #fff; color: var(--brand); padding: 0 16px 0 12px; min-height: 48px; font-size: 15px; }
+.fab-cam[hidden] { display: none; }
 .fab-report { background: var(--danger); color: #fff; padding: 0 20px; min-height: 52px; font-size: 16px; }
 
 .picking .fab-col, .picking .panel { display: none; }

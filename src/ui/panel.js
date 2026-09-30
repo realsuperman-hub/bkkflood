@@ -410,7 +410,11 @@ export function forecastTab() {
     <button class="btn btn-sm" data-act="share-point">แชร์จุดนี้</button>
     <button class="btn btn-sm btn-ghost" data-act="copy-link">คัดลอกลิงก์</button></div>`;
 
+  // right under the risk card: the user just tapped this point, so the camera view is one tap away without leaving this tab
+  const camRow = camViewerEnabled() ? `<div class="row wrap"><button class="btn btn-primary" data-act="cam-viewer" data-lat="${f.lat}" data-lng="${f.lng}" data-zoom="14">📷 ดูกล้องสดรอบจุดนี้</button></div>` : '';
+
   return `${riskCard(f, title)}
+    ${camRow}
     ${saveCard}
     ${nearCard}
     ${camerasNearCard(f)}
