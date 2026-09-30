@@ -38,3 +38,17 @@ test('stations and citizen notes', () => {
   assert.equal(matchStations([{ name: 'คลองลาดพร้าว วัดบางบัว', prov: 'กรุงเทพมหานคร' }], 'ลาดพร้าว').length, 1);
   assert.equal(matchReports([{ note: 'ซอยสุขุมวิท 71 น้ำขึ้น' }, { note: '' }], 'สุขุมวิท71').length, 1);
 });
+
+import { matchTraffic } from '../src/lib/search.js';
+test('traffic matches: events, official flood rows and cameras by road/district/name', () => {
+  const traffic = {
+    events: [{ title: 'น้ำท่วม ถนนรามอินทรา', detail: 'ช่วงเซ็นทรัล' }, { title: 'อุบัติเหตุ ถนนบรมราชชนนี', detail: '' }],
+    dds: { rows: [{ road: 'วิภาวดีรังสิต', place: 'หน้าเขตจตุจักร', district: 'จตุจักร' }, { road: 'สุขุมวิท', place: 'ซอย 26', district: 'คลองเตย' }] },
+    cameras: [{ name: 'TF1-LK-04 แยกร่มเกล้า', desc: 'ถ.ร่มเกล้า' }, { name: 'BR-05-01 แยกสีลม', desc: '-' }],
+  };
+  assert.equal(matchTraffic(traffic, 'รามอินทรา').events.length, 1);
+  assert.equal(matchTraffic(traffic, 'เขตจตุจักร').dds.length, 1);
+  assert.equal(matchTraffic(traffic, 'สุขุมวิท 26').dds.length, 1);
+  assert.equal(matchTraffic(traffic, 'ร่มเกล้า').cameras.length, 1);
+  assert.deepEqual(matchTraffic(traffic, 'ก'), { events: [], dds: [], cameras: [] });
+});

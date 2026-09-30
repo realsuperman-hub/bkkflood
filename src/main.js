@@ -3,7 +3,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
-import { loadStations, loadFloods, loadRainObs, loadAccuracy } from './lib/data.js';
+import { loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
 import { evaluate } from './lib/evaluate.js';
@@ -13,7 +14,7 @@ import { inBounds, BOUNDS } from './lib/geo.js';
 import { esc, ago, fmtTime, toast } from './lib/util.js';
 import { TAB_RENDER, BKK_CENTER } from './ui/panel.js';
 import { openReportDialog } from './ui/report.js';
-import { matchFloods, matchStations, matchReports, geocode, validQuery } from './lib/search.js';
+import { matchFloods, matchStations, matchReports, matchTraffic, geocode, validQuery } from './lib/search.js';
 import { pushStatus, enablePush, disablePush, syncPush, verifyPush } from './lib/push.js';
 import { SITE_URL, lineLink, shareNative, siteShare, pointShare } from './lib/share.js';
 import { KINDS, MIN_VERTS, MAX_VERTS, toGeometry, unflatten, validate, describe, lengthM, areaM2, fmtLen, fmtArea, anchor } from './lib/shape.js';
@@ -138,6 +139,12 @@ const emptyFC = { type: 'FeatureCollection', features: [] };
 function initLayers() {
   Object.entries(DEPTHS).forEach(([k, d]) => map.addImage(`pin-${k}`, pinImage(d.color), { pixelRatio: 2 }));
 
+  map.addSource('traffic-roads', { type: 'geojson', data: emptyFC });
+  map.addLayer({ id: 'traffic-roads-casing', type: 'line', source: 'traffic-roads', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 5, 15, 13] } });
+  map.addLayer({ id: 'traffic-roads', type: 'line', source: 'traffic-roads', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3, 15, 8] } });
+  map.addSource('cameras', { type: 'geojson', data: emptyFC });
+  map.addLayer({ id: 'cameras', type: 'circle', source: 'cameras', minzoom: 11, layout: { visibility: 'none' }, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 16, 8], 'circle-color': ['case', ['get', 'flood'], '#00a6c8', '#4a5b6c'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } });
+
   map.addSource('stations', { type: 'geojson', data: emptyFC });
   map.addLayer({
     id: 'stations',
@@ -153,6 +160,9 @@ function initLayers() {
   });
 
   Object.entries(SEVERITY).forEach(([l, s]) => map.addImage(`warn-${l}`, warnImage(s.color), { pixelRatio: 2 }));
+  map.addSource('traffic-events', { type: 'geojson', data: emptyFC });
+  map.addLayer({ id: 'traffic-events', type: 'circle', source: 'traffic-events', paint: { 'circle-radius': ['match', ['get', 'kind'], 'flood', 9, 7], 'circle-color': ['match', ['get', 'kind'], 'flood', '#0b6fa8', 'accident', '#f28c28', 'fire', '#d7263d', 'closed', '#12222e', '#8a94a3'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2.5 } });
+
   map.addSource('rainobs', { type: 'geojson', data: emptyFC });
   map.addLayer({
     id: 'rainobs',
@@ -217,6 +227,7 @@ function initLayers() {
   refreshStationsLayer();
   refreshFloodsLayer();
   refreshRainLayer();
+  refreshTrafficLayers();
   refreshReportsLayer();
 }
 
@@ -230,6 +241,22 @@ function refreshStationsLayer() {
       geometry: { type: 'Point', coordinates: [s.lng, s.lat] },
       properties: { id: s.id, color: LEVELS[s.level].color, stale: s.stale },
     })),
+  });
+}
+
+function refreshTrafficLayers() {
+  const t = state.traffic;
+  map?.getSource('traffic-roads')?.setData({
+    type: 'FeatureCollection',
+    features: t.roads.flatMap((r) => r.paths.map((p) => ({ type: 'Feature', geometry: { type: 'LineString', coordinates: p }, properties: { lv: r.lv, sp: r.sp, t: r.t, color: SPEED_LEVEL[r.lv].color } }))),
+  });
+  map?.getSource('cameras')?.setData({
+    type: 'FeatureCollection',
+    features: t.cameras.map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lng, c.lat] }, properties: { id: c.id, flood: c.flood } })),
+  });
+  map?.getSource('traffic-events')?.setData({
+    type: 'FeatureCollection',
+    features: t.events.map((e) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [e.lng, e.lat] }, properties: { id: e.id, kind: e.kind } })),
   });
 }
 
@@ -356,6 +383,32 @@ function stationPopup(s) {
     ${s.q !== null ? `<p class="small">ปริมาณน้ำ <b>${Math.round(s.q).toLocaleString('th-TH')}</b> ลบ.ม./วินาที</p>` : ''}
     <p class="muted tiny">${s.t ? `อัปเดต ${fmtTime(s.t)} น.` : ''}${s.stale ? ' · <b>ข้อมูลเก่า อาจไม่ตรงปัจจุบัน</b>' : ''}</p>
     <button class="btn btn-sm btn-primary" data-act="station-forecast" data-id="${esc(s.id)}">ดูพยากรณ์ตรงนี้</button></div>`);
+}
+
+const EV_COLOR = { flood: '#0b6fa8', accident: '#f28c28', fire: '#d7263d', closed: '#12222e', other: '#5b6876' };
+function eventPopup(e) {
+  openPopup([e.lng, e.lat], `<div class="pp">
+    <div class="pp-title" style="color:${EV_COLOR[e.kind]}">${EVENT_LABEL[e.kind] || 'เหตุการณ์'}</div>
+    <p class="small"><b>${esc(e.title)}</b></p>
+    ${e.detail ? `<p class="small">${esc(e.detail)}</p>` : ''}
+    <p class="muted tiny">${e.t ? `เหตุเมื่อ ${ago(e.t)}` : ''} · ที่มา: ศูนย์ข้อมูลจราจร กทม. (ประกาศทางการ)</p>
+    <div class="row wrap"><button class="btn btn-sm btn-primary" data-act="point-forecast" data-lat="${e.lat}" data-lng="${e.lng}">ดูพยากรณ์ตรงนี้</button>
+    <a class="btn btn-sm" href="${BMA_LINKS.bma}" target="_blank" rel="noopener">เว็บจราจร กทม. ↗</a></div></div>`);
+}
+function cameraPopup(c) {
+  openPopup([c.lng, c.lat], `<div class="pp">
+    <div class="pp-title">กล้องจราจร กทม.${c.flood ? ' <span class="tag warn">จุดเฝ้าระวังน้ำท่วม</span>' : ''}</div>
+    <p class="small"><b>${esc(c.name)}</b></p>
+    ${c.desc && c.desc !== '-' ? `<p class="small muted">${esc(c.desc)}</p>` : ''}
+    <p class="muted tiny">ภาพสดต้องดูที่เว็บทางการของ กทม. (เว็บนี้ไม่ได้นำภาพมาแสดงเอง) — ค้นหารหัส/ชื่อกล้องด้านบนในแผนที่ของเขา</p>
+    <div class="row wrap"><a class="btn btn-sm btn-primary" href="${BMA_LINKS.bma}" target="_blank" rel="noopener">เปิดกล้อง กทม. ↗</a>
+    <a class="btn btn-sm" href="${BMA_LINKS.itic}" target="_blank" rel="noopener">iTIC live ↗</a></div></div>`);
+}
+function roadPopup(p, lngLat) {
+  const lv = SPEED_LEVEL[p.lv];
+  openPopup(lngLat, `<div class="pp"><div class="pp-title" style="color:${lv.color}">${lv.label}</div>
+    <p class="small">ความเร็วเฉลี่ยช่วงนี้ ≈ <b>${p.sp ?? '—'} กม./ชม.</b></p>
+    <p class="muted tiny">อัปเดต ${p.t ? ago(+p.t) : '—'} · ที่มา: ระบบตรวจสภาพจราจร กทม. (ครอบคลุมเฉพาะถนนหลักที่มีเซ็นเซอร์)</p></div>`);
 }
 
 function rainPopup(g) {
@@ -540,7 +593,7 @@ let searchSeq = 0;
 async function runSearch(q) {
   if (!validQuery(q)) return toast('พิมพ์ชื่อถนน ซอย เขต หรือสถานที่ อย่างน้อย 2 ตัวอักษร');
   const seq = ++searchSeq;
-  state.search = { q, status: 'loading', floods: [], stations: [], reports: [], places: [] };
+  state.search = { q, status: 'loading', floods: [], stations: [], reports: [], places: [], traffic: { events: [], dds: [], cameras: [] } };
   state.tab = 'reports';
   state.district = '';
   $('#panel').dataset.open = 'true';
@@ -548,7 +601,7 @@ async function runSearch(q) {
 
   // local results are instant; places (network) are added when they arrive
   const floods = matchFloods(state.floods, q);
-  state.search = { q, status: 'loading', floods, stations: matchStations(state.stations, q), reports: matchReports(allReports.filter((r) => isActive(r)), q), places: [] };
+  state.search = { q, status: 'loading', floods, stations: matchStations(state.stations, q), reports: matchReports(allReports.filter((r) => isActive(r)), q), places: [], traffic: matchTraffic(state.traffic, q) };
   emit();
   if (floods.length) fitTo(floods.slice(0, 60).map((f) => [f.lng, f.lat]));
 
@@ -638,6 +691,24 @@ const actions = {
   'goto-place': ({ lat, lng }) => {
     $('#panel').dataset.open = 'false';
     selectPoint(+lat, +lng, { fly: true });
+  },
+  'fly-event': ({ id }) => {
+    const ev = state.traffic.events.find((x) => String(x.id) === id);
+    if (!ev) return;
+    $('#panel').dataset.open = 'false';
+    map.flyTo({ center: [ev.lng, ev.lat], zoom: 15 });
+    eventPopup(ev);
+  },
+  'fly-camera': ({ id }) => {
+    const c = state.traffic.cameras.find((x) => String(x.id) === id);
+    if (!c) return;
+    $('#panel').dataset.open = 'false';
+    if (!$('#ly-cams').checked) {
+      $('#ly-cams').checked = true;
+      map.setLayoutProperty('cameras', 'visibility', 'visible');
+    }
+    map.flyTo({ center: [c.lng, c.lat], zoom: 15 });
+    cameraPopup(c);
   },
   'fly-rain': ({ id }) => {
     const g = state.rainObs.find((x) => String(x.id) === id);
@@ -771,6 +842,11 @@ document.addEventListener('change', (e) => {
     emit();
   }
 });
+$('#ly-traffic').addEventListener('change', (e) => {
+  const v = e.target.checked ? 'visible' : 'none';
+  ['traffic-roads-casing', 'traffic-roads', 'traffic-events'].forEach((l) => map.setLayoutProperty(l, 'visibility', v));
+});
+$('#ly-cams').addEventListener('change', (e) => map.setLayoutProperty('cameras', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-rain').addEventListener('change', (e) => map.setLayoutProperty('rainobs', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-gauges').addEventListener('change', (e) => map.setLayoutProperty('stations', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-reports').addEventListener('change', (e) => map.setLayoutProperty('reports', 'visibility', e.target.checked ? 'visible' : 'none'));
@@ -844,6 +920,30 @@ async function reloadStations() {
   emit();
 }
 
+async function reloadTraffic() {
+  const t = state.traffic;
+  try {
+    const r = await loadTraffic();
+    if (r.events) { t.events = r.events.events || []; t.eventsAt = r.events.generatedAt; }
+    if (r.roads) { t.roads = r.roads.roads || []; t.roadsFresh = r.roads.freshSegments ?? null; t.roadsTotal = r.roads.totalSegments ?? null; t.roadsAt = r.roads.generatedAt; }
+    if (r.cameras) t.cameras = r.cameras.cameras || [];
+    if (r.dds) t.dds = r.dds;
+  } catch {
+    /* keep whatever we had */
+  }
+  refreshTrafficLayers();
+  emit();
+}
+
+async function reloadLongdo() {
+  try {
+    state.traffic.longdo = await loadLongdoIndex();
+  } catch {
+    /* optional extra — the card just omits it */
+  }
+  emit();
+}
+
 async function reloadRainObs() {
   try {
     const r = await loadRainObs();
@@ -874,7 +974,11 @@ async function reloadFloods() {
 
 function buildLegend() {
   $('#legend-items').innerHTML =
-    '<div class="legend-title">จุดน้ำท่วม (แจ้ง กทม.)</div>' +
+    '<div class="legend-title">ถนนติดขัด (กทม.)</div>' +
+    [1, 2, 3, 4].map((l) => `<div class="lg"><i class="ln" style="background:${SPEED_LEVEL[l].color}"></i>${SPEED_LEVEL[l].label}</div>`).join('') +
+    '<div class="legend-title" style="margin-top:8px">เหตุการณ์จราจร (กทม.)</div>' +
+    Object.entries({ flood: 'น้ำท่วม', accident: 'อุบัติเหตุ', fire: 'เพลิงไหม้', closed: 'ปิดถนน' }).map(([k, t]) => `<div class="lg"><i style="background:${EV_COLOR[k]}"></i>${t}</div>`).join('') +
+    '<div class="legend-title" style="margin-top:8px">จุดน้ำท่วม (แจ้ง กทม.)</div>' +
     [3, 2, 1].map((l) => `<div class="lg"><i class="tri" style="background:${SEVERITY[l].color}"></i>${SEVERITY[l].label}</div>`).join('') +
     '<div class="legend-title" style="margin-top:8px">สถานีวัดระดับน้ำ</div>' +
     [5, 4, 3, 2, 1]
@@ -914,11 +1018,19 @@ async function main() {
 
   map.on('click', (e) => {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
-    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'rainobs', 'stations'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     if (hit) {
       if (['reports', 'report-lines', 'report-areas'].includes(hit.layer.id)) {
         const r = state.reports.find((x) => x.id === hit.properties.id);
         if (r) reportPopup(r);
+      } else if (hit.layer.id === 'traffic-events') {
+        const ev = state.traffic.events.find((x) => String(x.id) === String(hit.properties.id));
+        if (ev) eventPopup(ev);
+      } else if (hit.layer.id === 'cameras') {
+        const c = state.traffic.cameras.find((x) => String(x.id) === String(hit.properties.id));
+        if (c) cameraPopup(c);
+      } else if (hit.layer.id === 'traffic-roads') {
+        roadPopup(hit.properties, e.lngLat);
       } else if (hit.layer.id === 'rainobs') {
         const g = state.rainObs.find((x) => String(x.id) === String(hit.properties.id));
         if (g) rainPopup(g);
@@ -933,7 +1045,7 @@ async function main() {
     }
     selectPoint(e.lngLat.lat, e.lngLat.lng);
   });
-  ['reports', 'report-lines', 'report-areas', 'floods', 'rainobs', 'stations'].forEach((l) => {
+  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads'].forEach((l) => {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   });
@@ -951,6 +1063,8 @@ async function main() {
   const stationsP = reloadStations();
   const floodsP = reloadFloods();
   const rainP = reloadRainObs();
+  const trafficP = reloadTraffic();
+  reloadLongdo();
 
   // Nothing below the data layer may wait for map tiles: on a weak signal the tiles are the slowest thing,
   // yet risk chips, alerts and offline support must still come up. Production only (dev uses ?sw=1) so Vite HMR is never cached.
@@ -960,7 +1074,7 @@ async function main() {
   const shared = new URLSearchParams(location.search).get('p');
   const sharedPt = shared && shared.match(/^(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)$/);
 
-  Promise.all([storeP, stationsP, floodsP, rainP]).then(() => {
+  Promise.all([storeP, stationsP, floodsP, rainP, trafficP]).then(() => {
     render();
     refreshOverview();
     refreshSaved();
@@ -976,6 +1090,8 @@ async function main() {
   setInterval(reloadStations, 10 * 60 * 1000);
   setInterval(reloadFloods, 5 * 60 * 1000);
   setInterval(reloadRainObs, 10 * 60 * 1000);
+  setInterval(reloadTraffic, 5 * 60 * 1000);
+  setInterval(reloadLongdo, 5 * 60 * 1000);
   setInterval(() => {
     refreshOverview();
     refreshSaved();

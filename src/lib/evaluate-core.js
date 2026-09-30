@@ -7,7 +7,7 @@ import { nearestRain, observedAround } from './rain-obs.js';
 const val = (r) => (r.status === 'fulfilled' ? r.value : null);
 
 // ctx: { stations, floods, now?, rainAt? }  — rainAt=[lat,lng] lets the notifier share forecast calls between nearby places.
-export async function evaluatePoint(lat, lng, { stations, floods, rainObs = [], now = Date.now(), rainAt } = {}) {
+export async function evaluatePoint(lat, lng, { stations, floods, rainObs = [], events = [], now = Date.now(), rainAt } = {}) {
   const [rlat, rlng] = rainAt || [lat, lng];
   const [rainR, tideR, upR] = await Promise.allSettled([loadRain(rlat, rlng), loadTide(), loadUpstreamTrend()]);
   const rain = val(rainR);
@@ -27,6 +27,7 @@ export async function evaluatePoint(lat, lng, { stations, floods, rainObs = [], 
   const metro = stations.filter((s) => !s.upstream && !s.stale);
   const regional = { over: metro.filter((s) => s.level === 5).length, total: metro.length };
 
+  const official = events.filter((e) => e.kind === 'flood' && now - e.t < 12 * 3600e3 && distKm(lat, lng, e.lat, e.lng) <= 1.5);
   const obs = observedAround(rainObs, lat, lng);
   const rainNear = nearestRain(rainObs, lat, lng, { maxKm: 12, limit: 3 });
 
@@ -35,6 +36,6 @@ export async function evaluatePoint(lat, lng, { stations, floods, rainObs = [], 
   if (!tide) errors.push('น้ำทะเลหนุน (Open-Meteo)');
   if (!stations.length) errors.push('สถานีวัดน้ำ (ThaiWater)');
 
-  const risk = assess({ rain, tide, gauges, upstream, elevation: rain?.elevation, regional, nearby, obs });
+  const risk = assess({ rain, tide, gauges, upstream, elevation: rain?.elevation, regional, nearby, obs, official });
   return { lat, lng, rain, tide, upstreamTrend, gauges, upstream, nearFloods, nearby, obs, rainNear, errors, risk, at: Date.now() };
 }

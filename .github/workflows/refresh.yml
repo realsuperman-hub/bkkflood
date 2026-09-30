@@ -36,6 +36,13 @@ jobs:
           node scripts/fetch-stations.mjs || { echo "stations fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/stations.json -o public/data/stations.json || true; }
           node scripts/fetch-rain.mjs || { echo "rain fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/rain.json -o public/data/rain.json || true; }
           node scripts/fetch-floods.mjs || { echo "floods fetch failed — reusing live snapshot"; curl -sf https://bkkflood.web.app/data/floods.json -o public/data/floods.json || true; }
+      - name: Fetch BMA traffic + drainage report (optional sources; missing pieces are copied from the live site)
+        run: |
+          node scripts/fetch-traffic.mjs || echo "BMA traffic fetch failed"
+          node scripts/fetch-dds.mjs || echo "DDS report fetch failed"
+          for f in cameras traffic-events traffic-roads dds; do
+            [ -s public/data/$f.json ] || curl -sf "https://bkkflood.web.app/data/$f.json" -o "public/data/$f.json" || true
+          done
       - name: Accuracy report (every 6 h; other runs reuse the live one)
         continue-on-error: true
         run: |

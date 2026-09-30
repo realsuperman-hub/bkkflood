@@ -5,6 +5,7 @@ import { DEPTHS, PASSABLE } from '../lib/store.js';
 import { esc, ago, fmtTime, fmtHourKey, fmtDayHour } from '../lib/util.js';
 import { RISK } from '../lib/risk.js';
 import { SEVERITY } from '../lib/traffy.js';
+import { BMA_LINKS, EVENT_LABEL, SPEED_LEVEL } from '../lib/bma-traffic.js';
 import { distKm } from '../lib/geo.js';
 import { validQuery } from '../lib/search.js';
 import { intensity1h, intensity24h } from '../lib/rain-obs.js';
@@ -83,6 +84,83 @@ const rainRow = (g, extra = '') => {
       <small>${esc(g.prov)}${extra} · ${g.t ? `ข้อมูล ${fmtTime(g.t)} น.` : ''}${g.stale ? ' · <b>ข้อมูลเก่า</b>' : ''}</small></span>
     <span class="val"><span style="color:${i1.color}">${mm(g.r1)}</span><small> มม./ชม.</small><br><span class="rain24" style="color:${i24.color}">${mm(g.r24)}<small> มม./24ชม.</small></span></span></button>`;
 };
+
+/* ───────── BMA traffic + official flood report ───────── */
+const EVC = { flood: '#0b6fa8', accident: '#f28c28', fire: '#d7263d', closed: '#12222e', other: '#5b6876' };
+const TH_MON = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+const thDate = (iso) => (iso ? `${+iso.slice(8, 10)} ${TH_MON[+iso.slice(5, 7) - 1]} ${(+iso.slice(0, 4) + 543) % 100}` : '—');
+const linkBtns = () => `<div class="row wrap"><a class="btn btn-sm" href="${BMA_LINKS.bma}" target="_blank" rel="noopener">กล้อง/จราจร กทม. ↗</a><a class="btn btn-sm" href="${BMA_LINKS.itic}" target="_blank" rel="noopener">iTIC live ↗</a><a class="btn btn-sm" href="${BMA_LINKS.longdo}" target="_blank" rel="noopener">Longdo Traffic ↗</a></div>`;
+const evRow = (e, extra = '') => `<button class="row-item" data-act="fly-event" data-id="${esc(e.id)}"><span class="dot" style="background:${EVC[e.kind]}"></span>
+  <span class="grow"><b>${esc(EVENT_LABEL[e.kind] || 'เหตุการณ์')} · ${esc(e.title)}</b><small>${e.t ? ago(e.t) : ''}${extra}</small></span></button>`;
+
+function trafficOverviewCard() {
+  const t = state.traffic;
+  if (!t.events.length && !t.roadsTotal && !t.longdo) return '';
+  const flood = t.events.filter((e) => e.kind === 'flood');
+  const others = t.events.filter((e) => e.kind !== 'flood');
+  const slow = t.roads.length;
+  const roads = t.roadsTotal
+    ? slow
+      ? `<p class="small">🚦 ช่วงถนนที่ติดขัดตอนนี้ <b>${slow}</b> ช่วง (จาก ${t.roadsFresh ?? '?'} ช่วงที่มีข้อมูลสด) — เส้นสีบนแผนที่</p>`
+      : `<p class="small">🚦 ยังไม่พบช่วงถนนติดขัดในข้อมูลของ กทม. (มี ${t.roadsFresh ?? '?'} ช่วงที่รายงานล่าสุด จากที่ติดตามทั้งหมด ${t.roadsTotal} ช่วง) — <b>ถนนที่ไม่มีเซ็นเซอร์ไม่อยู่ในข้อมูลนี้</b></p>`
+    : '';
+  return `<section class="card"><h3>จราจรและถนนตอนนี้ (กทม.)</h3>
+    ${t.longdo ? `<p class="small">ดัชนีจราจร Longdo: <b>${t.longdo.index}</b> <span class="muted">(ตัวเลขของ Longdo — ความหมายดูที่เว็บต้นทาง)</span></p>` : ''}
+    ${roads}
+    ${flood.length ? `<div class="why">ประกาศเหตุน้ำท่วมถนน (ศูนย์ข้อมูลจราจร กทม.)</div><div class="list">${flood.slice(0, 5).map((e) => evRow(e)).join('')}</div>` : '<p class="small">ไม่มีประกาศเหตุน้ำท่วมถนนจากศูนย์ข้อมูลจราจร กทม. ในขณะนี้</p>'}
+    ${others.length ? `<p class="small">เหตุอื่น ${others.length} รายการ (อุบัติเหตุ/ไฟไหม้/ปิดถนน) — ดูบนแผนที่ (จุดสีตามชนิด)</p>` : ''}
+    ${linkBtns()}
+    <p class="muted tiny">ภาพกล้องสดต้องดูที่เว็บของเจ้าของกล้อง เว็บนี้ไม่นำภาพมาแสดงเอง · ที่มา: สำนักจัดการจราจรและขนส่ง กทม. · Longdo Traffic${t.eventsAt ? ` · ข้อมูล ณ ${fmtTime(t.eventsAt)} น.` : ''}</p></section>`;
+}
+
+const ddsAge = (iso) => {
+  if (!iso) return null;
+  const today = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  return Math.round((Date.parse(today) - Date.parse(iso)) / 86400e3);
+};
+const ddsRow = (r) => `<div class="row-item static"><span class="sev-ic" style="--c:${r.depthCm >= 30 ? '#d7263d' : r.depthCm >= 15 ? '#f28c28' : '#f2c200'}" aria-hidden="true"></span>
+  <span class="grow"><b>${esc(r.road)} · ${esc(r.place)}</b><small>เขต${esc(r.district)} · ${r.lanes ? esc(r.lanes) : ''}${r.lengthM ? ` · ยาว ${r.lengthM} ม.` : ''} · ท่วม ${esc(r.from)} น.${r.dry ? `–${esc(r.dry)} น.` : ''}</small></span>
+  <span class="val">${r.depthCm ?? '—'}<small> ซม.</small></span></div>`;
+
+function ddsBanner(d) {
+  const age = ddsAge(d.reportDate);
+  return age >= 1
+    ? `<p class="note">⚠ นี่คือ <b>รายงานย้อนหลังของวันที่ ${thDate(d.reportDate)}</b> (${age} วันที่แล้ว) — ไม่ใช่สถานการณ์ตอนนี้ แต่บอกได้ว่าถนนสายหลักช่วงไหนเคยท่วมและลึกเท่าไร</p>`
+    : `<p class="small muted">รายงานของวันที่ ${thDate(d.reportDate)}</p>`;
+}
+
+function ddsOverviewCard() {
+  const d = state.traffic.dds;
+  if (!d?.rows?.length) return '';
+  const top = [...d.rows].sort((a, b) => (b.depthCm ?? 0) - (a.depthCm ?? 0)).slice(0, 5);
+  return `<section class="card"><h3>รายงานน้ำท่วมถนนสายหลัก (สำนักการระบายน้ำ กทม.)</h3>${ddsBanner(d)}
+    <p class="small">${d.rows.length} จุด ใน ${new Set(d.rows.map((r) => r.district)).size} เขต · ลึกสุด ${top[0]?.depthCm ?? '—'} ซม.</p>
+    <div class="list">${top.map(ddsRow).join('')}</div>
+    <div class="row"><button class="btn btn-sm" data-act="goto-district" data-d="">ดูทั้งหมด/ค้นหาตามเขต</button></div>
+    <p class="muted tiny">ที่มา: สำนักการระบายน้ำ กรุงเทพมหานคร (dds.bangkok.go.th) · ตารางนี้ไม่มีพิกัด จึงแสดงเป็นรายการ ค้นหาด้วยชื่อถนนได้</p></section>`;
+}
+
+function ddsListCard() {
+  const d = state.traffic.dds;
+  if (!d?.rows?.length) return '';
+  const rows = d.rows.filter((r) => !state.district || r.district === state.district);
+  return `<section class="card"><h3>รายงานน้ำท่วมถนนสายหลัก (สนน.) ${state.district ? `· เขต${esc(state.district)}` : ''}</h3>${ddsBanner(d)}
+    ${rows.length ? `<div class="list">${rows.slice(0, 40).map(ddsRow).join('')}</div>${rows.length > 40 ? `<p class="muted small">แสดง 40 จาก ${rows.length} จุด — เลือกเขตเพื่อกรอง</p>` : ''}` : '<p class="muted small">ไม่มีรายการในเขตนี้</p>'}
+    <p class="muted tiny">ที่มา: สำนักการระบายน้ำ กรุงเทพมหานคร</p></section>`;
+}
+
+function camerasNearCard(f) {
+  const t = state.traffic;
+  if (!t.cameras.length && !t.events.length) return '';
+  const near = t.cameras.map((c) => ({ ...c, km: distKm(f.lat, f.lng, c.lat, c.lng) })).filter((c) => c.km <= 3).sort((a, b) => a.km - b.km).slice(0, 4);
+  const evs = t.events.map((e) => ({ ...e, km: distKm(f.lat, f.lng, e.lat, e.lng) })).filter((e) => e.km <= 3).sort((a, b) => (b.kind === 'flood') - (a.kind === 'flood') || a.km - b.km);
+  return `<section class="card"><h3>สภาพถนนรอบจุดนี้ (ภายใน 3 กม.)</h3>
+    ${evs.length ? `<div class="why">เหตุการณ์จราจรวันนี้ (กทม.)</div><div class="list">${evs.slice(0, 4).map((e) => evRow(e, ` · ${e.km.toFixed(1)} กม.`)).join('')}</div>` : '<p class="small">ไม่มีเหตุการณ์จราจรที่ กทม. ประกาศรอบจุดนี้วันนี้</p>'}
+    ${near.length ? `<div class="why">กล้องจราจรใกล้เคียง — ดูภาพสดที่เว็บทางการ</div><div class="list">${near.map((c) => `<button class="row-item" data-act="fly-camera" data-id="${esc(c.id)}"><span class="dot" style="background:${c.flood ? '#00a6c8' : '#4a5b6c'}"></span>
+      <span class="grow"><b>${esc(c.name)}</b><small>${c.km.toFixed(1)} กม.${c.flood ? ' · จุดเฝ้าระวังน้ำท่วม' : ''}${c.desc && c.desc !== '-' ? ` · ${esc(c.desc)}` : ''}</small></span></button>`).join('')}</div>` : '<p class="muted small">ไม่มีกล้อง กทม. ภายใน 3 กม. (ครอบคลุมเฉพาะกรุงเทพฯ)</p>'}
+    ${linkBtns()}
+    <p class="muted tiny">เว็บนี้ไม่แสดงภาพกล้อง — กดปุ่มด้านบนเพื่อดูภาพสดที่เว็บของเจ้าของกล้อง แล้วค้นหาชื่อกล้อง</p></section>`;
+}
 
 function rainObsOverviewCard() {
   const g = state.rainObs;
@@ -267,7 +345,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · โมเดล Open-Meteo Marine (ค่าประมาณ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${rainObsOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${tideCard}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {
@@ -323,6 +401,7 @@ export function forecastTab() {
   return `${riskCard(f, title)}
     ${saveCard}
     ${nearCard}
+    ${camerasNearCard(f)}
     ${rainNearCard(f)}
     ${next3hCard(f)}
     <section class="card"><h3>ฝนพยากรณ์ 48 ชั่วโมง</h3>${nums}${rainChart(rain)}</section>
@@ -355,6 +434,16 @@ function searchCard() {
   if (s.places.length) {
     parts.push(`<div class="why">สถานที่ที่พบบนแผนที่ (แตะเพื่อดูพยากรณ์และจุดท่วมรอบๆ)</div><div class="list">${s.places.map((p) => `
       <button class="row-item" data-act="goto-place" data-lat="${p.lat}" data-lng="${p.lng}"><span class="grow"><b>${esc(p.name)}</b></span><span class="val">ไป ›</span></button>`).join('')}</div>`);
+  }
+  const tr = s.traffic;
+  if (tr?.events.length) {
+    parts.push(`<div class="why">เหตุการณ์จราจร กทม. วันนี้ (${tr.events.length})</div><div class="list">${tr.events.slice(0, 5).map((e) => evRow(e)).join('')}</div>`);
+  }
+  if (tr?.dds.length) {
+    parts.push(`<div class="why">รายงานน้ำท่วมถนนสายหลัก สนน. (${tr.dds.length}) — ${state.traffic.dds ? `วันที่ ${thDate(state.traffic.dds.reportDate)}` : ''}</div><div class="list">${tr.dds.slice(0, 6).map(ddsRow).join('')}</div>`);
+  }
+  if (tr?.cameras.length) {
+    parts.push(`<div class="why">กล้องจราจร กทม. (${tr.cameras.length})</div><div class="list">${tr.cameras.slice(0, 5).map((c) => `<button class="row-item" data-act="fly-camera" data-id="${esc(c.id)}"><span class="dot" style="background:${c.flood ? '#00a6c8' : '#4a5b6c'}"></span><span class="grow"><b>${esc(c.name)}</b>${c.flood ? '<small>จุดเฝ้าระวังน้ำท่วม</small>' : ''}</span></button>`).join('')}</div>`);
   }
   const none = !parts.length
     ? `<p class="small">ไม่พบข้อมูลที่ตรงกับ “${esc(s.q)}”</p>
@@ -394,7 +483,7 @@ export function reportsTab() {
       ${r.note ? `<small class="clip">${esc(r.note)}</small>` : ''}</span></button>`).join('')}</div>`
       : '<p class="muted small">ยังไม่มีการปักหมุดที่ยังใช้งานอยู่ (หายไปเองใน 4 ชม. ถ้าไม่มีใครยืนยัน)</p>'}
     <div class="row"><button class="btn btn-primary" data-act="open-report">แจ้งจุดน้ำท่วม</button></div></section>`;
-  return `${searchCard()}${govt}${mine}`;
+  return `${searchCard()}${govt}${ddsListCard()}${mine}`;
 }
 
 const pct = (v) => (v === null || v === undefined ? '—' : `${Math.round(v * 100)}%`);
@@ -437,6 +526,8 @@ export function helpTab() {
   <section class="card"><h3>แหล่งข้อมูลและเครดิต</h3>
     <p class="small">เว็บนี้รวมข้อมูลสาธารณะเพื่อช่วยตัดสินใจ ไม่ใช่ประกาศของทางราชการ ขอขอบคุณแหล่งข้อมูล:</p>
     <ul class="small src"><li><b>จุดน้ำท่วม:</b> Traffy Fondue / กรุงเทพมหานคร (เรื่องร้องเรียนของประชาชน)</li>
+    <li><b>จราจร กล้อง และเหตุการณ์:</b> สำนักจัดการจราจรและขนส่ง กทม. (ระบบกล้องโทรทัศน์วงจรปิดและรายงานสภาพการจราจร) · Longdo Traffic (ดัชนีจราจร)</li>
+    <li><b>รายงานน้ำท่วมถนนสายหลัก:</b> สำนักการระบายน้ำ กรุงเทพมหานคร</li>
     <li><b>ระดับน้ำ และฝนตรวจวัดจริง:</b> ThaiWater (สถาบันสารสนเทศทรัพยากรน้ำ) · กรมชลประทาน และหน่วยงานเครือข่ายสถานีวัดฝน</li>
     <li><b>พยากรณ์ฝน น้ำทะเลหนุน น้ำเหนือ:</b> Open-Meteo (ECMWF, NOAA GFS, DWD ICON, GloFAS)</li>
     <li><b>เรดาร์ฝน:</b> RainViewer · <b>แผนที่:</b> © OpenStreetMap contributors</li></ul>

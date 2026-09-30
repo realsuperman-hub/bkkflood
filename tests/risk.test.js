@@ -104,3 +104,11 @@ test('observed rain at nearby gauges raises the score and is explained', () => {
   assert.equal(heavy.score, 4);
   assert.match(heavy.reasons[0].text, /ฝนตรวจวัดจริง.*45/);
 });
+
+test('an official BMA flood announcement nearby raises the score and names the road', () => {
+  const rain = { next24: 0, peakHour: 0, past48: 0, max24: 0, min24: 0 };
+  const r = assess({ rain, official: [{ title: 'น้ำท่วม ถนนรามอินทรา' }, { title: 'น้ำท่วม ถนนลาดกระบัง' }] });
+  assert.equal(r.score, 2);
+  assert.match(r.reasons[0].text, /รามอินทรา.*อีก 1/);
+  assert.equal(assess({ rain, official: [] }).score, 0);
+});

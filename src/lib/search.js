@@ -68,3 +68,17 @@ export async function geocode(q) {
   }
   return [];
 }
+
+// Traffic-side matches: BMA events, Drainage Dept flooded-road rows, and BMA cameras by name/description.
+// Road names appear as "ถนนสุขุมวิท" / "สุขุมวิท ซอย 26" / "ซอยสุขุมวิท 26", so "ซอย"/"ถนน" are dropped everywhere before comparing.
+const loose = (s) => norm(s).replace(/ซอย|ถนน/g, '');
+export function matchTraffic(traffic, q) {
+  const nq = loose(q);
+  if (nq.length < 2) return { events: [], dds: [], cameras: [] };
+  const has = (...parts) => loose(parts.join(' ')).includes(nq);
+  return {
+    events: (traffic?.events || []).filter((e) => has(e.title, e.detail)),
+    dds: (traffic?.dds?.rows || []).filter((r) => has(r.road, r.place, r.district)),
+    cameras: (traffic?.cameras || []).filter((c) => has(c.name, c.desc)).slice(0, 30),
+  };
+}

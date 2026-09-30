@@ -351,3 +351,8 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 @media (max-width: 899px) and (prefers-reduced-motion: reduce) {
   .nav-ic, .nav-fab { transition: none; }
 }
+
+.lg i.ln { width: 20px; height: 6px; border-radius: 3px; border: 0; box-shadow: none; }
+.row-item.static { cursor: default; }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; color: var(--ink); }
+a.btn.btn-primary { color: #fff; }

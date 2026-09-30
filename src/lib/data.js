@@ -84,3 +84,24 @@ export async function loadAccuracy() {
   if (!j || typeof j.samples !== 'number') throw new Error('accuracy: unexpected shape');
   return j;
 }
+
+// BMA traffic (cameras, events, slow road segments) + the Drainage Dept daily report — snapshots produced by the workflow.
+const snapshot = async (name) => {
+  const r = await fetch(`${import.meta.env.BASE_URL}data/${name}.json`, { cache: 'no-cache' });
+  if (!r.ok) throw new Error(`${name} HTTP ${r.status}`);
+  return r.json();
+};
+export async function loadTraffic() {
+  const [events, roads, cameras, dds] = await Promise.allSettled([snapshot('traffic-events'), snapshot('traffic-roads'), snapshot('cameras'), snapshot('dds')]);
+  const v = (x) => (x.status === 'fulfilled' ? x.value : null);
+  return { events: v(events), roads: v(roads), cameras: v(cameras), dds: v(dds) };
+}
+
+// Longdo Traffic's Bangkok traffic index (public JSON, CORS-enabled). We show the number as-is and link to Longdo for its meaning.
+export async function loadLongdoIndex() {
+  const r = await fetch('https://traffic.longdo.com/api/json/traffic/index', { signal: AbortSignal.timeout(10000) });
+  if (!r.ok) throw new Error(`Longdo HTTP ${r.status}`);
+  const j = await r.json();
+  if (typeof j.index !== 'number') throw new Error('Longdo: unexpected shape');
+  return { index: j.index, time: (j.time || 0) * 1000 };
+}

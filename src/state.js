@@ -19,6 +19,7 @@ export const state = {
   rainObs: [], // observed rain gauges
   rainObsAt: null,
   rainObsSrc: '',
+  traffic: { events: [], eventsAt: null, roads: [], roadsFresh: null, roadsTotal: null, roadsAt: null, cameras: [], dds: null, longdo: null },
   floods: [], // Traffy Fondue flood complaints (classified)
   floodsAt: null,
   floodsSrc: '',
