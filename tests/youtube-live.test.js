@@ -24,9 +24,11 @@ test('normalizeLive keeps embeddable, public, currently-live, camera-like stream
     v('i', { snippet: { title: 'Bangkok Sukhumvit traffic cam', channelTitle: 'BKK Cam' } }), // English title but a Thai place
   ];
   const out = normalizeLive(search, vids);
-  assert.deepEqual(out.map((x) => x.id), ['b', 'a', 'i']); // by viewers: 500, 42, 42 (older start first is a tie-breaker)
-  assert.equal(out[0].viewers, 500);
-  assert.equal(out[1].thumb, 'https://i.ytimg.com/a.jpg');
+  assert.deepEqual(out.map((x) => x.id), ['i', 'b', 'a']); // Bangkok first (local), then by viewers 500, 42
+  assert.equal(out[0].local, true);
+  assert.equal(out[1].viewers, 500);
+  assert.equal(out[1].local, false);
+  assert.equal(out[2].thumb, 'https://i.ytimg.com/a.jpg');
 });
 
 test('searchUrl asks for live Thai videos and encodes the query', () => {

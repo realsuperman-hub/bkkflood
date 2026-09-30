@@ -27,11 +27,15 @@ const skeleton = (t) => `<section class="card"><div class="skel"></div><p class=
 // No thumbnails on purpose: loading them would send the visitor's address to YouTube before they chose to watch anything.
 function ytLiveCard() {
   const y = state.ytLive;
-  const items = (y?.items || []).slice(0, 8);
-  if (!items.length) return '';
+  const all = y?.items || [];
+  if (!all.length) return '';
+  const local = all.filter((v) => v.local).slice(0, 6);
+  const rest = all.filter((v) => !v.local).slice(0, 12);
+  const row = (v) => `<button class="row-item" data-act="yt-open" data-id="${esc(v.id)}"><span class="dot" style="background:#d7263d"></span>
+      <span class="grow"><b>${esc(v.title)}</b><small>${esc(v.channel)}${v.viewers !== null ? ` · กำลังดู ${v.viewers.toLocaleString('th-TH')} คน` : ''}</small></span></button>`;
   return `<section class="card"><h3>ไลฟ์สดเกี่ยวกับกล้อง/น้ำท่วมบน YouTube (ยังไม่ยืนยัน)</h3>
-    <div class="list">${items.map((v) => `<button class="row-item" data-act="yt-open" data-id="${esc(v.id)}"><span class="dot" style="background:#d7263d"></span>
-      <span class="grow"><b>${esc(v.title)}</b><small>${esc(v.channel)}${v.viewers !== null ? ` · กำลังดู ${v.viewers.toLocaleString('th-TH')} คน` : ''}</small></span></button>`).join('')}</div>
+    ${local.length ? `<div class="list">${local.map(row).join('')}</div>` : '<p class="small muted">ตอนนี้ไม่พบสตรีมที่เกี่ยวกับ กทม./ปริมณฑล/น้ำท่วม</p>'}
+    ${rest.length ? `<details class="fold"><summary>กล้องสดอื่นในประเทศไทย (${rest.length})</summary><div class="list">${rest.map(row).join('')}</div></details>` : ''}
     <p class="muted tiny">ค้นหาอัตโนมัติจากสตรีมสดที่ชื่อเกี่ยวกับกล้อง/จราจร/แม่น้ำ/น้ำท่วมในไทย · ใครก็เปิดสตรีมได้ บางรายการเป็นรายการสรุปข่าวหรือข้อมูล ไม่ใช่ภาพจากกล้อง เราไม่ได้ตรวจสอบเนื้อหาและยืนยันไม่ได้ว่าเป็นกล้องจริง · ภาพเล่นผ่านตัวเล่นของ YouTube เมื่อคุณกดเท่านั้น${y.generatedAt ? ` · อัปเดต ${fmtTime(y.generatedAt)} น.` : ''}</p></section>`;
 }
 
