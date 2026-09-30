@@ -90,7 +90,7 @@ const rainRow = (g, extra = '') => {
 const EVC = { flood: '#0b6fa8', accident: '#f28c28', fire: '#d7263d', closed: '#12222e', other: '#5b6876' };
 const TH_MON = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 const thDate = (iso) => (iso ? `${+iso.slice(8, 10)} ${TH_MON[+iso.slice(5, 7) - 1]} ${(+iso.slice(0, 4) + 543) % 100}` : '—');
-const linkBtns = () => `<div class="row wrap"><a class="btn btn-sm" href="${BMA_LINKS.bma}" target="_blank" rel="noopener">กล้อง/จราจร กทม. ↗</a><a class="btn btn-sm" href="${BMA_LINKS.itic}" target="_blank" rel="noopener">iTIC live ↗</a><a class="btn btn-sm" href="${BMA_LINKS.longdo}" target="_blank" rel="noopener">Longdo Traffic ↗</a></div>`;
+const linkBtns = () => `<div class="row wrap"><a class="btn btn-sm" href="${BMA_LINKS.bma}" target="_blank" rel="noopener">กล้อง/จราจร กทม. ↗</a><a class="btn btn-sm" href="${BMA_LINKS.itic}" target="_blank" rel="noopener">iTIC live ↗</a><a class="btn btn-sm" href="${BMA_LINKS.longdoCameras}" target="_blank" rel="noopener">รายการกล้อง Longdo ↗</a><a class="btn btn-sm" href="${BMA_LINKS.longdo}" target="_blank" rel="noopener">Longdo Traffic ↗</a></div>`;
 const evRow = (e, extra = '') => `<button class="row-item" data-act="fly-event" data-id="${esc(e.id)}"><span class="dot" style="background:${EVC[e.kind]}"></span>
   <span class="grow"><b>${esc(EVENT_LABEL[e.kind] || 'เหตุการณ์')} · ${esc(e.title)}</b><small>${e.t ? ago(e.t) : ''}${extra}</small></span></button>`;
 

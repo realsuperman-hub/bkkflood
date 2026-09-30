@@ -11,6 +11,7 @@ export const BMA_LINKS = {
   bma: 'https://cpudapp.bangkok.go.th/bmatraffic/',
   itic: 'https://live.iticfoundation.org/',
   longdo: 'https://traffic.longdo.com/main/',
+  longdoCameras: 'https://traffic.longdo.com/cameralist', // Longdo's own camera list page (search by camera name/code)
 };
 
 // All BMA date fields hold Bangkok wall-clock time stored as if it were UTC.
