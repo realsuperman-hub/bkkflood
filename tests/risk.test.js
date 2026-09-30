@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assess } from '../src/lib/risk.js';
 import { normalizeStations, trendOf } from '../src/lib/thaiwater.js';
-import { summarizeRain, summarizeTide } from '../src/lib/forecast.js';
+import { summarizeRain, summarizeTide, dailyPeaks } from '../src/lib/forecast.js';
 
 const gauge = (o) => ({ name: 'คลองทดสอบ', km: 1.2, level: 3, over: -0.5, trend: 0, stale: false, ...o });
 
@@ -111,4 +111,38 @@ test('an official BMA flood announcement nearby raises the score and names the r
   assert.equal(r.score, 2);
   assert.match(r.reasons[0].text, /รามอินทรา.*อีก 1/);
   assert.equal(assess({ rain, official: [] }).score, 0);
+});
+
+test('normalizeStations keeps the whole Chao Phraya chain; only non-metro chain stations are flagged upstream', () => {
+  const row = (prov, code) => ({
+    id: code, waterlevel_datetime: '2026-09-29 21:20', waterlevel_msl: '5', waterlevel_msl_previous: '5', discharge: null, situation_level: 4,
+    station: { id: code, tele_station_name: { th: code }, tele_station_lat: 14.5, tele_station_long: 100.4, tele_station_oldcode: code, min_bank: 6 },
+    geocode: { province_name: { th: prov } }, agency: { agency_shortname: { th: 'x' } },
+  });
+  const raw = { waterlevel_data: { data: [row('ชัยนาท', 'CPY004'), row('อ่างทอง', 'CPY008'), row('กรุงเทพมหานคร', 'CPY015'), row('เชียงใหม่', 'P.1')] } };
+  const s = Object.fromEntries(normalizeStations(raw, Date.parse('2026-09-29T21:30:00+07:00')).map((x) => [x.code, x]));
+  assert.deepEqual(Object.keys(s).sort(), ['CPY004', 'CPY008', 'CPY015']);
+  assert.equal(s.CPY004.upstream, true);
+  assert.equal(s.CPY008.upstream, true);
+  assert.equal(s.CPY015.upstream, false); // Bangkok gauge stays a metro gauge …
+  assert.equal(s.CPY015.chain, true); // … but is still shown on the river route
+});
+
+test('dailyPeaks picks each day\'s highest hour, drops thin days, and flags the top 20% (≥ 1.3 m)', () => {
+  const times = [];
+  const vals = [];
+  for (let d = 0; d < 12; d++) {
+    for (let h = 0; h < 24; h++) {
+      const day = new Date(Date.UTC(2026, 8, 20 + d)).toISOString().slice(0, 10);
+      times.push(`${day}T${String(h).padStart(2, '0')}:00`);
+      // day 10 is the highest (2.1 m); the last day only has 6 valid hours (forecast tail)
+      vals.push(d === 11 && h >= 6 ? null : h === 12 ? (d === 10 ? 2.1 : 1.5 + d * 0.01) : 0);
+    }
+  }
+  const r = dailyPeaks(times, vals, '2026-09-22');
+  assert.equal(r.days.at(-1).date, '2026-09-30'); // 2026-10-01 has < 18 valid hours → dropped
+  assert.equal(r.topDay.date, '2026-09-30');
+  assert.equal(r.topDay.peak, 2.1);
+  assert.equal(r.days.find((x) => x.date === '2026-09-30').high, true);
+  assert.equal(r.days.find((x) => x.date === '2026-09-22').high, false);
 });

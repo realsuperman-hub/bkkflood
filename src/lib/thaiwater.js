@@ -10,8 +10,14 @@ const METRO = new Set([
   'กรุงเทพมหานคร', 'นนทบุรี', 'ปทุมธานี', 'สมุทรปราการ', 'สมุทรสาคร', 'นครปฐม',
 ]);
 
-// Chao Phraya main-stem stations used as the "น้ำเหนือ" indicator (they report discharge, m³/s).
-export const UPSTREAM_CODES = ['C.2', 'C.3', 'C.7A', 'C.13', 'C.35'];
+// Chao Phraya main-stem gauges, north → south (Nakhon Sawan … Bangkok), verified in ThaiWater's feed 2026-09-30.
+// C.* stations also report discharge (m³/s). The ones outside the metro provinces are flagged `upstream`, which keeps them out of
+// every metro-gauge calculation; the metro ones (CPY014 Nonthaburi, C.12 Sam Sen, CPY015 Bangkok) stay ordinary gauges but are
+// also `chain`, so the river card can show the whole route.
+export const CHAIN_CODES = [
+  'CPY001', 'C.2', 'CPY002', 'CPY003', 'CPY004', 'C.13', 'CPY005', 'CPY006', 'CPY007', 'C.3',
+  'CPY008', 'C.7A', 'CPY011', 'C.35', 'CPY012', 'CPY014', 'C.12', 'CPY015',
+];
 
 // Same 5 classes ThaiWater uses (share of bank capacity: >100% = over the bank).
 export const LEVELS = {
@@ -47,8 +53,9 @@ export function normalizeStations(raw, now = Date.now()) {
     const s = r.station || {};
     const code = (s.tele_station_oldcode || '').trim();
     const prov = r.geocode?.province_name?.th || '';
-    const upstream = UPSTREAM_CODES.includes(code);
-    if (!upstream && !METRO.has(prov)) continue;
+    const chain = CHAIN_CODES.includes(code);
+    const upstream = chain && !METRO.has(prov);
+    if (!chain && !METRO.has(prov)) continue;
 
     const lat = num(s.tele_station_lat);
     const lng = num(s.tele_station_long);
@@ -76,6 +83,7 @@ export function normalizeStations(raw, now = Date.now()) {
       t,
       stale: t === null || now - t > STALE_MS,
       upstream,
+      chain,
       agency: r.agency?.agency_shortname?.th?.trim() || '',
     });
   }

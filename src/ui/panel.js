@@ -74,6 +74,45 @@ function tideChart(tide) {
     <circle cx="${x(pk)}" cy="${y(v[pk])}" r="4" fill="#d7263d"/></svg>`;
 }
 
+// Highest modelled sea level of each coming day; the days the model puts among the month's highest are painted red
+function tideDays(tide) {
+  const d = tide.days || [];
+  if (d.length < 2) return '';
+  const W = 480;
+  const H = 96;
+  const lo = 0;
+  const hi = Math.max(2.2, ...d.map((x) => x.peak)) + 0.1;
+  const bw = W / d.length;
+  const y = (v) => 6 + (1 - (v - lo) / (hi - lo)) * (H - 30);
+  const bars = d.map((x, i) => `<rect x="${(i * bw + 4).toFixed(1)}" y="${y(x.peak).toFixed(1)}" width="${(bw - 8).toFixed(1)}" height="${(H - 24 - y(x.peak)).toFixed(1)}" rx="3" fill="${x.high ? '#d7263d' : '#0b6fa8'}" opacity="${x.high ? 1 : 0.55}"/>
+    <text x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 8}" font-size="12" text-anchor="middle" fill="#5b6876">${+x.date.slice(8, 10)}</text>
+    <text x="${(i * bw + bw / 2).toFixed(1)}" y="${(y(x.peak) - 3).toFixed(1)}" font-size="11" text-anchor="middle" fill="#14202b">${x.peak.toFixed(1)}</text>`).join('');
+  const highs = d.filter((x) => x.high);
+  const line = highs.length
+    ? `วันที่โมเดลให้น้ำหนุนสูง (สีแดง): <b>${highs.map((x) => thDate(x.date).slice(0, -3)).join(', ')}</b>`
+    : 'ช่วงนี้ไม่มีวันที่หนุนสูงเด่นกว่าปกติ';
+  return `<div class="why" style="margin-top:8px">ระดับน้ำทะเลสูงสุดรายวัน (ม. เหนือระดับน้ำทะเลปานกลาง)</div>
+    <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="ระดับน้ำทะเลสูงสุดรายวัน">${bars}</svg>
+    <p class="small">${line}</p>
+    <p class="muted tiny">เกณฑ์ "สูง" = อยู่ใน 20% สูงสุดของช่วง 14 วันที่ผ่านมา + พยากรณ์ (≥ ${tide.dayThreshold} ม.) · วันที่ตัวเลขเยอะสุดในช่วงเดือนหนึ่ง ๆ เปลี่ยนตามวงโคจรดวงจันทร์ ไม่ใช่ทุกวันเพ็ญ/เดือนดับ</p>`;
+}
+
+// Whole Chao Phraya route in one fold-out list (north → south): tells whether the water coming down is still rising
+function riverRoute() {
+  const ch = state.stations.filter((s) => s.chain).sort((a, b) => b.lat - a.lat);
+  if (ch.length < 3) return '';
+  const fresh = ch.filter((s) => !s.stale);
+  const rising = fresh.filter((s) => trendOf(s) === 'rising').length;
+  const falling = fresh.filter((s) => trendOf(s) === 'falling').length;
+  const over = fresh.filter((s) => s.level === 5).length;
+  return `<p class="small">ตามแนวแม่น้ำเจ้าพระยา ${fresh.length} สถานี: ล้นตลิ่ง <b>${over}</b> · กำลังขึ้น <b>${rising}</b> · กำลังลด <b>${falling}</b></p>
+    <details class="fold"><summary>ดูทุกสถานีตามแม่น้ำ (เหนือ → ใต้)</summary>
+      <div class="list">${ch.map((s) => `<div class="row-item static"><span class="dot" style="background:${LEVELS[s.level].color}"></span>
+        <span class="grow"><b>${esc(s.name)}</b><small>${esc(s.prov)} · ${TREND_TH[trendOf(s)]}${s.stale ? ' · ข้อมูลเก่า' : ''}${s.q !== null ? ` · ${Math.round(s.q).toLocaleString('th-TH')} ลบ.ม./วิ` : ''}</small></span>
+        <span class="val">${s.over !== null ? `${s.over > 0 ? '+' : ''}${Math.round(s.over * 100)} ซม.` : LEVELS[s.level].label}</span></div>`).join('')}</div>
+      <p class="muted tiny">ค่า = ระดับน้ำเทียบตลิ่งต่ำสุดของสถานี (+ คือสูงกว่าตลิ่ง) · ที่มา ThaiWater (สสน./กรมชลประทาน)</p></details>`;
+}
+
 /* ───────── observed rain + next-3-hours ───────── */
 const mm = (v) => (v === null || v === undefined ? '—' : `${v % 1 ? v.toFixed(1) : v}`);
 
@@ -347,14 +386,16 @@ export function overviewTab() {
           <span class="grow"><b>${esc(s.name)}</b><small>${esc(s.prov)} · ${TREND_TH[trendOf(s)]}${s.stale ? ' · ข้อมูลเก่า' : ''}</small></span>
           <span class="val">${Math.round(s.q).toLocaleString('th-TH')} <small>ลบ.ม./วิ</small></span></div>`).join('')}</div>
         ${ov?.upstreamTrend && ov.upstreamTrend.pct !== null ? `<p class="small">แนวโน้มพยากรณ์ 5 วันที่เขื่อนเจ้าพระยา: <b>${ov.upstreamTrend.pct > 0 ? '+' : ''}${ov.upstreamTrend.pct}%</b> (${TREND_TH[ov.upstreamTrend.dir]}) — จากโมเดล GloFAS ใช้ดูแนวโน้มเท่านั้น</p>` : ''}
-        ${c13 && !c13.stale && c13.q >= 2400 ? '<p class="note">น้ำท้ายเขื่อนเจ้าพระยาค่อนข้างสูง พื้นที่ริมแม่น้ำควรเฝ้าระวัง</p>' : ''}</section>`
+        ${c13 && !c13.stale && c13.q >= 2400 ? '<p class="note">น้ำท้ายเขื่อนเจ้าพระยาค่อนข้างสูง พื้นที่ริมแม่น้ำควรเฝ้าระวัง</p>' : ''}
+        ${riverRoute()}</section>`
     : '';
 
   const tideCard = ov?.tide
-    ? `<section class="card"><h3>น้ำทะเลหนุน 48 ชม.</h3>
-        <p class="small">สูงสุด <b>${ov.tide.peak} ม.</b> เหนือระดับน้ำทะเลปานกลาง ช่วง ${fmtDayHour(ov.tide.peakTime)} น.
+    ? `<section class="card"><h3>น้ำทะเลหนุน</h3>
+        <p class="small">48 ชม. ข้างหน้า สูงสุด <b>${ov.tide.peak} ม.</b> เหนือระดับน้ำทะเลปานกลาง ช่วง ${fmtDayHour(ov.tide.peakTime)} น.
         ${ov.tide.high ? '<span class="tag warn">หนุนสูง</span>' : '<span class="tag">ปกติ</span>'}</p>${tideChart(ov.tide)}
-        <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · โมเดล Open-Meteo Marine (ค่าประมาณ)</p></section>`
+        ${tideDays(ov.tide)}
+        <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
   return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
