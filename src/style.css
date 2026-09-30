@@ -55,8 +55,8 @@ p { margin: 6px 0; }
 .layers-pop[hidden], .banner[hidden], .pickbar[hidden], .toast[hidden] { display: none; }
 .layers-pop label { display: flex; gap: 10px; align-items: center; padding: 6px 0; min-height: 36px; }
 .layers-pop label[hidden] { display: none; }
-.wet { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
-.wet .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.wet .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 6px; }
+.wet .muted { display: block; margin-top: 2px; }
 .layers-pop input { width: 20px; height: 20px; accent-color: var(--accent); }
 .layers-pop hr { border: 0; border-top: 1px solid var(--line); margin: 8px 0; }
 .legend-title { font-size: 12.5px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
