@@ -14,7 +14,7 @@ export const vapidKey = null;
 
 // Longdo Map API key (free, public, bound to the site URL) — enables the in-app live camera viewer. null = hidden.
 // Register at https://map.longdo.com/api (Console) with the URL https://bkkflood.web.app
-export const longdoMapKey = null;
+export const longdoMapKey = '86739fd0d4c492b30d193723a35ed23b';
 
 // App Check (reCAPTCHA Enterprise, score-based) site key — public. Registered for the web app in Firebase App Check.
 export const appCheckSiteKey = '6LcXy9UtAAAAAL0LqloSZQC8AOMEv7tbABH6Sl2n';
