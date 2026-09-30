@@ -94,7 +94,7 @@ function tideDays(tide) {
   return `<div class="why" style="margin-top:8px">ระดับน้ำทะเลสูงสุดรายวัน (ม. เหนือระดับน้ำทะเลปานกลาง)</div>
     <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="ระดับน้ำทะเลสูงสุดรายวัน">${bars}</svg>
     <p class="small">${line}</p>
-    <p class="muted tiny">เกณฑ์ "สูง" = อยู่ใน 20% สูงสุดของช่วง 14 วันที่ผ่านมา + พยากรณ์ (≥ ${tide.dayThreshold} ม.) · วันที่ตัวเลขเยอะสุดในช่วงเดือนหนึ่ง ๆ เปลี่ยนตามวงโคจรดวงจันทร์ ไม่ใช่ทุกวันเพ็ญ/เดือนดับ</p>`;
+    <p class="muted tiny">เกณฑ์ "สูง" = อยู่ใน 20% สูงสุดของช่วง 14 วันที่ผ่านมา + พยากรณ์ (≥ ${tide.dayThreshold} ม.)</p>`;
 }
 
 // Whole Chao Phraya route in one fold-out list (north → south): tells whether the water coming down is still rising
