@@ -6,13 +6,22 @@
 // with 3 searches (~7,300 units/day).
 
 export const API = 'https://www.googleapis.com/youtube/v3';
-export const QUERIES = ['กล้อง CCTV สด น้ำท่วม', 'กล้องจราจร สด ถนน', 'กล้อง แม่น้ำ เจ้าพระยา สด'];
+// Long queries returned almost nothing (YouTube wants every word), so the queries are short and three sets take turns hour by hour;
+// the script also remembers streams found earlier. 3 searches per run × 24 runs = 7,200 units/day of the 10,000 free.
+export const QUERY_SETS = [
+  ['กล้องสด', 'กล้องจราจร', 'น้ำท่วม สด'],
+  ['CCTV live Thailand', 'แม่น้ำเจ้าพระยา สด', 'กล้องวงจรปิด สด'],
+  ['Bangkok live cam', 'ระดับน้ำ สด', 'traffic camera Thailand live'],
+];
+export const queriesFor = (now = Date.now()) => QUERY_SETS[Math.floor(now / 3600e3) % QUERY_SETS.length];
 
 export const searchUrl = (q, key) =>
   `${API}/search?part=snippet&type=video&eventType=live&regionCode=TH&relevanceLanguage=th&maxResults=25&q=${encodeURIComponent(q)}&key=${key}`;
 export const videosUrl = (ids, key) => `${API}/videos?part=snippet,status,liveStreamingDetails&id=${ids.join(',')}&key=${key}`;
 
 // Streams whose title says they are a camera/flood/traffic/river view. Music, games and chat streams also carry "live", so this filter matters.
+// YouTube's regionCode only nudges results toward a country, so a stream must also look Thai: Thai script (or a well-known Thai place).
+const THAI = /[฀-๿]|thailand|bangkok|phuket|pattaya|chiang ?mai|samui|krabi|hua ?hin|ayutthaya|chao ?phraya|koh |ko (?:samui|phangan|tao)/i;
 const RELEVANT = /กล้อง|cctv|cam\b|webcam|live cam|จราจร|ถนน|น้ำท่วม|ระดับน้ำ|แม่น้ำ|เจ้าพระยา|เขื่อน|คลอง|สะพาน|แยก|traffic|flood|river|bridge|street/i;
 
 // searchItems: items from search.list; videoItems: items from videos.list for the same ids
@@ -32,6 +41,7 @@ export function normalizeLive(searchItems, videoItems, now = Date.now()) {
     if (!live.actualStartTime) continue; // scheduled, not live yet
     const title = String(v.snippet?.title || '').trim();
     if (!RELEVANT.test(title)) continue;
+    if (!THAI.test(`${title} ${v.snippet?.channelTitle || ''}`)) continue;
     out.push({
       id,
       title: title.slice(0, 120),

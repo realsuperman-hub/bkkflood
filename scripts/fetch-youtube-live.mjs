@@ -2,7 +2,7 @@
 // Quota-friendly: if the copy that is already live is < 60 min old it is reused and NO API call is made (the workflow runs every ~15 min).
 // The key is never printed; errors come from the API's JSON message, not from the request URL.
 import { mkdir, writeFile } from 'node:fs/promises';
-import { QUERIES, searchUrl, videosUrl, normalizeLive } from '../src/lib/youtube-live.js';
+import { queriesFor, searchUrl, videosUrl, normalizeLive } from '../src/lib/youtube-live.js';
 
 const KEY = process.env.YOUTUBE_API_KEY;
 const OUT = 'public/data/youtube-live.json';
@@ -11,7 +11,8 @@ const MAX_AGE_MS = 60 * 60e3;
 
 await mkdir('public/data', { recursive: true });
 
-// reuse the live copy while it is fresh
+// reuse the live copy while it is fresh; otherwise remember which streams it listed so they are re-checked (1 unit) without searching again
+let known = [];
 try {
   const res = await fetch(LIVE, { signal: AbortSignal.timeout(15000) });
   if (res.ok) {
@@ -21,6 +22,7 @@ try {
       console.log(`youtube-live: live copy is ${Math.round((Date.now() - cur.generatedAt) / 60000)} min old — reused, no API call`);
       process.exit(0);
     }
+    known = (cur?.items || []).map((i) => i.id);
   }
 } catch {
   /* no live copy yet */
@@ -39,7 +41,8 @@ const api = async (url) => {
 };
 
 const search = [];
-for (const q of QUERIES) search.push(...((await api(searchUrl(q, KEY))).items || []));
+for (const q of queriesFor()) search.push(...((await api(searchUrl(q, KEY))).items || []));
+search.push(...known.map((id) => ({ id: { videoId: id } }))); // streams found earlier: still live? (checked by videos.list)
 const ids = [...new Set(search.map((s) => s.id?.videoId).filter(Boolean))].slice(0, 50);
 const videos = ids.length ? (await api(videosUrl(ids, KEY))).items || [] : [];
 const items = normalizeLive(search, videos);

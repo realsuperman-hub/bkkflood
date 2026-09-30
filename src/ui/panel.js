@@ -29,10 +29,10 @@ function ytLiveCard() {
   const y = state.ytLive;
   const items = (y?.items || []).slice(0, 8);
   if (!items.length) return '';
-  return `<section class="card"><h3>กล้องสดบน YouTube (ยังไม่ยืนยัน)</h3>
+  return `<section class="card"><h3>ไลฟ์สดเกี่ยวกับกล้อง/น้ำท่วมบน YouTube (ยังไม่ยืนยัน)</h3>
     <div class="list">${items.map((v) => `<button class="row-item" data-act="yt-open" data-id="${esc(v.id)}"><span class="dot" style="background:#d7263d"></span>
       <span class="grow"><b>${esc(v.title)}</b><small>${esc(v.channel)}${v.viewers !== null ? ` · กำลังดู ${v.viewers.toLocaleString('th-TH')} คน` : ''}</small></span></button>`).join('')}</div>
-    <p class="muted tiny">ค้นหาอัตโนมัติจากสตรีมสดในไทยที่ชื่อเกี่ยวกับกล้อง/จราจร/แม่น้ำ/น้ำท่วม · ใครก็เปิดสตรีมได้ เราไม่ได้ตรวจสอบเนื้อหาและยืนยันไม่ได้ว่าเป็นกล้องจริง · ภาพเล่นผ่านตัวเล่นของ YouTube เมื่อคุณกดเท่านั้น${y.generatedAt ? ` · อัปเดต ${fmtTime(y.generatedAt)} น.` : ''}</p></section>`;
+    <p class="muted tiny">ค้นหาอัตโนมัติจากสตรีมสดที่ชื่อเกี่ยวกับกล้อง/จราจร/แม่น้ำ/น้ำท่วมในไทย · ใครก็เปิดสตรีมได้ บางรายการเป็นรายการสรุปข่าวหรือข้อมูล ไม่ใช่ภาพจากกล้อง เราไม่ได้ตรวจสอบเนื้อหาและยืนยันไม่ได้ว่าเป็นกล้องจริง · ภาพเล่นผ่านตัวเล่นของ YouTube เมื่อคุณกดเท่านั้น${y.generatedAt ? ` · อัปเดต ${fmtTime(y.generatedAt)} น.` : ''}</p></section>`;
 }
 
 // Flood water seen by radar satellites (GISTDA). Shows the outskirts and the upstream provinces well, dense city streets badly.
