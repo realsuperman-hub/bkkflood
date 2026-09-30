@@ -301,7 +301,8 @@ function pushCard() {
     body = '<p class="small">บันทึกจุดของคุณ (บ้าน/ที่จอดรถ) ก่อน — แตะแผนที่แล้วกด "บันทึกจุดนี้เป็น" ที่แท็บพยากรณ์จุด จากนั้นกลับมาเปิดแจ้งเตือน</p>';
   } else {
     body = `<p class="small">รับแจ้งเตือนบนมือถือเมื่อจุดที่บันทึกไว้ (${n} จุด) เสี่ยงท่วมสูงขึ้น แม้ไม่ได้เปิดเว็บอยู่</p>
-      <div class="row"><button class="btn btn-primary" data-act="push-enable" ${p.busy ? 'disabled' : ''}>${p.busy ? 'กำลังเปิด…' : '🔔 เปิดแจ้งเตือน'}</button></div>${consent}`;
+      <div class="row"><button class="btn btn-primary" data-act="push-enable" ${p.busy ? 'disabled' : ''}>${p.busy ? 'กำลังเปิด…' : '🔔 เปิดแจ้งเตือน'}</button></div>
+      ${p.busy && p.stage ? `<p class="small muted">ขั้นตอนตอนนี้: ${esc(p.stage)}</p>${p.stage === 'ขออนุญาตแจ้งเตือน' ? '<p class="note">ถ้าไม่เห็นหน้าต่างถาม ให้มองหา <b>ไอคอนรูประฆัง 🔔</b> ที่แถบที่อยู่ด้านบน (Edge/Chrome บางครั้งซ่อนหน้าต่างไว้ที่นั่น) แล้วคลิกเลือก <b>"อนุญาต"</b></p>' : ''}` : ''}${consent}`;
   }
   return `<section class="card"><h3>แจ้งเตือนอัตโนมัติ</h3>${body}${p.error ? `<p class="note">${esc(p.error)}</p>` : ''}</section>`;
 }

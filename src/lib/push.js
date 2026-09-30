@@ -54,29 +54,42 @@ async function getToken() {
   return gt(getMessaging(getApp()), { serviceWorkerRegistration: reg, ...(vapidKey ? { vapidKey } : {}) });
 }
 
-// Runs one step of the opt-in and, if it fails, says which step and why (so "it did not work" becomes diagnosable).
-async function step(name, fn) {
+// Runs one step of the opt-in with a time limit. If it fails or hangs, the message says WHICH step and why
+// (a step that waits forever is what a user sees as "the button is stuck").
+async function step(name, fn, ms, onStage) {
+  onStage?.(name);
+  let timer;
   try {
-    return await fn();
+    return await Promise.race([
+      Promise.resolve().then(fn),
+      new Promise((_, rej) => {
+        timer = setTimeout(() => rej(Object.assign(new Error('ไม่ตอบสนองภายในเวลาที่กำหนด'), { code: 'timeout' })), ms);
+      }),
+    ]);
   } catch (e) {
     const detail = `${e?.code || ''} ${e?.message || e}`.trim().slice(0, 160);
     const err = new Error(`ขั้น "${name}" ไม่สำเร็จ — ${detail}`);
     err.step = name;
+    err.timeout = e?.code === 'timeout';
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-export async function enablePush(places) {
+export const STAGE_PERMISSION = 'ขออนุญาตแจ้งเตือน';
+
+export async function enablePush(places, onStage) {
   if (!places.length) throw new Error('บันทึกจุดของคุณ (บ้าน/ที่จอดรถ) ก่อน แล้วค่อยเปิดแจ้งเตือน');
   const support = pushSupport();
   if (!support.ok) throw new Error('อุปกรณ์/เบราว์เซอร์นี้ยังเปิดแจ้งเตือนไม่ได้');
-  const perm = await step('ขออนุญาตแจ้งเตือน', () => Notification.requestPermission());
+  const perm = await step(STAGE_PERMISSION, () => Notification.requestPermission(), 120000, onStage);
   if (perm === 'default') throw new Error('ยังไม่ได้เลือก "อนุญาต" ในหน้าต่างที่เบราว์เซอร์ถาม (หรือปิดหน้าต่างไปก่อน) — กดปุ่มอีกครั้งแล้วเลือก "อนุญาต"');
   if (perm !== 'granted') throw new Error('เบราว์เซอร์บล็อกการแจ้งเตือนของเว็บนี้ไว้ — ทำตามขั้นตอนด้านล่างเพื่อเปิดสิทธิ์ แล้วรีเฟรชหน้านี้');
-  const token = await step('ขอรหัสอุปกรณ์ (FCM)', () => getToken());
+  const token = await step('ขอรหัสอุปกรณ์จากบริการแจ้งเตือนของเบราว์เซอร์ (FCM)', () => getToken(), 30000, onStage);
   if (!token) throw new Error('ขอรหัสอุปกรณ์ไม่สำเร็จ ลองใหม่อีกครั้ง');
-  await step('เข้าสู่ระบบแบบไม่ระบุตัวตน', () => state.store.signIn());
-  await step('บันทึกที่เซิร์ฟเวอร์', () => state.store.saveSub({ token, places: placesPayload(places) }));
+  await step('เข้าสู่ระบบแบบไม่ระบุตัวตน', () => state.store.signIn(), 25000, onStage);
+  await step('บันทึกที่เซิร์ฟเวอร์', () => state.store.saveSub({ token, places: placesPayload(places) }), 25000, onStage);
   ls.set(FLAG, '1');
   ls.set(TOKEN, token);
 }

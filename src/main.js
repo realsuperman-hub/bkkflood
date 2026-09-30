@@ -636,7 +636,10 @@ const actions = {
     state.push = { ...pushStatus(), busy: true };
     emit();
     try {
-      await enablePush(state.saved);
+      await enablePush(state.saved, (stage) => {
+        state.push = { ...state.push, busy: true, stage };
+        emit();
+      });
       toast('เปิดแจ้งเตือนแล้ว');
       state.push = { ...pushStatus(), verified: await verifyPush() };
     } catch (e) {
