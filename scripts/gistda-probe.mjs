@@ -1,8 +1,21 @@
-// One-off probe of GISTDA's open disaster API with OUR key (repo secret GISTDA_API_KEY). Prints only the SHAPE of each answer
-// (status, size, keys, a few property values) — never the key, never a full dump. Run from Actions: gistda-probe workflow.
-const KEY = process.env.GISTDA_API_KEY;
+// One-off probe of GISTDA's open disaster API with OUR key. Prints only the SHAPE of each answer
+// (status, size, keys, a few property values) — never the key, never a full dump.
+// GISTDA's gateway does NOT accept connections from GitHub's servers (checked 2026-09-30: even a keyless request cannot connect),
+// so run this on a Thai network: the key comes from the env var GISTDA_API_KEY or from the file ~/.bkkflood/gistda.key (outside the repo).
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
+const readKeyFile = () => {
+  try {
+    return readFileSync(join(homedir(), '.bkkflood', 'gistda.key'), 'utf8').trim();
+  } catch {
+    return '';
+  }
+};
+const KEY = process.env.GISTDA_API_KEY || readKeyFile();
 if (!KEY) {
-  console.error('GISTDA_API_KEY is not set (add it as a repository secret first)');
+  console.error('No GISTDA key: set GISTDA_API_KEY or put it in ~/.bkkflood/gistda.key');
   process.exit(1);
 }
 // Two API families are listed by GISTDA: the "Features" API from the official manual (auth: header `API-Key`, or `?api_key=`)
