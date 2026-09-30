@@ -26,9 +26,14 @@ const ls = {
   },
 };
 
-// { ok:true } or { ok:false, reason: 'ios-install' | 'unsupported' | 'no-backend' }
+// Browsers embedded in other apps (LINE, Facebook, Instagram…) never show the notification prompt.
+export const inAppBrowser = () => /Line\/|FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Messenger/i.test(navigator.userAgent);
+export const platform = () => (isIOS() ? 'ios' : /Android/i.test(navigator.userAgent) ? 'android' : 'desktop');
+
+// { ok:true } or { ok:false, reason: 'ios-install' | 'unsupported' | 'no-backend' | 'in-app' }
 export function pushSupport() {
   if (state.store && state.store.mode !== 'firebase') return { ok: false, reason: 'no-backend' };
+  if (inAppBrowser()) return { ok: false, reason: 'in-app' };
   const api = 'serviceWorker' in navigator && 'Notification' in window && 'PushManager' in window;
   if (api) return { ok: true };
   return { ok: false, reason: isIOS() && !isStandalone() ? 'ios-install' : 'unsupported' };
@@ -66,7 +71,8 @@ export async function enablePush(places) {
   const support = pushSupport();
   if (!support.ok) throw new Error('อุปกรณ์/เบราว์เซอร์นี้ยังเปิดแจ้งเตือนไม่ได้');
   const perm = await step('ขออนุญาตแจ้งเตือน', () => Notification.requestPermission());
-  if (perm !== 'granted') throw new Error('ไม่ได้รับอนุญาตให้แจ้งเตือน — เปิดสิทธิ์ในการตั้งค่าเว็บไซต์ของเบราว์เซอร์');
+  if (perm === 'default') throw new Error('ยังไม่ได้เลือก "อนุญาต" ในหน้าต่างที่เบราว์เซอร์ถาม (หรือปิดหน้าต่างไปก่อน) — กดปุ่มอีกครั้งแล้วเลือก "อนุญาต"');
+  if (perm !== 'granted') throw new Error('เบราว์เซอร์บล็อกการแจ้งเตือนของเว็บนี้ไว้ — ทำตามขั้นตอนด้านล่างเพื่อเปิดสิทธิ์ แล้วรีเฟรชหน้านี้');
   const token = await step('ขอรหัสอุปกรณ์ (FCM)', () => getToken());
   if (!token) throw new Error('ขอรหัสอุปกรณ์ไม่สำเร็จ ลองใหม่อีกครั้ง');
   await step('เข้าสู่ระบบแบบไม่ระบุตัวตน', () => state.store.signIn());
