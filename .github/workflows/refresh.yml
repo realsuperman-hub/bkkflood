@@ -42,7 +42,7 @@ jobs:
         run: |
           node scripts/fetch-traffic.mjs || echo "BMA traffic fetch failed (cameras.json comes from data-static/)"
           # cameras + dds cannot be fetched from GitHub's servers (blocked); a Thai-network task keeps data-static/ current
-          for f in cameras dds flood-history; do
+          for f in cameras dds flood-history gistda-flood; do
             [ -s public/data/$f.json ] || cp "data-static/$f.json" "public/data/$f.json" 2>/dev/null || true
           done
           # flood headlines from Thai outlets' RSS (headline + link only); if every feed fails keep the live copy

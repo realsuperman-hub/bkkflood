@@ -20,6 +20,7 @@ export const state = {
   rainObsAt: null,
   rainObsSrc: '',
   traffic: { events: [], eventsAt: null, roads: [], roadsFresh: null, roadsTotal: null, roadsAt: null, cameras: [], dds: null, longdo: null },
+  satFlood: null, // GISTDA radar-satellite flood extent (cells + province totals)
   news: null, // flood headlines from Thai outlets' RSS (headline + link only)
   floodHistory: null, // repeat-flood-spot grid (Traffy history) — see src/lib/flood-history.js
   dams: null, // key dams feeding the Chao Phraya (RID open API snapshot)

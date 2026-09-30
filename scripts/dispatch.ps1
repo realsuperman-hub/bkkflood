@@ -17,6 +17,10 @@ $env:GH_EXE = $gh
 Push-Location $root
 $sync = & $node scripts/sync-thai-sources.mjs 2>&1
 Log ('sync-thai-sources -> exit ' + $LASTEXITCODE + ' ' + (($sync | ForEach-Object { "$_".Trim() } | Where-Object { $_ }) -join ' | '))
+# GISTDA satellite flood: its gateway also refuses GitHub's servers. The key is read from ~/.bkkflood/gistda.key (never from the repo);
+# the script re-fetches at most every 3 hours and commits only when the content changed.
+$gs = & $node scripts/sync-gistda.mjs 2>&1
+Log ('sync-gistda -> exit ' + $LASTEXITCODE + ' ' + (($gs | ForEach-Object { "$_".Trim() } | Where-Object { $_ }) -join ' | '))
 Pop-Location
 
 $out = & $gh workflow run refresh-data --repo realsuperman-hub/bkkflood 2>&1

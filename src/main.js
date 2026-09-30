@@ -3,7 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
-import { loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -154,6 +154,15 @@ function initLayers() {
       'circle-opacity': 0.55, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1,
     },
   }, 'traffic-roads-casing');
+  map.addSource('sat-flood', { type: 'geojson', data: emptyFC });
+  map.addLayer({
+    id: 'sat-flood', type: 'circle', source: 'sat-flood', layout: { visibility: 'none' },
+    paint: {
+      // ~550 m cell: the circle grows with the flooded area inside it (rai), and with the zoom
+      'circle-radius': ['*', ['interpolate', ['linear'], ['zoom'], 8, 0.35, 11, 0.8, 14, 2.2, 16, 4], ['+', 3, ['sqrt', ['get', 'rai']]]],
+      'circle-color': '#1c5fd4', 'circle-opacity': 0.45, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 0.6,
+    },
+  }, 'traffic-roads-casing');
   map.addSource('cameras', { type: 'geojson', data: emptyFC });
   map.addLayer({ id: 'cameras', type: 'circle', source: 'cameras', minzoom: 11, layout: { visibility: 'none' }, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 16, 8], 'circle-color': ['case', ['get', 'flood'], '#00a6c8', '#4a5b6c'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } });
 
@@ -257,6 +266,21 @@ function refreshStationsLayer() {
   });
 }
 
+function refreshSatLayer() {
+  const s = state.satFlood;
+  if (!s?.cells) return;
+  map?.getSource('sat-flood')?.setData({
+    type: 'FeatureCollection',
+    features: s.cells.map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c[1], c[0]] }, properties: { rai: c[2], people: c[3], pv: c[4] } })),
+  });
+}
+function satPopup(p, lngLat) {
+  const s = state.satFlood;
+  const pv = s?.provinces?.find((x) => x.id === +p.pv);
+  openPopup(lngLat, `<div class="pp"><div class="pp-title">น้ำท่วมตามภาพดาวเทียมเรดาร์</div>
+    <p class="small">พื้นที่ที่ดาวเทียมเห็นว่าท่วม ≈ <b>${Math.round(p.rai).toLocaleString('th-TH')} ไร่</b> ในช่องราว 550 ม.${+p.people ? ` · ประชากรที่น่าจะได้รับผลกระทบ ≈ ${(+p.people).toLocaleString('th-TH')} คน` : ''}${pv ? ` · ${esc(pv.name)}` : ''}</p>
+    <p class="muted tiny">ภาพดาวเทียมผ่านล่าสุด ${s?.lastPass ? esc(s.lastPass) : '—'} · ดาวเทียมเรดาร์เห็นน้ำนอกเมืองและนาได้ดี แต่มองถนนในเมืองหนาแน่นไม่ค่อยได้ และผ่านทุกไม่กี่วัน น้ำอาจลดหรือเพิ่มไปแล้ว · ที่มา: GISTDA (สทอภ.)</p></div>`);
+}
 function refreshRepeatLayer() {
   if (state.floodHistory?.cells) map?.getSource('repeat')?.setData(historyGeoJson(state.floodHistory.cells));
 }
@@ -759,6 +783,12 @@ const actions = {
     floodPopup(f);
   },
   'point-forecast': ({ lat, lng }) => selectPoint(+lat, +lng),
+  'show-sat': () => {
+    $('#ly-sat').checked = true;
+    map.setLayoutProperty('sat-flood', 'visibility', 'visible');
+    map.flyTo({ center: [100.6, 14.0], zoom: 9.2 });
+    if (window.matchMedia('(max-width: 720px)').matches) $('#panel').dataset.open = 'false';
+  },
   'show-repeat': ({ lat, lng }) => {
     $('#ly-repeat').checked = true;
     map.setLayoutProperty('repeat', 'visibility', 'visible');
@@ -896,6 +926,7 @@ $('#ly-traffic').addEventListener('change', (e) => {
   const v = e.target.checked ? 'visible' : 'none';
   ['traffic-roads-casing', 'traffic-roads', 'traffic-events'].forEach((l) => map.setLayoutProperty(l, 'visibility', v));
 });
+$('#ly-sat').addEventListener('change', (e) => map.setLayoutProperty('sat-flood', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-repeat').addEventListener('change', (e) => map.setLayoutProperty('repeat', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-cams').addEventListener('change', (e) => map.setLayoutProperty('cameras', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-rain').addEventListener('change', (e) => map.setLayoutProperty('rainobs', 'visibility', e.target.checked ? 'visible' : 'none'));
@@ -1073,7 +1104,7 @@ async function main() {
 
   map.on('click', (e) => {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
-    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     if (hit) {
       if (['reports', 'report-lines', 'report-areas'].includes(hit.layer.id)) {
         const r = state.reports.find((x) => x.id === hit.properties.id);
@@ -1088,6 +1119,8 @@ async function main() {
         roadPopup(hit.properties, e.lngLat);
       } else if (hit.layer.id === 'repeat') {
         repeatPopup(hit.properties, e.lngLat);
+      } else if (hit.layer.id === 'sat-flood') {
+        satPopup(hit.properties, e.lngLat);
       } else if (hit.layer.id === 'rainobs') {
         const g = state.rainObs.find((x) => String(x.id) === String(hit.properties.id));
         if (g) rainPopup(g);
@@ -1102,7 +1135,7 @@ async function main() {
     }
     selectPoint(e.lngLat.lat, e.lngLat.lng);
   });
-  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat'].forEach((l) => {
+  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood'].forEach((l) => {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   });
@@ -1141,6 +1174,7 @@ async function main() {
     verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
     loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
+    loadSatFlood().then((s) => { state.satFlood = s; $('#ly-sat').closest('label').hidden = false; refreshSatLayer(); emit(); }).catch(() => {});
     loadFloodHistory().then((h) => { state.floodHistory = h; $('#ly-repeat').closest('label').hidden = false; refreshRepeatLayer(); emit(); }).catch(() => {});
     emit();
   });
@@ -1163,6 +1197,7 @@ async function main() {
   if (!sharedPt) map.jumpTo({ center: [BKK_CENTER.lng, BKK_CENTER.lat], zoom: 10.3 });
   initLayers();
   refreshRepeatLayer(); // the history may have arrived before the layers existed
+  refreshSatLayer();
   refreshSelectedLayer();
 }
 

@@ -23,6 +23,21 @@ const DISCLAIMER =
 const skeleton = (t) => `<section class="card"><div class="skel"></div><p class="muted small">${t}</p></section>`;
 
 /* ───────── shared components ───────── */
+// Flood water seen by radar satellites (GISTDA). Shows the outskirts and the upstream provinces well, dense city streets badly.
+function satFloodCard() {
+  const s = state.satFlood;
+  if (!s?.provinces?.length) return '';
+  const rows = [...s.provinces].filter((p) => p.rai > 0).sort((a, b) => b.rai - a.rai);
+  if (!rows.length) return '';
+  const daysAgo = s.lastPass ? Math.max(0, Math.round((Date.now() - Date.parse(`${s.lastPass}T12:00:00+07:00`)) / 86400e3)) : null;
+  return `<section class="card"><h3>น้ำท่วมจากดาวเทียม (GISTDA)</h3>
+    <p class="small">ภาพดาวเทียมเรดาร์ผ่านล่าสุด <b>${s.lastPass ? thDate(s.lastPass) : '—'}</b>${daysAgo !== null ? ` (${daysAgo === 0 ? 'วันนี้' : `${daysAgo} วันที่แล้ว`})` : ''} — พื้นที่ที่ยังเห็นน้ำท่วมในภาพนั้น</p>
+    <div class="list">${rows.map((p) => `<div class="row-item static"><span class="grow"><b>${esc(p.name)}</b><small>ประชากรที่น่าจะได้รับผลกระทบ ≈ ${p.people.toLocaleString('th-TH')} คน · นาข้าว ${p.rice.toLocaleString('th-TH')} ไร่</small></span>
+      <span class="val">${p.rai.toLocaleString('th-TH')} <small>ไร่</small></span></div>`).join('')}</div>
+    <div class="row wrap"><button class="btn btn-sm" data-act="show-sat">ดูบนแผนที่</button></div>
+    <p class="muted tiny">ที่มา: GISTDA (สทอภ.) Disaster Platform · วิเคราะห์จากภาพดาวเทียมเรดาร์ Sentinel-1/RADARSAT-2 ผ่านทุกไม่กี่วัน จึงไม่ใช่ข้อมูลเรียลไทม์ · เห็นน้ำนอกเมืองและนาข้าวได้ดี แต่ถนนในเมืองหนาแน่นมองได้ไม่ดี (กทม. ที่เห็นส่วนใหญ่คือชานเมืองตะวันออก) · ตัวเลขเป็นการประมาณของ GISTDA ยังไม่ได้ตรวจสภาพจริง</p></section>`;
+}
+
 // Latest flood headlines from Thai outlets' public RSS feeds: headline + link only (we never copy the story), newest first.
 // Stories about Bangkok / the metro provinces / the Chao Phraya upstream come first; political commentary is hidden by a rough keyword filter.
 function newsCard() {
@@ -475,6 +490,7 @@ export function overviewTab() {
         ${riverRoute()}</section>`
     : '';
   const damCard = damsCard();
+  const satCard = satFloodCard();
 
   const tideCard = ov?.tide
     ? `<section class="card"><h3>น้ำทะเลหนุน</h3>
@@ -484,7 +500,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {

@@ -94,6 +94,8 @@ const snapshot = async (name) => {
 // Repeat-flood-spot grid built from Traffy's past complaints (scripts/build-flood-history.mjs); optional — the app works without it.
 export const loadFloodHistory = () => snapshot('flood-history');
 export const loadNews = () => snapshot('news');
+// Radar-satellite flood extent from GISTDA (built on a Thai network by scripts/sync-gistda.mjs); optional
+export const loadSatFlood = () => snapshot('gistda-flood');
 export async function loadTraffic() {
   const [events, roads, cameras, dds, dams] = await Promise.allSettled([snapshot('traffic-events'), snapshot('traffic-roads'), snapshot('cameras'), snapshot('dds'), snapshot('dams')]);
   const v = (x) => (x.status === 'fulfilled' ? x.value : null);
