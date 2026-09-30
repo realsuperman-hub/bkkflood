@@ -10,3 +10,4 @@ ext/
 .claude/
 public/data/*.json
 *.tmp
+dispatch.log

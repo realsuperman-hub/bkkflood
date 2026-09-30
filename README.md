@@ -80,7 +80,7 @@ npm run test:rules   # ทดสอบกฎ Firestore (ต้องมี Java 
   - รหัสลับ: secret `FIREBASE_SERVICE_ACCOUNT` = คีย์ของบัญชีบริการ `bkkflood-deployer@bkkflood-d54cc.iam.gserviceaccount.com` (สิทธิ์ Firebase Hosting Admin เท่านั้น) — ถ้ารั่วให้ลบคีย์ที่ Google Cloud → IAM → Service Accounts แล้วสร้างใหม่
   - **ทุกการ push เข้า `main` จะ deploy ขึ้นเว็บจริงทันที**
   - GitHub จะ **ปิด schedule อัตโนมัติถ้า repo ไม่มีกิจกรรมเลย 60 วัน** — ถ้าข้อมูลบนเว็บค้าง ให้เข้าแท็บ Actions แล้วกด Enable/Run workflow
-  - งาน Windows `BKKFLOOD-refresh` (`scripts/refresh.ps1`) **ปิดไว้แล้ว** เพราะมันจะ deploy โค้ด dist เก่าจากเครื่องทับของใหม่ ห้ามเปิดพร้อมกัน
+  - **GitHub รันตามเวลาเองน้อยมาก** (วัดได้ ~2 รอบใน 8 ชม. แทนทุก 15 นาที — repo ใหม่/ใช้งานน้อยถูกจำกัด) จึงมีงาน Windows **`BKKFLOOD-trigger`** (`scripts/dispatch.ps1`) สั่ง `gh workflow run refresh-data` ทุก 15 นาที · ไม่ deploy อะไรเอง (โค้ดและรหัสอยู่บน GitHub) · ต้องเปิดคอม + ล็อกอิน Windows + `gh auth` ยังใช้ได้ · บันทึกใน `dispatch.log` · ดู/หยุด/ลบ: `Get-ScheduledTask BKKFLOOD-trigger` / `Disable-ScheduledTask …` / `Unregister-ScheduledTask … -Confirm:$false` · งานเก่า `BKKFLOOD-refresh` ที่ deploy โค้ด dist ในเครื่อง **ถูกลบแล้ว** (จะเอาโค้ดเก่าไปทับของใหม่)
 - ยังไม่ได้ตรวจเงื่อนไขการใช้งานข้อมูล Traffy Fondue อย่างเป็นทางการ
 
 ## ข้อมูลสถานีวัดน้ำ
