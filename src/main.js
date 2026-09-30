@@ -3,7 +3,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
-import { loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -16,6 +16,7 @@ import { TAB_RENDER, BKK_CENTER } from './ui/panel.js';
 import { openReportDialog } from './ui/report.js';
 import { matchFloods, matchStations, matchReports, matchTraffic, geocode, validQuery } from './lib/search.js';
 import { historyGeoJson } from './lib/flood-history.js';
+import { corroborateState, TIER } from './lib/corroborate.js';
 import { openCamViewer, camViewerEnabled } from './lib/longdo-cams.js';
 import { pushStatus, enablePush, disablePush, syncPush, verifyPush } from './lib/push.js';
 import { SITE_URL, lineLink, shareNative, siteShare, pointShare } from './lib/share.js';
@@ -206,6 +207,7 @@ function initLayers() {
       'icon-size': ['match', ['get', 'lvl'], 3, 0.95, 2, 0.8, 0.65],
       'symbol-sort-key': ['get', 'lvl'], // heavy on top
     },
+    paint: { 'icon-opacity': ['coalesce', ['get', 'op'], 1] }, // a single-source complaint is drawn a little fainter
   });
 
   map.addSource('report-shapes', { type: 'geojson', data: emptyFC });
@@ -302,7 +304,7 @@ function refreshFloodsLayer() {
     type: 'FeatureCollection',
     features: state.floods
       .filter((f) => now - f.t < 24 * 3600e3)
-      .map((f) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [f.lng, f.lat] }, properties: { id: f.id, lvl: f.lvl } })),
+      .map((f) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [f.lng, f.lat] }, properties: { id: f.id, lvl: f.lvl, op: TIER[corroborateState(f, state, now).tier].opacity } })),
   });
 }
 
@@ -441,6 +443,14 @@ function rainPopup(g) {
     <button class="btn btn-sm btn-primary" data-act="point-forecast" data-lat="${g.lat}" data-lng="${g.lng}">ดูพยากรณ์ตรงนี้</button></div>`);
 }
 
+// "How well is this backed up?" — see src/lib/corroborate.js
+function confidenceHtml(f) {
+  const c = corroborateState(f, state);
+  const list = c.signals.length
+    ? `<ul class="reasons">${c.signals.map((s) => `<li>${esc(s.text)}</li>`).join('')}</ul>`
+    : '<p class="muted tiny">ยังไม่พบแหล่งอื่นยืนยันบริเวณนี้ — ไม่ได้แปลว่าไม่จริง อาจยังไม่มีคนอื่นเห็น/แจ้ง ใช้ประกอบการตัดสินใจ</p>';
+  return `<p class="small"><span class="tag" style="background:${c.color}22;color:${c.color}">${c.label}</span></p>${list}`;
+}
 function floodPopup(f) {
   const sv = SEVERITY[f.lvl];
   openPopup([f.lng, f.lat], `<div class="pp">
@@ -448,6 +458,7 @@ function floodPopup(f) {
     <div class="muted small">${esc(f.district ? `เขต${f.district}` : 'กทม.')} · แจ้งเมื่อ ${ago(f.t)}</div>
     ${f.depth ? `<p class="small">ระดับน้ำที่ผู้แจ้งระบุ ≈ <b>${f.depth} ซม.</b></p>` : ''}
     ${f.help ? '<p class="note">มีผู้ร้องขอความช่วยเหลือ — หากอันตรายถึงชีวิตโทร 1669 / 1784</p>' : ''}
+    ${confidenceHtml(f)}
     <p class="small">${esc(f.text)}</p>
     ${f.photo ? `<a href="${esc(f.photo)}" target="_blank" rel="noopener"><img class="pp-img" src="${esc(f.photo)}" loading="lazy" alt="รูปจากผู้แจ้ง" /></a>` : ''}
     <p class="muted tiny">สถานะ: ${esc(f.state)}${f.near ? ` · มีแจ้งใกล้เคียง ${f.near} เรื่อง (300 ม.)` : ''}<br>ความหนักประเมินจากข้อความร้องเรียน ไม่ใช่ค่าที่วัดจริง · ที่มา: Traffy Fondue / กทม.</p>
@@ -957,6 +968,7 @@ async function reloadStations() {
     state.stationsError = e.message || String(e);
   }
   refreshStationsLayer();
+  refreshFloodsLayer();
   emit();
 }
 
@@ -973,6 +985,7 @@ async function reloadTraffic() {
     /* keep whatever we had */
   }
   refreshTrafficLayers();
+  refreshFloodsLayer();
   emit();
 }
 
@@ -996,6 +1009,7 @@ async function reloadRainObs() {
     state.rainObsError = e.message || String(e);
   }
   refreshRainLayer();
+  refreshFloodsLayer(); // the evidence around each reported spot changed
   emit();
 }
 
@@ -1101,6 +1115,7 @@ async function main() {
     s.subscribe((list) => {
       allReports = list;
       refreshReportsLayer();
+      refreshFloodsLayer();
     });
   });
   const stationsP = reloadStations();
@@ -1125,6 +1140,7 @@ async function main() {
     state.push = pushStatus();
     verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
+    loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
     loadFloodHistory().then((h) => { state.floodHistory = h; $('#ly-repeat').closest('label').hidden = false; refreshRepeatLayer(); emit(); }).catch(() => {});
     emit();
   });

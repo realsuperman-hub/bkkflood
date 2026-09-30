@@ -45,6 +45,8 @@ jobs:
           for f in cameras dds flood-history; do
             [ -s public/data/$f.json ] || cp "data-static/$f.json" "public/data/$f.json" 2>/dev/null || true
           done
+          # flood headlines from Thai outlets' RSS (headline + link only); if every feed fails keep the live copy
+          node scripts/fetch-news.mjs || curl -sf https://bkkflood.web.app/data/news.json -o public/data/news.json || true
           # RID dam API: try from GitHub first; if blocked, use the Thai-network copy, then whatever is live
           node scripts/fetch-dams.mjs || { [ -s data-static/dams.json ] && cp data-static/dams.json public/data/dams.json; } || curl -sf https://bkkflood.web.app/data/dams.json -o public/data/dams.json || true
           for f in traffic-events traffic-roads; do

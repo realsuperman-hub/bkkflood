@@ -5,6 +5,7 @@ import { DEPTHS, PASSABLE } from '../lib/store.js';
 import { esc, ago, fmtTime, fmtHourKey, fmtDayHour } from '../lib/util.js';
 import { RISK } from '../lib/risk.js';
 import { SEVERITY } from '../lib/traffy.js';
+import { corroborateState, TIER } from '../lib/corroborate.js';
 import { nearbyHistory, dayIso } from '../lib/flood-history.js';
 import { mcmDayToCms, damStatus, outflowTrend } from '../lib/dams.js';
 import { camViewerEnabled } from '../lib/longdo-cams.js';
@@ -22,6 +23,25 @@ const DISCLAIMER =
 const skeleton = (t) => `<section class="card"><div class="skel"></div><p class="muted small">${t}</p></section>`;
 
 /* ───────── shared components ───────── */
+// Latest flood headlines from Thai outlets' public RSS feeds: headline + link only (we never copy the story), newest first.
+// Stories about Bangkok / the metro provinces / the Chao Phraya upstream come first; political commentary is hidden by a rough keyword filter.
+function newsCard() {
+  const n = state.news;
+  if (!n?.items?.length) return '';
+  const now = Date.now();
+  const fresh = n.items.filter((i) => !i.politics && now - i.t < 36 * 3600e3);
+  const local = fresh.filter((i) => i.metro || i.river).slice(0, 6);
+  const rest = fresh.filter((i) => !(i.metro || i.river)).slice(0, Math.max(0, 4 - local.length));
+  const rows = [...local, ...rest];
+  if (!rows.length) return '';
+  const row = (i) => `<a class="news-item" href="${esc(i.url)}" target="_blank" rel="noopener noreferrer">
+    <b>${esc(i.title)}</b>
+    <small>${esc(i.source)} · ${ago(i.t)}${i.areas.length ? ` · ${esc(i.areas.slice(0, 2).join(', '))}` : i.river ? ' · น้ำเหนือ' : ' · ทั่วประเทศ'}</small></a>`;
+  return `<section class="card"><h3>ข่าวน้ำท่วมล่าสุด</h3>
+    ${rows.map(row).join('')}
+    <p class="muted tiny">พาดหัวจากฟีด RSS สาธารณะของ ${esc((n.sources || []).join(' · '))} กดเพื่ออ่านต่อที่เว็บของสำนักข่าว · เป็นข่าวที่ยังไม่ได้ผ่านการตรวจสอบโดยเว็บนี้ · ซ่อนข่าวความเห็นทางการเมืองด้วยตัวกรองคำ (อาจพลาดได้)${n.generatedAt ? ` · อัปเดต ${fmtTime(n.generatedAt)} น.` : ''}</p></section>`;
+}
+
 // Antecedent moisture: how wet the last 7 days were (recent days count more). Shown for context only — it does not change the score yet.
 // Bands are rough: a steady ~10 mm/day wet-season rain gives an index of ≈ 50 mm.
 function wetnessLine(rain) {
@@ -327,16 +347,28 @@ function districtStats() {
   return [...m.values()].sort((a, b) => b.h - a.h || b.m - a.m || b.n - a.n);
 }
 
+const confTag = (f) => {
+  const c = corroborateState(f, state);
+  return `<span style="color:${c.color}">${c.label}</span>`;
+};
 const floodRow = (f, extra = '') => `<button class="row-item report" data-act="fly-flood" data-id="${esc(f.id)}">
   <span class="sev-ic" style="--c:${SEVERITY[f.lvl].color}" aria-hidden="true"></span>
   <span class="grow"><b style="color:${SEVERITY[f.lvl].color}">${SEVERITY[f.lvl].label}</b>${f.help ? ' <span class="tag warn">ขอความช่วยเหลือ</span>' : ''}
-  <small>${esc(f.district ? `เขต${f.district}` : 'กทม.')} · ${ago(f.t)}${f.depth ? ` · ≈ ${f.depth} ซม.` : ''}${extra}</small>
+  <small>${esc(f.district ? `เขต${f.district}` : 'กทม.')} · ${ago(f.t)}${f.depth ? ` · ≈ ${f.depth} ซม.` : ''}${extra} · ${confTag(f)}</small>
   <small class="clip">${esc(f.text)}</small></span></button>`;
 
 function floodsSourceNote() {
   if (state.floodsError && !state.floods.length) return `<p class="note">โหลดข้อมูลแจ้งน้ำท่วมจาก กทม. ไม่สำเร็จ (${esc(state.floodsError)})</p>`;
   return `<p class="muted tiny">ที่มา: Traffy Fondue / กทม. — เรื่องร้องเรียน 24 ชม. ล่าสุดที่ยังไม่ปิดเรื่อง${state.floodsAt ? ` · ข้อมูล ณ ${fmtTime(state.floodsAt)} น.` : ''}${state.floodsSrc === 'snapshot-old' ? ' · <b>ข้อมูลเก่า</b>' : ''}<br>
   ความหนัก (หนัก/ปานกลาง/เล็กน้อย) <b>ประเมินจากข้อความที่ผู้แจ้งเขียน</b> และจำนวนเรื่องใกล้เคียง ไม่ใช่ค่าที่วัดจริง — บางจุดอาจลดแล้ว ตรวจสภาพจริงก่อนเดินทาง</p>`;
+}
+
+// How many of the reported spots are backed by other sources (see src/lib/corroborate.js)
+function tierLine() {
+  const n = { multi: 0, some: 0, single: 0 };
+  for (const f of state.floods) n[corroborateState(f, state).tier] += 1;
+  return `<p class="small conf-line">ความน่าเชื่อถือของจุดที่แจ้ง: <span style="color:${TIER.multi.color}"><b>${n.multi}</b> ${TIER.multi.label}</span> · <span style="color:${TIER.some.color}"><b>${n.some}</b> ${TIER.some.label}</span> · <span style="color:${TIER.single.color}"><b>${n.single}</b> ${TIER.single.label}</span>
+    <span class="muted tiny">"ยังไม่ยืนยัน" ไม่ได้แปลว่าไม่จริง แค่ยังไม่มีแหล่งอื่นบริเวณนั้น</span></p>`;
 }
 
 function floodsOverviewCard() {
@@ -346,6 +378,7 @@ function floodsOverviewCard() {
   const nDist = new Set(state.floods.filter((f) => f.lvl === 3).map((f) => f.district)).size;
   return `<section class="card${heavy >= 10 ? ' alert' : ''}"><h3>จุดน้ำท่วมตอนนี้ (แจ้ง กทม.)</h3>${heavy ? `<p class="alert-line">⚠ ท่วมหนัก ${heavy} จุด ใน ${nDist} เขต — ตรวจเส้นทางก่อนเดินทาง</p>` : ''}
     ${sevChips(state.floods)}
+    ${tierLine()}
     <div class="why">เขตที่มีจุดท่วมหนักมากที่สุด</div>
     <div class="list">${top.map((s) => `<button class="row-item" data-act="goto-district" data-d="${esc(s.d === 'ไม่ระบุเขต' ? '' : s.d)}">
       <span class="grow"><b>${esc(s.d === 'ไม่ระบุเขต' ? s.d : `เขต${s.d}`)}</b><small>หนัก ${s.h} · ปานกลาง ${s.m} · เล็กน้อย ${s.l}</small></span>
@@ -451,7 +484,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {
