@@ -17,7 +17,7 @@ try {
   const res = await fetch(LIVE, { signal: AbortSignal.timeout(15000) });
   if (res.ok) {
     const cur = await res.json();
-    if (cur?.generatedAt && Date.now() - cur.generatedAt < MAX_AGE_MS) {
+    if (process.env.YOUTUBE_FORCE !== 'true' && cur?.generatedAt && Date.now() - cur.generatedAt < MAX_AGE_MS) {
       await writeFile(OUT, JSON.stringify(cur));
       console.log(`youtube-live: live copy is ${Math.round((Date.now() - cur.generatedAt) / 60000)} min old — reused, no API call`);
       process.exit(0);

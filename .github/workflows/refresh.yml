@@ -5,7 +5,12 @@ name: refresh-data
 on:
   schedule:
     - cron: '7,22,37,52 * * * *' # every 15 min, offset from :00/:15 — GitHub drops/delays scheduled runs at the busy quarter-hour marks
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      fresh_youtube:
+        description: 'Ignore the 1-hour reuse of the YouTube list (uses ~300 quota units)'
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -68,6 +73,7 @@ jobs:
         continue-on-error: true
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_FORCE: ${{ inputs.fresh_youtube }}
         run: |
           node scripts/fetch-youtube-live.mjs || curl -sf https://bkkflood.web.app/data/youtube-live.json -o public/data/youtube-live.json || true
       - name: Accuracy report (every 6 h; other runs reuse the live one)
