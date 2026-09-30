@@ -159,7 +159,13 @@ function initLayers() {
     id: 'sat-flood', type: 'circle', source: 'sat-flood', layout: { visibility: 'none' },
     paint: {
       // ~550 m cell: the circle grows with the flooded area inside it (rai), and with the zoom
-      'circle-radius': ['*', ['interpolate', ['linear'], ['zoom'], 8, 0.35, 11, 0.8, 14, 2.2, 16, 4], ['+', 3, ['sqrt', ['get', 'rai']]]],
+      // MapLibre allows ["zoom"] only at the top of the expression, so each zoom stop carries its own rai-based size
+      'circle-radius': ['interpolate', ['linear'], ['zoom'],
+        8, ['*', 0.35, ['+', 3, ['sqrt', ['get', 'rai']]]],
+        11, ['*', 0.8, ['+', 3, ['sqrt', ['get', 'rai']]]],
+        14, ['*', 2.2, ['+', 3, ['sqrt', ['get', 'rai']]]],
+        16, ['*', 4, ['+', 3, ['sqrt', ['get', 'rai']]]],
+      ],
       'circle-color': '#1c5fd4', 'circle-opacity': 0.45, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 0.6,
     },
   }, 'traffic-roads-casing');
