@@ -33,13 +33,21 @@ const calls = [
   ['extent 7 days @ Ayutthaya (area)', `${BASE}/flood-extent-7days`, `area=${encodeURIComponent(JSON.stringify(box(100.55, 14.35, 0.1)))}`],
 ];
 
+// keyless request first: tells "cannot connect from here" apart from "the key was refused"
+try {
+  const r = await fetch(`${ROOT}/features/flood/1day?limit=1`, { signal: AbortSignal.timeout(15000) });
+  console.log(`reachability without a key: HTTP ${r.status}`);
+} catch (e) {
+  console.log(`reachability without a key: cannot connect (${e.cause?.code || e.cause?.message || e.message})`);
+}
+
 const short = (v) => (typeof v === 'object' ? JSON.stringify(v).slice(0, 90) : String(v).slice(0, 90));
 const ask = async (base, qs) => {
   // header first (keeps the key out of URLs); if the gateway refuses, retry with ?api_key=
-  let res = await fetch(`${base}?${qs}`, { headers: { 'API-Key': KEY, accept: 'application/json' }, signal: AbortSignal.timeout(60000) });
+  let res = await fetch(`${base}?${qs}`, { headers: { 'API-Key': KEY, accept: 'application/json' }, signal: AbortSignal.timeout(20000) });
   let how = 'header';
   if ([401, 403, 407].includes(res.status)) {
-    res = await fetch(`${base}?${qs}&api_key=${KEY}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(60000) });
+    res = await fetch(`${base}?${qs}&api_key=${KEY}`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(20000) });
     how = 'query';
   }
   return { res, how };
@@ -69,6 +77,6 @@ for (const [label, base, qs] of calls) {
       console.log(`   sample: ${Object.entries(j).slice(0, 8).map(([k, v]) => `${k}=${short(v)}`).join(' | ')}`);
     }
   } catch (e) {
-    console.log(`\n== ${label}\n   error: ${e.message}`);
+    console.log(`\n== ${label}\n   error: ${e.message} · cause: ${e.cause?.code || e.cause?.message || '-'}`);
   }
 }
