@@ -21,6 +21,10 @@ Log ('sync-thai-sources -> exit ' + $LASTEXITCODE + ' ' + (($sync | ForEach-Obje
 # the script re-fetches at most every 3 hours and commits only when the content changed.
 $gs = & $node scripts/sync-gistda.mjs 2>&1
 Log ('sync-gistda -> exit ' + $LASTEXITCODE + ' ' + (($gs | ForEach-Object { "$_".Trim() } | Where-Object { $_ }) -join ' | '))
+# CCTV camera catalogue (cctv.maholan.net refuses GitHub's servers): probes every Bangkok-area frame, so it re-runs at most every 12 h
+# (stamp file ~/.bkkflood/maholan.last) and commits only when the list changed.
+$mh = & $node scripts/fetch-maholan.mjs 2>&1
+Log ('fetch-maholan -> exit ' + $LASTEXITCODE + ' ' + (($mh | ForEach-Object { "$_".Trim() } | Where-Object { $_ }) -join ' | '))
 Pop-Location
 
 $out = & $gh workflow run refresh-data --repo realsuperman-hub/bkkflood 2>&1
