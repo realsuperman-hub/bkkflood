@@ -94,20 +94,16 @@
 
 
     <div class="fab-col">
-      <button id="btn-cams" class="fab fab-cam" aria-label="ดูภาพกล้องจราจรสด" hidden>
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3 7.5A1.5 1.5 0 0 1 4.5 6h9A1.5 1.5 0 0 1 15 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 3 16.5v-9Zm12 3 6-3.5v10l-6-3.5"/></svg>
-        กล้องสด
-      </button>
-      <button id="btn-room" class="fab fab-cam" aria-label="เปิดห้องมอนิเตอร์กล้อง" hidden>
+      <button id="btn-room" class="fab fab-cam" aria-label="กล้อง: ห้องมอนิเตอร์และกล้องสด" title="กล้อง" hidden>
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M3 4h8v7H3zM13 4h8v7h-8zM3 13h8v7H3zM13 13h8v7h-8z"/></svg>
-        ห้องมอนิเตอร์
+        <span class="fab-txt">กล้อง</span>
       </button>
       <button id="btn-locate" class="fab fab-small" aria-label="ไปยังตำแหน่งของฉัน">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="6" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="2" fill="currentColor"/></svg>
       </button>
       <button id="btn-report" class="fab fab-report">
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
-        แจ้งจุดน้ำท่วม
+        แจ้งท่วม
       </button>
     </div>
 
@@ -134,7 +130,7 @@
 
     <section id="room" class="room" hidden aria-label="ห้องมอนิเตอร์กล้อง">
       <header class="room-bar">
-        <div class="rm-seg" role="group" aria-label="โหมดแสดงผล"><button type="button" data-room-mode="map">🗺 แผนที่</button><button type="button" data-room-mode="room" aria-pressed="true">▦ ห้องมอนิเตอร์</button></div>
+        <div class="rm-seg" role="group" aria-label="โหมดแสดงผล"><button type="button" data-room-mode="map">🗺 แผนที่</button><button type="button" data-room-mode="room" aria-pressed="true">▦ ห้องมอนิเตอร์</button><button type="button" data-room-mode="longdo" hidden>📷 กล้องสด Longdo</button></div>
         <select id="room-district" class="rm-select" aria-label="เลือกเขต"></select>
         <button id="room-near" class="rm-chip" type="button" aria-pressed="false">📍 ใกล้ฉัน</button>
         <button id="room-fav-only" class="rm-chip" type="button" aria-pressed="false">★ โปรด</button>

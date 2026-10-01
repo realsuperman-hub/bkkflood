@@ -1009,14 +1009,21 @@ const actions = {
 };
 
 actions['cam-viewer'] = ({ lat, lng, zoom }) => openCamViewer({ lat: +lat, lng: +lng, ...(zoom ? { zoom: +zoom } : {}) });
-// one-tap access: the floating "กล้องสด" button opens the camera map at whatever the map is currently showing
-if (camViewerEnabled()) {
-  $('#btn-cams').hidden = false;
-  $('#btn-cams').addEventListener('click', () => {
-    const c = map.getCenter();
-    openCamViewer({ lat: c.lat, lng: c.lng, zoom: Math.min(15, Math.max(12, Math.round(map.getZoom()))) });
-  });
+// One camera button: it opens the Monitoring Room, or the Longdo live-camera map if that was the last one used; each has a switch to the other.
+const camLast = () => { try { return localStorage.getItem('cam-last'); } catch { return null; } };
+const setCamLast = (v) => { try { localStorage.setItem('cam-last', v); } catch { /* private mode */ } };
+function openRoomMode() { setCamLast('room'); openRoom(); }
+function openLongdoHere() {
+  const c = map.getCenter();
+  setCamLast('longdo');
+  openCamViewer({ lat: c.lat, lng: c.lng, zoom: Math.min(15, Math.max(12, Math.round(map.getZoom()))), onRoom: state.mcams?.cams?.length ? openRoomMode : null });
 }
+function openCameras() {
+  const haveRoom = !!state.mcams?.cams?.length;
+  if (camViewerEnabled() && (camLast() === 'longdo' || !haveRoom)) openLongdoHere();
+  else if (haveRoom) openRoomMode();
+}
+if (camViewerEnabled()) $('#btn-room').hidden = false; // shown as soon as either view is available
 
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
@@ -1064,8 +1071,8 @@ $('#ly-traffic').addEventListener('change', (e) => {
   ['traffic-roads-casing', 'traffic-roads', 'traffic-events'].forEach((l) => map.setLayoutProperty(l, 'visibility', v));
 });
 $('#layers-pop').addEventListener('change', renderLegend);
-initRoom({ showOnMap: (id) => actions['mcam-open']({ id }), toast });
-$('#btn-room').addEventListener('click', () => openRoom());
+initRoom({ showOnMap: (id) => actions['mcam-open']({ id }), toast, openLongdo: camViewerEnabled() ? openLongdoHere : null });
+$('#btn-room').addEventListener('click', openCameras);
 $('#ly-mcams').addEventListener('change', (e) => map.setLayoutProperty('mcams', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-windy').addEventListener('change', (e) => map.setLayoutProperty('windy', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-sat').addEventListener('change', (e) => map.setLayoutProperty('sat-flood', 'visibility', e.target.checked ? 'visible' : 'none'));

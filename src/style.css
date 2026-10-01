@@ -474,3 +474,11 @@ a.btn.btn-primary { color: #fff; }
 .rm-linkph { display: grid; place-items: center; text-decoration: none; color: #b7c7d4; cursor: pointer; }
 .rm-linkph .rm-ph { flex-direction: column; display: flex; align-items: center; justify-content: center; gap: 4px; }
 .rm-linkph small { font-size: 11.5px; color: #8aa0b0; }
+
+/* one camera button: label on desktop, round icon on phones */
+.fab-cam .fab-txt { font-size: 15px; }
+.fab-report { padding: 0 18px 0 14px; }
+@media (max-width: 899px) {
+  .fab-cam { width: 48px; padding: 0; justify-content: center; }
+  .fab-cam .fab-txt { display: none; }
+}

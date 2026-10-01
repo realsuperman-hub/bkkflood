@@ -28,5 +28,5 @@ test('compact key, strip and dialog render; the dialog marks switched-off layers
   assert.equal(stripHtml(LEGEND.find((x) => x.id === 'radar')), ''); // text-only group: no swatch
   const d = dialogHtml((id) => id !== 'ly-mcams');
   assert.equal((d.match(/ปิดอยู่/g) || []).length, 1);
-  assert.match(d, /แจ้งจุดน้ำท่วม/);
+  assert.match(d, /แจ้งท่วม/);
 });

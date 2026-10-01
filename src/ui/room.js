@@ -125,6 +125,7 @@ function buildDistricts() {
 function build() {
   if (built) return;
   built = true;
+  if (opts.openLongdo) $('[data-room-mode="longdo"]').hidden = false;
   $('#room').addEventListener('click', (e) => {
     const f = e.target.closest('[data-rm-fav]');
     if (f) {
@@ -139,6 +140,7 @@ function build() {
     const m = e.target.closest('[data-rm-map]');
     if (m) { close(); opts.showOnMap?.(m.dataset.rmMap); return; }
     if (e.target.closest('[data-room-mode="map"]')) close();
+    if (e.target.closest('[data-room-mode="longdo"]')) { close(); opts.openLongdo?.(); }
   });
   $('#room-district').addEventListener('change', (e) => {
     district = e.target.value;
