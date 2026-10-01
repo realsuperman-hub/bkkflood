@@ -3,9 +3,9 @@
 // while the room is closed or the tab is hidden, and a failed refresh keeps the last good frame (with the time it was fetched).
 import { state } from '../state.js';
 import { esc } from '../lib/util.js';
-import { snapUrl } from '../lib/maholan-cams.js';
+import { snapUrl, placeLabel } from '../lib/maholan-cams.js';
 import { AI_LEVEL_TH, activeFlags } from '../lib/maholan-ai.js';
-import { pickCams, districtList } from '../lib/room-pick.js';
+import { pickCams, districtList, provinceList } from '../lib/room-pick.js';
 
 const PAGE = 24;
 const MAX = 72;
@@ -44,7 +44,7 @@ function tileHtml(c, flag) {
       <button class="rm-btn" type="button" data-rm-map="${esc(c.id)}" aria-label="ดูบนแผนที่" title="ดูบนแผนที่">📍</button>
       <button class="rm-btn rm-star" type="button" data-rm-fav="${esc(c.id)}" aria-pressed="${star}" aria-label="${star ? 'เอาออกจากกล้องโปรด' : 'เก็บเป็นกล้องโปรด'}">${star ? '★' : '☆'}</button>
     </div>
-    <div class="rm-meta"><span class="rm-time"></span>${slow(c) ? '<span class="rm-slow">ภาพอัปเดตช้า (~ชั่วโมงละครั้ง)</span>' : ''}${c.d ? `<span class="rm-own">เขต${esc(c.d)}</span>` : ''}</div>
+    <div class="rm-meta"><span class="rm-time"></span>${slow(c) ? '<span class="rm-slow">ภาพอัปเดตช้า (~ชั่วโมงละครั้ง)</span>' : ''}${placeLabel(c) ? `<span class="rm-own">${esc(placeLabel(c))}</span>` : ''}</div>
   </article>`;
 }
 
@@ -113,7 +113,8 @@ function render() {
 function buildDistricts() {
   const sel = $('#room-district');
   const ds = districtList(state.mcams?.cams);
-  sel.innerHTML = `<option value="">เลือกเขต…</option><option value="*">ทุกเขต / ทุกกล้อง</option>${district === '@' ? '<option value="@">ใกล้ฉัน</option>' : ''}` + ds.map((d) => `<option value="${esc(d.name)}">เขต${esc(d.name)} (${d.n})</option>`).join('');
+  const ps = provinceList(state.mcams?.cams);
+  sel.innerHTML = `<option value="">เลือกเขต…</option><option value="*">ทุกเขต / ทุกกล้อง</option>${district === '@' ? '<option value="@">ใกล้ฉัน</option>' : ''}` + ds.map((d) => `<option value="${esc(d.name)}">เขต${esc(d.name)} (${d.n})</option>`).join('') + ps.map((p) => `<option value="จ:${esc(p.name)}">จ.${esc(p.name)} (${p.n})</option>`).join('');
   sel.value = [...sel.options].some((o) => o.value === district) ? district : '';
 }
 

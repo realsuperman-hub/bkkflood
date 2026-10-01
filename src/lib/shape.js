@@ -68,7 +68,7 @@ export function validate(kind, pts, inBounds) {
   if (!MIN_VERTS[kind]) return 'ชนิดไม่ถูกต้อง';
   if (pts.length < MIN_VERTS[kind]) return kind === 'line' ? 'เส้นต้องมีอย่างน้อย 2 จุด' : 'พื้นที่ต้องมีอย่างน้อย 3 จุด';
   if (pts.length > MAX_VERTS) return `วาดได้ไม่เกิน ${MAX_VERTS} จุด`;
-  if (!pts.every(([la, ln]) => inBounds(la, ln))) return 'มีจุดที่อยู่นอกพื้นที่บริการ (กทม. + ปริมณฑล)';
+  if (!pts.every(([la, ln]) => inBounds(la, ln))) return 'มีจุดที่อยู่นอกพื้นที่บริการ (กทม. ปริมณฑล และภาคตะวันออก)';
   if (kind === 'line' && lengthM(pts) < 5) return 'เส้นสั้นเกินไป';
   if (kind === 'area' && areaM2(pts) < 20) return 'พื้นที่เล็กเกินไป';
   return null;

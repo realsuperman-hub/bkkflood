@@ -60,7 +60,7 @@ export function assess({ rain, tide, gauges = [], upstream, elevation, regional,
   }
 
   if (regional && regional.total >= 8 && regional.over / regional.total >= 0.25) {
-    add(1, `สถานีวัดน้ำ ${regional.over} จาก ${regional.total} แห่งใน กทม.+ปริมณฑลอยู่ระดับล้นตลิ่ง — คลองเต็มทั้งระบบ ระบายน้ำฝนได้ช้า`);
+    add(1, `สถานีวัดน้ำ ${regional.over} จาก ${regional.total} แห่ง${regional.area || 'ใน กทม.+ปริมณฑล'}อยู่ระดับล้นตลิ่ง — คลองเต็มทั้งระบบ ระบายน้ำฝนได้ช้า`);
   }
 
   if (upstream?.q >= 2400) add(1, `น้ำเหนือที่เขื่อนเจ้าพระยาไหลลงมา ${Math.round(upstream.q).toLocaleString('th-TH')} ลบ.ม./วินาที (ค่อนข้างสูง)`);

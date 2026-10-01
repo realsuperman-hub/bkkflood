@@ -12,6 +12,13 @@ export const KEY_DAMS = {
   200102: { label: 'สิริกิติ์', river: 'แม่น้ำน่าน' },
   100107: { label: 'แควน้อยบำรุงแดน', river: 'แม่น้ำน่าน (สาขา)' },
   100301: { label: 'ป่าสักชลสิทธิ์', river: 'แม่น้ำป่าสัก (ไหลลงเจ้าพระยาที่อยุธยา)' },
+  // eastern provinces (area 'east'): Bang Pakong basin, Chachoengsao, Chonburi, Rayong
+  100501: { label: 'ขุนด่านปราการชล', river: 'แม่น้ำนครนายก (ไหลลงบางปะกง)', area: 'east' },
+  100514: { label: 'นฤบดินทรจินดา', river: 'แม่น้ำปราจีนบุรี (ไหลลงบางปะกง)', area: 'east' },
+  100502: { label: 'คลองสียัด', river: 'คลองสียัด (ฉะเชิงเทรา)', area: 'east' },
+  100503: { label: 'บางพระ', river: 'ชลบุรี', area: 'east' },
+  100504: { label: 'หนองปลาไหล', river: 'ระยอง', area: 'east' },
+  100505: { label: 'ประแสร์', river: 'แม่น้ำประแสร์ (ระยอง)', area: 'east' },
 };
 
 const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -32,6 +39,7 @@ export function normalizeDams(latest, previous) {
       id,
       name: meta.label,
       river: meta.river,
+      area: meta.area || 'cpy',
       owner: d.owner || '',
       capacity: num(d.capacity),
       volume: num(d.volume),

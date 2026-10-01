@@ -7,7 +7,7 @@
 export const MAHOLAN = 'https://cctv.maholan.net';
 export const MAHOLAN_API = `${MAHOLAN}/api/cameras`;
 export const SNAP_MS = 30000; // one URL per 30 s per camera, same as their HLS-derived frames (they refresh ~25 s)
-export const METRO = { s: 13.45, n: 14.15, w: 100.2, e: 100.95 }; // Bangkok + the surrounding provinces we cover
+export const METRO = { s: 12.5, n: 14.15, w: 100.2, e: 101.8 }; // Bangkok, the surrounding provinces and the eastern provinces we cover
 
 const ID = /^[\w.-]{1,60}$/;
 export const isCamId = (id) => typeof id === 'string' && ID.test(id);
@@ -25,10 +25,14 @@ export function normalizeCatalog(list) {
     const lng = Number(c?.lng);
     if (!isCamId(c?.id) || seen.has(c.id) || !Number.isFinite(lat) || !Number.isFinite(lng) || !inMetro(lat, lng)) continue;
     seen.add(c.id);
-    out.push({ id: c.id, n: clean(c.name, 90), lat: +lat.toFixed(5), lng: +lng.toFixed(5), s: clean(c.source, 60), d: clean(c.district, 40) });
+    const p = clean(c.province || c.region, 40);
+    out.push({ id: c.id, n: clean(c.name, 90), lat: +lat.toFixed(5), lng: +lng.toFixed(5), s: clean(c.source, 60), d: clean(c.district, 40), p: /^ภาค|ไม่ทราบ/.test(p) ? '' : p });
   }
   return out;
 }
+
+// "เขต…" for a Bangkok camera, "จ.…" for one in another province (no district there)
+export const placeLabel = (c) => (c.d ? `เขต${c.d}` : c.p && c.p !== 'กรุงเทพมหานคร' ? `จ.${c.p}` : '');
 
 // frames older than this at probe time mean the owner's feed is stuck (e.g. one BMA drainage cam showed an image 34 days old)
 export const MAX_FRAME_AGE_MS = 6 * 3600e3;

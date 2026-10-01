@@ -8,7 +8,10 @@ export const TW_URL = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public/wa
 // กรุงเทพฯ + ปริมณฑล
 const METRO = new Set([
   'กรุงเทพมหานคร', 'นนทบุรี', 'ปทุมธานี', 'สมุทรปราการ', 'สมุทรสาคร', 'นครปฐม',
+  'ฉะเชิงเทรา', 'ชลบุรี', 'ระยอง', // ภาคตะวันออก (added 2026-10-01)
 ]);
+// Upstream of the Bang Pakong river (Chachoengsao): their gauges are shown and listed, but kept out of every local-gauge calculation like the Chao Phraya upstream ones
+const BPK_UPSTREAM = new Set(['ปราจีนบุรี', 'นครนายก']);
 
 // Chao Phraya main-stem gauges, north → south (Nakhon Sawan … Bangkok), verified in ThaiWater's feed 2026-09-30.
 // C.* stations also report discharge (m³/s). The ones outside the metro provinces are flagged `upstream`, which keeps them out of
@@ -54,8 +57,9 @@ export function normalizeStations(raw, now = Date.now()) {
     const code = (s.tele_station_oldcode || '').trim();
     const prov = r.geocode?.province_name?.th || '';
     const chain = CHAIN_CODES.includes(code);
-    const upstream = chain && !METRO.has(prov);
-    if (!chain && !METRO.has(prov)) continue;
+    const bpk = !chain && BPK_UPSTREAM.has(prov);
+    const upstream = (chain && !METRO.has(prov)) || bpk;
+    if (!chain && !METRO.has(prov) && !bpk) continue;
 
     const lat = num(s.tele_station_lat);
     const lng = num(s.tele_station_long);
@@ -84,6 +88,7 @@ export function normalizeStations(raw, now = Date.now()) {
       stale: t === null || now - t > STALE_MS,
       upstream,
       chain,
+      basin: bpk ? 'bpk' : undefined,
       agency: r.agency?.agency_shortname?.th?.trim() || '',
     });
   }

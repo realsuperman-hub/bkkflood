@@ -15,7 +15,7 @@ test('normalizeCatalog keeps cameras with valid id + coordinates inside the metr
   ]);
   assert.deepEqual(out.map((x) => x.id), ['a', 'd']);
   assert.equal(out[1].n, 'ถนน พระราม 4');
-  assert.deepEqual(Object.keys(out[0]).sort(), ['d', 'id', 'lat', 'lng', 'n', 's']);
+  assert.deepEqual(Object.keys(out[0]).sort(), ['d', 'id', 'lat', 'lng', 'n', 'p', 's']);
 });
 
 test('snapUrl uses the shared time bucket and encodes the id', () => {

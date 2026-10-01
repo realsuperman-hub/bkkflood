@@ -6,7 +6,7 @@
 
 export const RAI_M2 = 1600;
 export const CELL = 0.005; // degrees ≈ 550 m
-// Bangkok, its five neighbouring provinces and Ayutthaya (the upstream province whose water reaches Bangkok)
+// Bangkok, its five neighbouring provinces, Ayutthaya (the upstream province whose water reaches Bangkok) and the eastern provinces Chachoengsao, Chonburi, Rayong
 export const PROVINCES = {
   10: 'กรุงเทพมหานคร',
   11: 'สมุทรปราการ',
@@ -15,6 +15,9 @@ export const PROVINCES = {
   73: 'นครปฐม',
   74: 'สมุทรสาคร',
   14: 'พระนครศรีอยุธยา',
+  24: 'ฉะเชิงเทรา',
+  20: 'ชลบุรี',
+  21: 'ระยอง',
 };
 
 export const centroid = (g) => {

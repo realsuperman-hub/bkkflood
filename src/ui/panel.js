@@ -10,6 +10,7 @@ import { nearbyHistory, dayIso } from '../lib/flood-history.js';
 import { mcmDayToCms, damStatus, outflowTrend } from '../lib/dams.js';
 import { camViewerEnabled } from '../lib/longdo-cams.js';
 import { BMA_LINKS, EVENT_LABEL, SPEED_LEVEL } from '../lib/bma-traffic.js';
+import { placeLabel } from '../lib/maholan-cams.js';
 import { distKm } from '../lib/geo.js';
 import { validQuery } from '../lib/search.js';
 import { platform } from '../lib/push.js';
@@ -89,7 +90,8 @@ function riskCard(ev, title) {
   const reasons = r.reasons.length
     ? `<ul class="reasons">${r.reasons.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>`
     : '<p class="muted small">ไม่พบปัจจัยเสี่ยงเด่นจากข้อมูลที่มี</p>';
-  const notes = r.notes.map((n) => `<p class="note">⚠ ${esc(n)}</p>`).join('');
+  const notes = r.notes.map((n) => `<p class="note">⚠ ${esc(n)}</p>`).join('') +
+    (ev.core === false ? '<p class="note">⚠ พื้นที่นอกกรุงเทพฯ และปริมณฑล: ยังไม่ได้ประเมินความแม่นยำของคะแนนนี้ — กฎคะแนนปรับจากข้อมูลกรุงเทพฯ และไม่มีรายงานน้ำท่วมจากประชาชนในพื้นที่นี้ ใช้ประกอบกับฝน ระดับน้ำ และสภาพจริงเท่านั้น</p>' : '');
   const errs = ev.errors.length
     ? `<p class="note">ดึงข้อมูลไม่สำเร็จ: ${esc(ev.errors.join(', '))} — การประเมินอาจต่ำกว่าความเป็นจริง</p>`
     : '';
@@ -162,14 +164,15 @@ function tideDays(tide) {
 
 // The reservoirs upstream of the Chao Phraya: how full they are and whether they are holding water back or releasing it.
 // Data = Royal Irrigation Department open API, one report per day (million m³/day, shown as m³/s like the river gauges).
-function damsCard() {
+function damsCard(area = 'cpy') {
   const d = state.dams;
-  if (!d?.dams?.length) return '';
+  const list = (d?.dams || []).filter((x) => (x.area || 'cpy') === area);
+  if (!list.length) return '';
   const cms = (v) => (v === null ? '—' : mcmDayToCms(v).toLocaleString('th-TH'));
-  const inSum = d.dams.reduce((s, x) => s + (x.inflow ?? 0), 0);
-  const outSum = d.dams.reduce((s, x) => s + (x.outflow ?? 0), 0);
+  const inSum = list.reduce((s, x) => s + (x.inflow ?? 0), 0);
+  const outSum = list.reduce((s, x) => s + (x.outflow ?? 0), 0);
   const kept = inSum > 0.05 ? Math.round((1 - outSum / inSum) * 100) : null;
-  const rows = d.dams.map((x) => {
+  const rows = list.map((x) => {
     const st = damStatus(x);
     const tr = outflowTrend(x);
     const pct = x.percent === null ? 0 : Math.min(100, x.percent);
@@ -179,10 +182,27 @@ function damsCard() {
       <small>เก็บน้ำ <b>${x.percent ?? '—'}%</b> ของความจุ · ไหลเข้า <b>${cms(x.inflow)}</b> · ระบายออก <b>${cms(x.outflow)}</b> ลบ.ม./วิ${tr === 'rising' ? ' <b>(ระบายเพิ่มขึ้น)</b>' : tr === 'falling' ? ' (ระบายลดลง)' : ''}</small>
       <small class="muted">${esc(x.river)}</small></div>`;
   }).join('');
-  return `<section class="card"><h3>เขื่อนต้นน้ำเจ้าพระยา</h3>
-    ${kept !== null ? `<p class="small">เขื่อนหลัก ${d.dams.length} แห่งรับน้ำเข้ารวม <b>${cms(inSum)}</b> ลบ.ม./วิ ระบายออกรวม <b>${cms(outSum)}</b> ลบ.ม./วิ — <b>เก็บน้ำไว้ได้ราว ${kept}%</b> ของน้ำที่ไหลเข้า</p>` : ''}
+  return `<section class="card"><h3>${area === 'east' ? 'เขื่อนฝั่งตะวันออก (บางปะกง · ฉะเชิงเทรา · ชลบุรี · ระยอง)' : 'เขื่อนต้นน้ำเจ้าพระยา'}</h3>
+    ${kept !== null ? `<p class="small">เขื่อนหลัก ${list.length} แห่งรับน้ำเข้ารวม <b>${cms(inSum)}</b> ลบ.ม./วิ ระบายออกรวม <b>${cms(outSum)}</b> ลบ.ม./วิ — <b>เก็บน้ำไว้ได้ราว ${kept}%</b> ของน้ำที่ไหลเข้า</p>` : ''}
     ${rows}
-    <p class="muted tiny">ข้อมูลรายวัน วันที่ ${thDate(d.date)} · ที่มา กรมชลประทาน (API เปิด) · เขื่อนเจ้าพระยา (ชัยนาท) เป็นเขื่อนทดน้ำ ปริมาณระบายดูที่สถานี "ท้ายเขื่อนเจ้าพระยา" ด้านบน · 100% = ความจุเก็บกักปกติ ไม่ใช่ขีดจำกัดของตัวเขื่อน · ค่ารายวัน แปลงจากล้าน ลบ.ม./วัน เป็น ลบ.ม./วิ</p></section>`;
+    <p class="muted tiny">ข้อมูลรายวัน วันที่ ${thDate(d.date)} · ที่มา กรมชลประทาน (API เปิด)${area === 'cpy' ? ' · เขื่อนเจ้าพระยา (ชัยนาท) เป็นเขื่อนทดน้ำ ปริมาณระบายดูที่สถานี "ท้ายเขื่อนเจ้าพระยา" ด้านบน' : ''} · 100% = ความจุเก็บกักปกติ ไม่ใช่ขีดจำกัดของตัวเขื่อน · ค่ารายวัน แปลงจากล้าน ลบ.ม./วัน เป็น ลบ.ม./วิ</p></section>`;
+}
+
+// Bang Pakong river (Chachoengsao) and the gauges upstream of it in Prachin Buri / Nakhon Nayok
+function bpkCard() {
+  const st = state.stations.filter((s) => s.basin === 'bpk' || s.prov === 'ฉะเชิงเทรา').sort((a, b) => b.lat - a.lat);
+  if (!st.length) return '';
+  const fresh = st.filter((s) => !s.stale);
+  const over = fresh.filter((s) => s.level === 5).length;
+  const high = fresh.filter((s) => s.level === 4).length;
+  const rising = fresh.filter((s) => trendOf(s) === 'rising').length;
+  return `<section class="card"><h3>แม่น้ำบางปะกงและต้นน้ำ</h3>
+    <p class="small">ฉะเชิงเทรา · ปราจีนบุรี · นครนายก — ${fresh.length} สถานีที่มีข้อมูลล่าสุด: ล้นตลิ่ง <b>${over}</b> · น้ำมาก <b>${high}</b> · กำลังขึ้น <b>${rising}</b></p>
+    <details class="fold"><summary>ดูทุกสถานี (เหนือ → ใต้)</summary>
+      <div class="list">${st.map((s) => `<div class="row-item static"><span class="dot" style="background:${LEVELS[s.level].color}"></span>
+        <span class="grow"><b>${esc(s.name)}</b><small>${esc(s.prov)} · ${TREND_TH[trendOf(s)]}${s.stale ? ' · ข้อมูลเก่า' : ''}</small></span>
+        <span class="val">${s.over !== null ? `${s.over > 0 ? '+' : ''}${Math.round(s.over * 100)} ซม.` : LEVELS[s.level].label}</span></div>`).join('')}</div></details>
+    <p class="muted tiny">ข้อมูลจาก ThaiWater (สสน.) · สถานีในปราจีนบุรีและนครนายกเป็นต้นน้ำที่ไหลลงบางปะกง ไม่นับรวมในคะแนนความเสี่ยงของจุดใด ๆ</p></section>`;
 }
 
 // Whole Chao Phraya route in one fold-out list (north → south): tells whether the water coming down is still rising
@@ -311,7 +331,7 @@ function camerasNearCard(f) {
     ${near.length ? `<div class="why">กล้องจราจรใกล้เคียง — ดูภาพสดที่เว็บทางการ</div><div class="list">${near.map((c) => `<button class="row-item" data-act="fly-camera" data-id="${esc(c.id)}"><span class="dot" style="background:${c.flood ? '#00a6c8' : '#4a5b6c'}"></span>
       <span class="grow"><b>${esc(c.name)}</b><small>${c.km.toFixed(1)} กม.${c.flood ? ' · จุดเฝ้าระวังน้ำท่วม' : ''}${c.desc && c.desc !== '-' ? ` · ${esc(c.desc)}` : ''}</small></span></button>`).join('')}</div>` : '<p class="muted small">ไม่มีกล้อง กทม. ภายใน 3 กม. (ครอบคลุมเฉพาะกรุงเทพฯ)</p>'}
     ${mc.length ? `<div class="why">ภาพกล้อง CCTV ล่าสุดใกล้จุดนี้ (ภายใน 1.5 กม.) — กดเพื่อดูภาพ</div><div class="list">${mc.map((c) => `<button class="row-item" data-act="mcam-open" data-id="${esc(c.id)}"><span class="dot" style="background:#7a4fd6"></span>
-      <span class="grow"><b>${esc(c.n)}</b><small>${c.km.toFixed(1)} กม.${c.count > 1 ? ` · ${c.count} กล้องที่จุดนี้` : ''}${c.d ? ` · เขต${esc(c.d)}` : ''}</small></span></button>`).join('')}</div>
+      <span class="grow"><b>${esc(c.n)}</b><small>${c.km.toFixed(1)} กม.${c.count > 1 ? ` · ${c.count} กล้องที่จุดนี้` : ''}${placeLabel(c) ? ` · ${esc(placeLabel(c))}` : ''}</small></span></button>`).join('')}</div>
       <p class="muted tiny">ภาพนิ่งล่าสุด ดูเวลาที่พิมพ์บนภาพเสมอ</p>` : ''}
     ${windy.length ? `<div class="why">กล้องจาก Windy ใกล้จุดนี้ — ดูภาพย้อนหลัง 24 ชม.</div><div class="list">${windy.map((c) => `<button class="row-item" data-act="windy-open" data-id="${esc(c.id)}"><span class="dot" style="background:#0e9f8e"></span>
       <span class="grow"><b>${esc(c.title)}</b><small>${c.km.toFixed(1)} กม.${c.updated ? ` · ภาพล่าสุด ${ago(c.updated)}` : ''}</small></span></button>`).join('')}</div>
@@ -486,7 +506,7 @@ export function overviewTab() {
     .filter((s) => s.level >= 4 && !s.stale)
     .sort((a, b) => b.level - a.level || (b.over ?? -9) - (a.over ?? -9))
     .slice(0, 6);
-  const up = state.stations.filter((s) => s.upstream && s.q !== null).sort((a, b) => b.lat - a.lat);
+  const up = state.stations.filter((s) => s.upstream && s.chain && s.q !== null).sort((a, b) => b.lat - a.lat);
   const c13 = state.stations.find((s) => s.code === 'C.13');
   const ov = state.overview;
 
@@ -530,7 +550,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {

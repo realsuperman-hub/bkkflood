@@ -24,9 +24,9 @@ export const BKK_DISTRICTS = [
 ];
 // names that are also ordinary words / other places: only count them when written as "เขต…"
 const NEED_KHET = new Set(['พระนคร', 'วัฒนา', 'สวนหลวง', 'ธนบุรี']);
-const PROVINCES = ['นนทบุรี', 'ปทุมธานี', 'สมุทรปราการ', 'สมุทรสาคร', 'นครปฐม'];
+const PROVINCES = ['นนทบุรี', 'ปทุมธานี', 'สมุทรปราการ', 'สมุทรสาคร', 'นครปฐม', 'ฉะเชิงเทรา', 'ชลบุรี', 'ระยอง', 'พัทยา'];
 // upstream places whose water reaches Bangkok
-const RIVER = /เจ้าพระยา|อยุธยา|อ่างทอง|ชัยนาท|สิงห์บุรี|นครสวรรค์|ป่าสัก|เขื่อน(?:เจ้าพระยา|ภูมิพล|สิริกิติ์|ป่าสัก)|ท่าจีน/;
+const RIVER = /เจ้าพระยา|บางปะกง|ปราจีนบุรี|นครนายก|ขุนด่านปราการชล|อยุธยา|อ่างทอง|ชัยนาท|สิงห์บุรี|นครสวรรค์|ป่าสัก|เขื่อน(?:เจ้าพระยา|ภูมิพล|สิริกิติ์|ป่าสัก)|ท่าจีน/;
 
 // Many flood headlines are politicians attacking the government, not what is happening on the ground. This rough filter marks them so
 // the app can hide them by default. It is a heuristic (keyword-based) and will sometimes be wrong either way.

@@ -1,6 +1,7 @@
 // Which cameras the Monitoring Room shows, and in what order. DOM-free.
 //   district: ''  nothing chosen yet → only AI-flagged and favourite cameras
-//             '*' every camera        '@' nearest to `here` (within 12 km)        otherwise a district name (เขต)
+//             '*' every camera        '@' nearest to `here` (within 12 km)        'จ:<province>' cameras of a province outside Bangkok
+//             otherwise a Bangkok district name (เขต)
 // Order: AI-flagged first, then favourites, then by distance ('@') or by name.
 
 const R = 6371000;
@@ -18,6 +19,7 @@ export function pickCams(cams, { district = '', here = null, aiOnly = false, fav
   else if (favOnly) list = list.filter((x) => favs.has(x.c.id));
   else if (district === '@') list = here ? list.filter((x) => x.m <= NEAR_M) : [];
   else if (district === '') list = list.filter((x) => ai.has(x.c.id) || favs.has(x.c.id));
+  else if (district.startsWith('จ:')) list = list.filter((x) => !x.c.d && x.c.p === district.slice(2));
   else if (district !== '*') list = list.filter((x) => x.c.d === district);
   const rank = (x) => (ai.has(x.c.id) ? 0 : favs.has(x.c.id) ? 1 : 2);
   list.sort((a, b) => rank(a) - rank(b) || (district === '@' ? a.m - b.m : 0) || a.c.n.localeCompare(b.c.n, 'th') || a.c.id.localeCompare(b.c.id));
@@ -28,5 +30,12 @@ export function pickCams(cams, { district = '', here = null, aiOnly = false, fav
 export function districtList(cams) {
   const m = new Map();
   for (const c of cams || []) if (c.d) m.set(c.d, (m.get(c.d) || 0) + 1);
+  return [...m].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'th'));
+}
+
+// provinces other than Bangkok that have cameras without a district → [{ name, n }]
+export function provinceList(cams) {
+  const m = new Map();
+  for (const c of cams || []) if (!c.d && c.p && c.p !== 'กรุงเทพมหานคร') m.set(c.p, (m.get(c.p) || 0) + 1);
   return [...m].map(([name, n]) => ({ name, n })).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'th'));
 }
