@@ -7,6 +7,8 @@ import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
 import { snapUrl as mcamSnapUrl, sameSpot, isCamId, placeLabel } from './lib/maholan-cams.js';
 import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
 import { initRoom, openRoom, refreshRoom } from './ui/room.js';
+import { playHls } from './lib/hls-player.js';
+import { isDhrHls } from './lib/dhr-cams.js';
 import { LEGEND, EV_COLOR, stripHtml, compactHtml, dialogHtml } from './lib/legend.js';
 import { loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
@@ -321,10 +323,10 @@ function mcamBody(c, group, i) {
   const fl = activeFlags(state.mcamAi).get(c.id);
   return `<p class="small"><b>${esc(c.n)}</b></p>
     ${fl ? `<p class="small"><span class="tag warn">💧 AI พบน้ำท่วม · ${AI_LEVEL_TH[fl.level]} ${Math.round(fl.conf * 100)}%</span> <span class="muted tiny">อ่านภาพอัตโนมัติ ยังไม่ยืนยัน — เทียบกับภาพด้านล่าง</span></p>` : ''}
-    <div class="mcam-frame"><img class="mcam-img" data-mcam-img="${esc(c.id)}" src="${mcamSnapUrl(c.id)}" alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" decoding="async" /><p class="mcam-err muted small" hidden>ภาพจากกล้องนี้ไม่พร้อมตอนนี้</p></div>
-    <p class="muted tiny">ภาพนิ่งล่าสุด รีเฟรชเองทุก 30 วินาที — <b>ดูเวลาที่พิมพ์บนภาพ</b> บางกล้องอัปเดตช้ากว่านั้น${placeLabel(c) ? ` · ${esc(placeLabel(c))}` : ''}</p>
+    ${c.hls ? `<div class="mcam-frame mcam-live"><button class="btn btn-primary" data-act="mcam-big" data-id="${esc(c.id)}">▶ ดูภาพสด</button></div>` : `<div class="mcam-frame"><img class="mcam-img" data-mcam-img="${esc(c.id)}" src="${mcamSnapUrl(c.id)}" alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" decoding="async" /><p class="mcam-err muted small" hidden>ภาพจากกล้องนี้ไม่พร้อมตอนนี้</p></div>`}
+    <p class="muted tiny">${c.hls ? 'วิดีโอสดจากกล้องของเจ้าของกล้อง เปิดเมื่อกดเท่านั้น (ใช้ข้อมูลอินเทอร์เน็ต)' : 'ภาพนิ่งล่าสุด รีเฟรชเองทุก 30 วินาที — <b>ดูเวลาที่พิมพ์บนภาพ</b> บางกล้องอัปเดตช้ากว่านั้น'}${placeLabel(c) ? ` · ${esc(placeLabel(c))}` : ''}</p>
     <div class="row wrap">${many ? `<button class="btn btn-sm" data-act="mcam-step" data-id="${esc(c.id)}" data-dir="-1">‹ ก่อนหน้า</button><span class="muted small">${i + 1}/${group.length} กล้องที่จุดนี้</span><button class="btn btn-sm" data-act="mcam-step" data-id="${esc(c.id)}" data-dir="1">ถัดไป ›</button>` : ''}
-    <button class="btn btn-sm btn-primary" data-act="mcam-big" data-id="${esc(c.id)}">ขยายภาพ</button></div>`;
+    ${c.hls ? '' : `<button class="btn btn-sm btn-primary" data-act="mcam-big" data-id="${esc(c.id)}">ขยายภาพ</button>`}</div>`;
 }
 function wireMcamImg(root) {
   const img = root?.querySelector?.('[data-mcam-img]');
@@ -888,6 +890,21 @@ const actions = {
     const c = state.mcams?.cams?.find((x) => x.id === id);
     if (!c || !isCamId(c.id)) return;
     const dlg = $('#mcam-dialog');
+    if (c.hls) {
+      if (!isDhrHls(c.hls)) return;
+      dlg.innerHTML = `<div class="cam-head"><b class="clip">${esc(c.n)}</b><span><button class="btn btn-sm" data-mcam-close>ปิด</button></span></div>
+        <div class="mcam-big"><video data-mcam-video playsinline muted controls></video><p class="mcam-err muted small" data-mcam-vstate>กำลังต่อภาพสด…</p></div>
+        <p class="muted tiny cam-foot">วิดีโอสดจากกล้องของเจ้าของกล้อง${placeLabel(c) ? ` · ${esc(placeLabel(c))}` : ''} · ปิดหน้าต่างนี้เพื่อหยุดรับข้อมูล</p>`;
+      const video = dlg.querySelector('[data-mcam-video]');
+      const st = dlg.querySelector('[data-mcam-vstate]');
+      let player = null;
+      const stop = () => { player?.destroy(); player = null; dlg.innerHTML = ''; };
+      dlg.querySelector('[data-mcam-close]').onclick = () => dlg.close();
+      dlg.addEventListener('close', stop, { once: true });
+      dlg.showModal();
+      playHls(video, c.hls, (s) => { st.hidden = s === 'playing'; st.textContent = s === 'error' ? 'ภาพสดจากกล้องนี้ไม่พร้อมตอนนี้ ลองใหม่ภายหลัง' : 'กำลังต่อภาพสด…'; }).then((p) => { player = p; });
+      return;
+    }
     dlg.innerHTML = `<div class="cam-head"><b class="clip">${esc(c.n)}</b><span><button class="btn btn-sm" data-mcam-close>ปิด</button></span></div>
       <div class="mcam-big"><img data-mcam-img="${esc(c.id)}" src="${mcamSnapUrl(c.id)}" alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" /><p class="mcam-err muted small" hidden>ภาพจากกล้องนี้ไม่พร้อมตอนนี้</p></div>
       <p class="muted tiny cam-foot">ภาพนิ่งล่าสุด รีเฟรชเองทุก 30 วินาที — ดูเวลาที่พิมพ์บนภาพ${placeLabel(c) ? ` · ${esc(placeLabel(c))}` : ''}</p>`;

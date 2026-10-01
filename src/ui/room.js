@@ -33,10 +33,10 @@ const slow = (c) => /floodbkk/i.test(c.s || ''); // that feed updates about once
 
 function tileHtml(c, flag) {
   const star = favs.has(c.id);
-  return `<article class="rm-tile${flag ? ' ai' : ''}" data-id="${esc(c.id)}">
+  return `<article class="rm-tile${flag ? ' ai' : ''}" data-id="${esc(c.id)}"${c.hls ? ' data-live="1"' : ''}>
     <button class="rm-img" type="button" data-act="mcam-big" data-id="${esc(c.id)}" aria-label="ขยายภาพ ${esc(c.n)}">
-      <img alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" decoding="async" />
-      <span class="rm-ph">กำลังโหลด…</span>
+      ${c.hls ? '<span class="rm-ph rm-playph">▶ ภาพสด<small>กดเพื่อเปิดวิดีโอ</small></span>' : `<img alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" decoding="async" />
+      <span class="rm-ph">กำลังโหลด…</span>`}
       ${flag ? `<span class="rm-ai">💧 AI พบน้ำท่วม · ${AI_LEVEL_TH[flag.level]} ${Math.round(flag.conf * 100)}%</span>` : ''}
     </button>
     <div class="rm-cap">
@@ -74,14 +74,14 @@ function observer() {
       const t = e.target;
       const was = t.dataset.vis === '1';
       t.dataset.vis = e.isIntersecting ? '1' : '0';
-      if (e.isIntersecting && !was && !t.dataset.state) load(t); // first time on screen
+      if (e.isIntersecting && !was && !t.dataset.state && !t.dataset.live) load(t); // first time on screen (live-video tiles load nothing until opened)
     }
   }, { root: $('#room-grid'), rootMargin: '200px' });
 }
 
 function tick() {
   if (!isOpen || document.hidden) return;
-  for (const t of $('#room-grid').querySelectorAll('.rm-tile[data-vis="1"]')) load(t);
+  for (const t of $('#room-grid').querySelectorAll('.rm-tile[data-vis="1"]:not([data-live])')) load(t);
 }
 
 function render() {

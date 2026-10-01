@@ -12,6 +12,7 @@ import { existsSync, mkdirSync, statSync, utimesSync, writeFileSync } from 'node
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { MAHOLAN_API, normalizeCatalog, snapUrl, frameIsUsable } from '../src/lib/maholan-cams.js';
+import { DHR_LIST, normalizeDhr } from '../src/lib/dhr-cams.js';
 
 const REPO = 'realsuperman-hub/bkkflood';
 const PATH = 'data-static/maholan-cams.json';
@@ -71,6 +72,22 @@ keep.push(...real);
 
 // a bad round (their server down) must not wipe the map: keep the previous copy instead
 if (keep.length < all.length * 0.3) throw new Error(`only ${keep.length}/${all.length} cameras answered — keeping the previous list`);
+// Don Hua Lo (Chonburi) live HLS cameras: a separate public source; kept when their playlist answers
+try {
+  const lr = await fetch(DHR_LIST, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20000) });
+  const dhr = lr.ok ? normalizeDhr(await lr.json()) : [];
+  let ok = 0;
+  for (const c of dhr) {
+    try {
+      const pr = await fetch(c.hls, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(15000) });
+      if (pr.ok && (await pr.text()).startsWith('#EXTM3U')) { keep.push(c); ok++; }
+    } catch { /* offline now */ }
+  }
+  console.log(`maholan: Don Hua Lo live cameras ${ok}/${dhr.length} answering`);
+} catch (e) {
+  console.log(`maholan: Don Hua Lo list unavailable (${e.message})`);
+}
+
 keep.sort((a, b) => a.id.localeCompare(b.id));
 const snap = { generatedAt: Date.now(), source: 'cctv.maholan.net (รวบรวมจากกล้องของหน่วยงานต่าง ๆ)', total: all.length, cams: keep };
 console.log(`maholan: ${all.length} cameras in the Bangkok area → ${keep.length} returned a fresh frame; dropped ${all.length - keep.length} ${JSON.stringify(failed)}`);
