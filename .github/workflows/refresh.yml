@@ -87,6 +87,7 @@ jobs:
         continue-on-error: true
         run: |
           [ -s data-static/maholan-cams.json ] && cp data-static/maholan-cams.json public/data/maholan-cams.json || true
+          [ -s data-static/maholan-ai.json ] && cp data-static/maholan-ai.json public/data/maholan-ai.json || true
       - name: Accuracy report (every 6 h; other runs reuse the live one)
         continue-on-error: true
         run: |

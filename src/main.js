@@ -5,7 +5,9 @@ import './style.css';
 import { state, emit, onChange, savePlaces } from './state.js';
 import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
 import { snapUrl as mcamSnapUrl, sameSpot, isCamId } from './lib/maholan-cams.js';
-import { loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
+import { initRoom, openRoom, refreshRoom } from './ui/room.js';
+import { loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -178,8 +180,8 @@ function initLayers() {
   });
   map.addSource('mcams', { type: 'geojson', data: emptyFC });
   map.addLayer({
-    id: 'mcams', type: 'circle', source: 'mcams', minzoom: 12, layout: { visibility: 'none' },
-    paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 3, 16, 7], 'circle-color': '#7a4fd6', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 },
+    id: 'mcams', type: 'circle', source: 'mcams', minzoom: 12, layout: { visibility: 'none', 'circle-sort-key': ['case', ['==', ['get', 'ai'], 1], 1, 0] },
+    paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 3, 16, 7], 'circle-color': ['case', ['==', ['get', 'ai'], 1], '#e0203a', '#7a4fd6'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 },
   });
   map.addSource('cameras', { type: 'geojson', data: emptyFC });
   map.addLayer({ id: 'cameras', type: 'circle', source: 'cameras', minzoom: 11, layout: { visibility: 'none' }, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 16, 8], 'circle-color': ['case', ['get', 'flood'], '#00a6c8', '#4a5b6c'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } });
@@ -303,9 +305,10 @@ function windyPopup(c) {
 function refreshMcamLayer() {
   const m = state.mcams;
   if (!m?.cams) return;
+  const ai = activeFlags(state.mcamAi);
   map?.getSource('mcams')?.setData({
     type: 'FeatureCollection',
-    features: m.cams.map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lng, c.lat] }, properties: { id: c.id } })),
+    features: m.cams.map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lng, c.lat] }, properties: { id: c.id, ai: ai.has(c.id) ? 1 : 0 } })),
   });
 }
 // A camera's latest frame comes straight from cctv.maholan.net's snapshot URL (same 30 s time bucket as their own page) while it is open here;
@@ -314,7 +317,9 @@ let mcamTimer = null;
 const stopMcamTimer = () => { clearInterval(mcamTimer); mcamTimer = null; };
 function mcamBody(c, group, i) {
   const many = group.length > 1;
+  const fl = activeFlags(state.mcamAi).get(c.id);
   return `<p class="small"><b>${esc(c.n)}</b></p>
+    ${fl ? `<p class="small"><span class="tag warn">💧 AI พบน้ำท่วม · ${AI_LEVEL_TH[fl.level]} ${Math.round(fl.conf * 100)}%</span> <span class="muted tiny">อ่านภาพอัตโนมัติ ยังไม่ยืนยัน — เทียบกับภาพด้านล่าง</span></p>` : ''}
     <div class="mcam-frame"><img class="mcam-img" data-mcam-img="${esc(c.id)}" src="${mcamSnapUrl(c.id)}" alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" decoding="async" /><p class="mcam-err muted small" hidden>ภาพจากกล้องนี้ไม่พร้อมตอนนี้</p></div>
     <p class="muted tiny">ภาพนิ่งล่าสุด รีเฟรชเองทุก 30 วินาที — <b>ดูเวลาที่พิมพ์บนภาพ</b> บางกล้องอัปเดตช้ากว่านั้น · เจ้าของกล้อง: ${esc(c.s || 'ไม่ระบุ')}${c.d ? ` · เขต${esc(c.d)}` : ''}</p>
     <div class="row wrap">${many ? `<button class="btn btn-sm" data-act="mcam-step" data-id="${esc(c.id)}" data-dir="-1">‹ ก่อนหน้า</button><span class="muted small">${i + 1}/${group.length} กล้องที่จุดนี้</span><button class="btn btn-sm" data-act="mcam-step" data-id="${esc(c.id)}" data-dir="1">ถัดไป ›</button>` : ''}
@@ -1056,6 +1061,8 @@ $('#ly-traffic').addEventListener('change', (e) => {
   const v = e.target.checked ? 'visible' : 'none';
   ['traffic-roads-casing', 'traffic-roads', 'traffic-events'].forEach((l) => map.setLayoutProperty(l, 'visibility', v));
 });
+initRoom({ showOnMap: (id) => actions['mcam-open']({ id }), toast });
+$('#btn-room').addEventListener('click', () => openRoom());
 $('#ly-mcams').addEventListener('change', (e) => map.setLayoutProperty('mcams', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-windy').addEventListener('change', (e) => map.setLayoutProperty('windy', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-sat').addEventListener('change', (e) => map.setLayoutProperty('sat-flood', 'visibility', e.target.checked ? 'visible' : 'none'));
@@ -1312,7 +1319,10 @@ async function main() {
     verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
     loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
-    loadMaholanCams().then((m) => { state.mcams = m; $('#ly-mcams').closest('label').hidden = false; refreshMcamLayer(); emit(); }).catch(() => {});
+    loadMaholanCams().then((m) => { state.mcams = m; $('#ly-mcams').closest('label').hidden = false; $('#btn-room').hidden = false; refreshMcamLayer(); refreshRoom(); emit(); }).catch(() => {});
+    const reloadAi = () => loadMaholanAi().then((a) => { state.mcamAi = a; refreshMcamLayer(); refreshRoom(); }).catch(() => {});
+    reloadAi();
+    setInterval(reloadAi, 5 * 60 * 1000);
     loadWindyCams().then((w) => { state.windyCams = w; $('#ly-windy').closest('label').hidden = false; refreshWindyLayer(); emit(); }).catch(() => {});
     loadYtLive().then((y) => { state.ytLive = y; emit(); }).catch(() => {});
     loadSatFlood().then((s) => { state.satFlood = s; $('#ly-sat').closest('label').hidden = false; refreshSatLayer(); emit(); }).catch(() => {});

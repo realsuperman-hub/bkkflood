@@ -25,6 +25,9 @@ Log ('sync-gistda -> exit ' + $LASTEXITCODE + ' ' + (($gs | ForEach-Object { "$_
 # (stamp file ~/.bkkflood/maholan.last) and commits only when the list changed.
 $mh = & $node scripts/fetch-maholan.mjs 2>&1
 Log ('fetch-maholan -> exit ' + $LASTEXITCODE + ' ' + (($mh | ForEach-Object { "$_".Trim() } | Where-Object { $_ }) -join ' | '))
+# maholan's AI flood flags (few positives; commits only when the flagged set changes, plus a 2-hour heartbeat)
+$ma = & $node scripts/sync-maholan-ai.mjs 2>&1
+Log ('sync-maholan-ai -> exit ' + $LASTEXITCODE + ' ' + (($ma | ForEach-Object { "$_".Trim() } | Where-Object { $_ }) -join ' | '))
 Pop-Location
 
 $out = & $gh workflow run refresh-data --repo realsuperman-hub/bkkflood 2>&1

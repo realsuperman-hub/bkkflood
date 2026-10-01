@@ -7,6 +7,7 @@
 //   node scripts/fetch-maholan.mjs --local    just write data-static/maholan-cams.json in this checkout
 //   node scripts/fetch-maholan.mjs --force    ignore the 12-hour throttle
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -21,6 +22,7 @@ const UA = 'BKKFLOOD/1.0 (+https://bkkflood.web.app; aggasit.j@gmail.com)';
 const THROTTLE_MS = 12 * 3600e3;
 const CONC = 5;
 const PAUSE_MS = 150;
+const PLACEHOLDER_MIN = 3; // identical frames on this many cameras or more = placeholder
 
 const dir = join(homedir(), '.bkkflood');
 const stamp = join(dir, 'maholan.last');
@@ -37,6 +39,7 @@ const all = normalizeCatalog((await res.json()).cameras);
 if (all.length < 200) throw new Error(`only ${all.length} cameras in the Bangkok area — not updating`);
 
 const keep = [];
+const hashOf = new Map(); // frame fingerprint per camera: a "No signal" card is the SAME picture on many cameras
 const failed = {};
 let next = 0;
 async function worker() {
@@ -45,8 +48,9 @@ async function worker() {
     let ok = false;
     try {
       const r = await fetch(snapUrl(c.id), { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(25000) });
-      const bytes = r.ok ? (await r.arrayBuffer()).byteLength : 0;
-      ok = frameIsUsable({ status: r.status, bytes, imageTime: r.headers.get('x-image-time') });
+      const buf = r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+      ok = frameIsUsable({ status: r.status, bytes: buf?.length ?? 0, imageTime: r.headers.get('x-image-time') });
+      if (ok) hashOf.set(c.id, createHash('sha1').update(buf).digest('hex'));
       if (!ok) failed[r.status] = (failed[r.status] || 0) + 1;
     } catch (e) {
       failed[e.name] = (failed[e.name] || 0) + 1;
@@ -56,6 +60,14 @@ async function worker() {
   }
 }
 await Promise.all(Array.from({ length: CONC }, worker));
+
+// the same picture on several cameras is a placeholder ("No signal", a black card), not a view of the street
+const seen = {};
+for (const h of hashOf.values()) seen[h] = (seen[h] || 0) + 1;
+const real = keep.filter((c) => (seen[hashOf.get(c.id)] || 0) < PLACEHOLDER_MIN);
+console.log(`maholan: ${keep.length - real.length} cameras showing a shared placeholder picture dropped`);
+keep.length = 0;
+keep.push(...real);
 
 // a bad round (their server down) must not wipe the map: keep the previous copy instead
 if (keep.length < all.length * 0.3) throw new Error(`only ${keep.length}/${all.length} cameras answered — keeping the previous list`);

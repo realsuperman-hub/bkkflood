@@ -726,7 +726,7 @@ export function helpTab() {
     <p class="small">ยิ่งมีคนใช้และแจ้งมาก ข้อมูลยิ่งครบ — ช่วยกันส่งต่อลิงก์ให้คนในพื้นที่เสี่ยง</p>
     <div class="row wrap"><button class="btn btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn" data-act="share-site">แชร์…</button><button class="btn btn-ghost" data-act="copy-site">คัดลอกลิงก์</button></div></section>
   <section class="card credit"><h3>ผู้จัดทำ</h3>
-    <p class="small">นาย เอกสิทธิ์ จิตรสถาพร<br>ติดต่อ: <a href="mailto:aggasit.j@gmail.com">aggasit.j@gmail.com</a></p></section>`;
+    <p class="small">จัดทำโดย AJ: <a href="mailto:aggasit.j@gmail.com">aggasit.j@gmail.com</a></p></section>`;
 }
 
 export const TAB_RENDER = { overview: overviewTab, forecast: forecastTab, reports: reportsTab, help: helpTab };
