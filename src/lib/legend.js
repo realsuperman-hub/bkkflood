@@ -86,7 +86,7 @@ const sym = (it) => it.html ?? (it.shape === 'none' ? '' : `<i class="${it.shape
 export const itemsHtml = (g) => g.items.map((it) => `<div class="lg">${sym(it)}<span>${esc(it.label)}</span></div>`).join('');
 
 // compact key for the layers menu
-export const compactHtml = (g) => `<div class="legend-title" style="margin-top:8px">${esc(g.title)}</div>${itemsHtml(g)}`;
+export const compactHtml = (g) => `<div class="legend-title">${esc(g.title)}</div><div class="lg-grp">${itemsHtml(g)}</div>`;
 
 // 1–3 mini symbols to sit beside the layer's checkbox
 export function stripHtml(g) {

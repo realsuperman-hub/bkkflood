@@ -450,3 +450,23 @@ a.btn.btn-primary { color: #fff; }
 .layers-pop { z-index: 12; }
 @media (max-width: 899px) { .layers-pop { max-height: calc(100dvh - 60px - var(--nav-h) - var(--safe-b) - 20px); } }
 .lg-all.lg-top { margin: 0 0 10px; }
+
+/* compact layers menu: smaller type and tighter rows so the whole list + key is visible */
+.layers-pop { padding: 8px 10px; width: min(290px, calc(100vw - 20px)); font-size: 13px; }
+.layers-pop label { gap: 7px; padding: 1px 0; min-height: 28px; font-size: 13px; line-height: 1.25; }
+.layers-pop input { width: 16px; height: 16px; flex: none; }
+.layers-pop hr { margin: 4px 0; }
+.layers-pop .legend-title { font-size: 11.5px; margin: 6px 0 1px; }
+.layers-pop .legend-head { margin-top: 2px; }
+.layers-pop .lg { font-size: 12px; gap: 6px; padding: 0; line-height: 1.3; min-height: 17px; }
+.layers-pop .lg i { width: 11px; height: 11px; border-width: 1.5px; }
+.layers-pop .lg i.tri { width: 12px; height: 11px; }
+.layers-pop .lg i.ln { width: 16px; height: 4px; }
+.layers-pop .lg i.big { width: 14px; height: 14px; }
+.layers-pop .lg-all { margin: 4px 0 2px; padding: 4px 8px; font-size: 12px; min-height: 28px; }
+.layers-pop .sws i { width: 9px !important; height: 9px !important; }
+.layers-pop .sws i.tri { width: 10px !important; height: 9px !important; }
+.layers-pop .sws i.ln { width: 12px !important; height: 4px !important; }
+.layers-pop .lg-grp { display: flex; flex-wrap: wrap; gap: 0 12px; }
+.layers-pop .lg-grp .lg { white-space: nowrap; }
+.layers-pop .lg-grp .lg { white-space: normal; max-width: 100%; }
