@@ -4,7 +4,7 @@ import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
 import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
-import { MAHOLAN, snapUrl as mcamSnapUrl, sameSpot, isCamId } from './lib/maholan-cams.js';
+import { snapUrl as mcamSnapUrl, sameSpot, isCamId } from './lib/maholan-cams.js';
 import { loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
@@ -318,8 +318,7 @@ function mcamBody(c, group, i) {
     <div class="mcam-frame"><img class="mcam-img" data-mcam-img="${esc(c.id)}" src="${mcamSnapUrl(c.id)}" alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" decoding="async" /><p class="mcam-err muted small" hidden>ภาพจากกล้องนี้ไม่พร้อมตอนนี้</p></div>
     <p class="muted tiny">ภาพนิ่งล่าสุด รีเฟรชเองทุก 30 วินาที — <b>ดูเวลาที่พิมพ์บนภาพ</b> บางกล้องอัปเดตช้ากว่านั้น · เจ้าของกล้อง: ${esc(c.s || 'ไม่ระบุ')}${c.d ? ` · เขต${esc(c.d)}` : ''}</p>
     <div class="row wrap">${many ? `<button class="btn btn-sm" data-act="mcam-step" data-id="${esc(c.id)}" data-dir="-1">‹ ก่อนหน้า</button><span class="muted small">${i + 1}/${group.length} กล้องที่จุดนี้</span><button class="btn btn-sm" data-act="mcam-step" data-id="${esc(c.id)}" data-dir="1">ถัดไป ›</button>` : ''}
-    <button class="btn btn-sm btn-primary" data-act="mcam-big" data-id="${esc(c.id)}">ขยายภาพ</button></div>
-    <p class="muted tiny">รวบรวมโดย <a href="${MAHOLAN}" target="_blank" rel="noopener noreferrer">cctv.maholan.net</a></p>`;
+    <button class="btn btn-sm btn-primary" data-act="mcam-big" data-id="${esc(c.id)}">ขยายภาพ</button></div>`;
 }
 function wireMcamImg(root) {
   const img = root?.querySelector?.('[data-mcam-img]');
@@ -885,7 +884,7 @@ const actions = {
     const dlg = $('#mcam-dialog');
     dlg.innerHTML = `<div class="cam-head"><b class="clip">${esc(c.n)}</b><span><button class="btn btn-sm" data-mcam-close>ปิด</button></span></div>
       <div class="mcam-big"><img data-mcam-img="${esc(c.id)}" src="${mcamSnapUrl(c.id)}" alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" /><p class="mcam-err muted small" hidden>ภาพจากกล้องนี้ไม่พร้อมตอนนี้</p></div>
-      <p class="muted tiny cam-foot">ภาพนิ่งล่าสุด รีเฟรชเองทุก 30 วินาที — ดูเวลาที่พิมพ์บนภาพ · เจ้าของกล้อง: ${esc(c.s || 'ไม่ระบุ')} · รวบรวมโดย <a href="${MAHOLAN}" target="_blank" rel="noopener noreferrer">cctv.maholan.net</a></p>`;
+      <p class="muted tiny cam-foot">ภาพนิ่งล่าสุด รีเฟรชเองทุก 30 วินาที — ดูเวลาที่พิมพ์บนภาพ · เจ้าของกล้อง: ${esc(c.s || 'ไม่ระบุ')}</p>`;
     dlg.querySelector('[data-mcam-close]').onclick = () => dlg.close();
     dlg.addEventListener('close', () => { stopMcamTimer(); dlg.innerHTML = ''; }, { once: true });
     dlg.showModal();

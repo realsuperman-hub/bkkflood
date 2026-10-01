@@ -312,7 +312,7 @@ function camerasNearCard(f) {
       <span class="grow"><b>${esc(c.name)}</b><small>${c.km.toFixed(1)} กม.${c.flood ? ' · จุดเฝ้าระวังน้ำท่วม' : ''}${c.desc && c.desc !== '-' ? ` · ${esc(c.desc)}` : ''}</small></span></button>`).join('')}</div>` : '<p class="muted small">ไม่มีกล้อง กทม. ภายใน 3 กม. (ครอบคลุมเฉพาะกรุงเทพฯ)</p>'}
     ${mc.length ? `<div class="why">ภาพกล้อง CCTV ล่าสุดใกล้จุดนี้ (ภายใน 1.5 กม.) — กดเพื่อดูภาพ</div><div class="list">${mc.map((c) => `<button class="row-item" data-act="mcam-open" data-id="${esc(c.id)}"><span class="dot" style="background:#7a4fd6"></span>
       <span class="grow"><b>${esc(c.n)}</b><small>${c.km.toFixed(1)} กม.${c.count > 1 ? ` · ${c.count} กล้องที่จุดนี้` : ''} · ${esc(c.s || 'เจ้าของกล้องไม่ระบุ')}</small></span></button>`).join('')}</div>
-      <p class="muted tiny">ภาพนิ่งล่าสุดรวบรวมโดย <a href="https://cctv.maholan.net" target="_blank" rel="noopener noreferrer">cctv.maholan.net</a> ดูเวลาที่พิมพ์บนภาพเสมอ</p>` : ''}
+      <p class="muted tiny">ภาพนิ่งล่าสุด ดูเวลาที่พิมพ์บนภาพเสมอ</p>` : ''}
     ${windy.length ? `<div class="why">กล้องจาก Windy ใกล้จุดนี้ — ดูภาพย้อนหลัง 24 ชม.</div><div class="list">${windy.map((c) => `<button class="row-item" data-act="windy-open" data-id="${esc(c.id)}"><span class="dot" style="background:#0e9f8e"></span>
       <span class="grow"><b>${esc(c.title)}</b><small>${c.km.toFixed(1)} กม.${c.updated ? ` · ภาพล่าสุด ${ago(c.updated)}` : ''}</small></span></button>`).join('')}</div>
       <p class="muted tiny">Webcams provided by <a href="https://www.windy.com" target="_blank" rel="noopener noreferrer">Windy.com</a> — <a href="https://www.windy.com/webcams/add" target="_blank" rel="noopener noreferrer">add a webcam</a></p>` : ''}
