@@ -33,12 +33,16 @@ const slow = (c) => /floodbkk/i.test(c.s || ''); // that feed updates about once
 
 function tileHtml(c, flag) {
   const star = favs.has(c.id);
-  return `<article class="rm-tile${flag ? ' ai' : ''}" data-id="${esc(c.id)}"${c.hls ? ' data-live="1"' : ''}>
-    <button class="rm-img" type="button" data-act="mcam-big" data-id="${esc(c.id)}" aria-label="ขยายภาพ ${esc(c.n)}">
-      ${c.hls ? '<span class="rm-ph rm-playph">▶ ภาพสด<small>กดเพื่อเปิดวิดีโอ</small></span>' : `<img alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" decoding="async" />
-      <span class="rm-ph">กำลังโหลด…</span>`}
+  // a camera whose picture lives only on its owner's own site (they refuse embedding) is a link, not an image
+  const pic = c.link
+    ? `<a class="rm-img rm-linkph" href="${esc(c.link)}" target="_blank" rel="noopener noreferrer" aria-label="เปิดภาพสด ${esc(c.n)} ที่เว็บเจ้าของกล้อง"><span class="rm-ph">ภาพสดอยู่ที่เว็บเจ้าของกล้อง ↗<small>เปิดในแท็บใหม่</small></span></a>`
+    : `<button class="rm-img" type="button" data-act="mcam-big" data-id="${esc(c.id)}" aria-label="ขยายภาพ ${esc(c.n)}">
+      <img alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" decoding="async" />
+      <span class="rm-ph">กำลังโหลด…</span>
       ${flag ? `<span class="rm-ai">💧 AI พบน้ำท่วม · ${AI_LEVEL_TH[flag.level]} ${Math.round(flag.conf * 100)}%</span>` : ''}
-    </button>
+    </button>`;
+  return `<article class="rm-tile${flag ? ' ai' : ''}" data-id="${esc(c.id)}"${c.link ? ' data-live="1"' : ''}>
+    ${pic}
     <div class="rm-cap">
       <span class="rm-name" title="${esc(c.n)}">${esc(c.n)}</span>
       <button class="rm-btn" type="button" data-rm-map="${esc(c.id)}" aria-label="ดูบนแผนที่" title="ดูบนแผนที่">📍</button>

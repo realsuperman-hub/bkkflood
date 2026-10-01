@@ -471,8 +471,6 @@ a.btn.btn-primary { color: #fff; }
 .layers-pop .lg-grp .lg { white-space: nowrap; }
 .layers-pop .lg-grp .lg { white-space: normal; max-width: 100%; }
 .mcam-live { min-height: 90px; }
-.mcam-big video { width: 100%; height: 100%; max-height: 100%; background: #000; }
-.rm-playph { flex-direction: column; font-size: 16px; font-weight: 700; color: #e6eef5; gap: 2px; }
-.rm-playph small { font-size: 11.5px; font-weight: 400; color: #8aa0b0; }
-.mcam-big [data-mcam-vstate] { position: absolute; }
-.mcam-big { position: relative; }
+.rm-linkph { display: grid; place-items: center; text-decoration: none; color: #b7c7d4; cursor: pointer; }
+.rm-linkph .rm-ph { flex-direction: column; display: flex; align-items: center; justify-content: center; gap: 4px; }
+.rm-linkph small { font-size: 11.5px; color: #8aa0b0; }

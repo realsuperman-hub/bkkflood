@@ -72,18 +72,18 @@ keep.push(...real);
 
 // a bad round (their server down) must not wipe the map: keep the previous copy instead
 if (keep.length < all.length * 0.3) throw new Error(`only ${keep.length}/${all.length} cameras answered — keeping the previous list`);
-// Don Hua Lo (Chonburi) live HLS cameras: a separate public source; kept when their playlist answers
+// Don Hua Lo (Chonburi) cameras: locations + a link to the municipality's own page (their video server refuses other sites, so no embedding); kept when the playlist answers
 try {
   const lr = await fetch(DHR_LIST, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(20000) });
   const dhr = lr.ok ? normalizeDhr(await lr.json()) : [];
   let ok = 0;
   for (const c of dhr) {
     try {
-      const pr = await fetch(c.hls, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(15000) });
-      if (pr.ok && (await pr.text()).startsWith('#EXTM3U')) { keep.push(c); ok++; }
+      const pr = await fetch(c.playlist, { headers: { 'user-agent': UA }, signal: AbortSignal.timeout(15000) });
+      if (pr.ok && (await pr.text()).startsWith('#EXTM3U')) { const { playlist, ...rest } = c; keep.push(rest); ok++; }
     } catch { /* offline now */ }
   }
-  console.log(`maholan: Don Hua Lo live cameras ${ok}/${dhr.length} answering`);
+  console.log(`maholan: Don Hua Lo cameras ${ok}/${dhr.length} streaming`);
 } catch (e) {
   console.log(`maholan: Don Hua Lo list unavailable (${e.message})`);
 }
