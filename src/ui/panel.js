@@ -697,7 +697,9 @@ function accuracyCard() {
 
 export function helpTab() {
   const tel = (n, t, sub) => `<a class="tel" href="tel:${n}"><b>${n}</b><span>${t}<small>${sub}</small></span></a>`;
-  return `<section class="card"><h3>เบอร์ฉุกเฉิน (แตะเพื่อโทร)</h3>
+  return `<section class="card"><h3>อ่านแผนที่ให้ออก</h3><p class="small">สัญลักษณ์แต่ละสีบนแผนที่คืออะไร จุดสีม่วง จุดแดง ปุ่มแดง และอื่น ๆ</p>
+    <div class="row wrap"><button class="btn btn-primary" data-act="legend-open">ดูสัญลักษณ์บนแผนที่</button></div></section>
+  <section class="card"><h3>เบอร์ฉุกเฉิน (แตะเพื่อโทร)</h3>
     <div class="tels">${tel('1669', 'แพทย์ฉุกเฉิน / กู้ภัย', 'ผู้บาดเจ็บ ติดอยู่ในพื้นที่น้ำ')}
     ${tel('191', 'ตำรวจ', 'เหตุด่วนเหตุร้าย')}
     ${tel('1784', 'ปภ. (ป้องกันและบรรเทาสาธารณภัย)', 'แจ้งเหตุอุทกภัย ขอความช่วยเหลือ')}

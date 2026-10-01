@@ -64,7 +64,8 @@
       <div id="radar-time" class="muted small" hidden></div>
       <hr />
       <div class="legend">
-        <div class="legend-title">สถานะระดับน้ำ</div>
+        <button type="button" class="btn btn-sm lg-all lg-top" data-act="legend-open">ดูสัญลักษณ์ทั้งหมด</button>
+        <div class="legend-title legend-head">สัญลักษณ์ของเลเยอร์ที่เปิด</div>
         <div id="legend-items"></div>
       </div>
     </div>
@@ -149,6 +150,7 @@
     <dialog id="yt-dialog" class="dialog cam-dialog"></dialog>
     <dialog id="windy-dialog" class="dialog cam-dialog"></dialog>
     <dialog id="mcam-dialog" class="dialog cam-dialog"></dialog>
+    <dialog id="legend-dialog" class="dialog cam-dialog"></dialog>
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
   </div>
   <script type="module" src="/src/main.js"></script>

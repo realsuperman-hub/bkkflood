@@ -7,6 +7,7 @@ import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
 import { snapUrl as mcamSnapUrl, sameSpot, isCamId } from './lib/maholan-cams.js';
 import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
 import { initRoom, openRoom, refreshRoom } from './ui/room.js';
+import { LEGEND, EV_COLOR, stripHtml, compactHtml, dialogHtml } from './lib/legend.js';
 import { loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
@@ -513,7 +514,6 @@ function stationPopup(s) {
     <button class="btn btn-sm btn-primary" data-act="station-forecast" data-id="${esc(s.id)}">ดูพยากรณ์ตรงนี้</button></div>`);
 }
 
-const EV_COLOR = { flood: '#0b6fa8', accident: '#f28c28', fire: '#d7263d', closed: '#12222e', other: '#5b6876' };
 function eventPopup(e) {
   openPopup([e.lng, e.lat], `<div class="pp">
     <div class="pp-title" style="color:${EV_COLOR[e.kind]}">${EVENT_LABEL[e.kind] || 'เหตุการณ์'}</div>
@@ -865,6 +865,7 @@ const actions = {
     floodPopup(f);
   },
   'point-forecast': ({ lat, lng }) => selectPoint(+lat, +lng),
+  'legend-open': () => openLegend(),
   'mcam-open': ({ id }) => {
     const c = state.mcams?.cams?.find((x) => x.id === id);
     if (!c) return;
@@ -1061,6 +1062,7 @@ $('#ly-traffic').addEventListener('change', (e) => {
   const v = e.target.checked ? 'visible' : 'none';
   ['traffic-roads-casing', 'traffic-roads', 'traffic-events'].forEach((l) => map.setLayoutProperty(l, 'visibility', v));
 });
+$('#layers-pop').addEventListener('change', renderLegend);
 initRoom({ showOnMap: (id) => actions['mcam-open']({ id }), toast });
 $('#btn-room').addEventListener('click', () => openRoom());
 $('#ly-mcams').addEventListener('change', (e) => map.setLayoutProperty('mcams', 'visibility', e.target.checked ? 'visible' : 'none'));
@@ -1197,22 +1199,26 @@ async function reloadFloods() {
   emit();
 }
 
+// symbols: a swatch strip beside every layer checkbox, a key under the menu for the layers that are on, and the full dialog (src/lib/legend.js)
 function buildLegend() {
-  $('#legend-items').innerHTML =
-    '<div class="legend-title">ถนนติดขัด (กทม.)</div>' +
-    [1, 2, 3, 4].map((l) => `<div class="lg"><i class="ln" style="background:${SPEED_LEVEL[l].color}"></i>${SPEED_LEVEL[l].label}</div>`).join('') +
-    '<div class="legend-title" style="margin-top:8px">เหตุการณ์จราจร (กทม.)</div>' +
-    Object.entries({ flood: 'น้ำท่วม', accident: 'อุบัติเหตุ', fire: 'เพลิงไหม้', closed: 'ปิดถนน' }).map(([k, t]) => `<div class="lg"><i style="background:${EV_COLOR[k]}"></i>${t}</div>`).join('') +
-    '<div class="legend-title" style="margin-top:8px">จุดน้ำท่วม (แจ้ง กทม.)</div>' +
-    [3, 2, 1].map((l) => `<div class="lg"><i class="tri" style="background:${SEVERITY[l].color}"></i>${SEVERITY[l].label}</div>`).join('') +
-    '<div class="legend-title" style="margin-top:8px">สถานีวัดระดับน้ำ</div>' +
-    [5, 4, 3, 2, 1]
-      .map((l) => `<div class="lg"><i style="background:${LEVELS[l].color}"></i>${LEVELS[l].label}</div>`)
-      .join('') +
-    '<div class="legend-title" style="margin-top:8px">ความลึกน้ำ (รายงานประชาชน)</div>' +
-    Object.values(DEPTHS)
-      .map((d) => `<div class="lg"><i class="pin" style="background:${d.color}"></i>${esc(d.label)}</div>`)
-      .join('');
+  for (const g of LEGEND) {
+    const label = document.getElementById(g.ly)?.closest('label');
+    if (label && !label.querySelector('.sws')) label.querySelector('input').insertAdjacentHTML('afterend', stripHtml(g));
+  }
+  renderLegend();
+}
+function renderLegend() {
+  const on = LEGEND.filter((g) => document.getElementById(g.ly)?.checked);
+  $('#legend-items').innerHTML = on.length ? on.map(compactHtml).join('') : '<p class="muted small">เปิดเลเยอร์ด้านบนเพื่อดูสัญลักษณ์ของเลเยอร์นั้น</p>';
+}
+function openLegend() {
+  const dlg = $('#legend-dialog');
+  dlg.innerHTML = `<div class="cam-head"><b>สัญลักษณ์บนแผนที่</b><button class="btn btn-sm" data-legend-close>ปิด</button></div>
+    <div class="lg-body">${dialogHtml((id) => !!document.getElementById(id)?.checked)}
+    <p class="muted tiny">เลเยอร์ที่ปิดอยู่ไม่แสดงบนแผนที่ เปิดได้ที่ปุ่ม “เลเยอร์” มุมบนขวา · กดสัญลักษณ์บนแผนที่เพื่อดูรายละเอียดของจุดนั้น</p></div>`;
+  dlg.querySelector('[data-legend-close]').onclick = () => dlg.close();
+  dlg.addEventListener('close', () => { dlg.innerHTML = ''; }, { once: true });
+  dlg.showModal();
 }
 
 async function main() {
