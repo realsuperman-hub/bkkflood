@@ -422,6 +422,5 @@ a.btn.btn-primary { color: #fff; }
 .room-foot .muted { color: #8aa0b0; }
 @media (max-width: 599px) {
   .room-grid { grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 4px 8px 8px; }
-  .rm-meta .rm-own { display: none; }
   .rm-name { font-size: 12.5px; }
 }

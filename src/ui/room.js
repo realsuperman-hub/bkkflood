@@ -44,7 +44,7 @@ function tileHtml(c, flag) {
       <button class="rm-btn" type="button" data-rm-map="${esc(c.id)}" aria-label="ดูบนแผนที่" title="ดูบนแผนที่">📍</button>
       <button class="rm-btn rm-star" type="button" data-rm-fav="${esc(c.id)}" aria-pressed="${star}" aria-label="${star ? 'เอาออกจากกล้องโปรด' : 'เก็บเป็นกล้องโปรด'}">${star ? '★' : '☆'}</button>
     </div>
-    <div class="rm-meta"><span class="rm-time"></span>${slow(c) ? '<span class="rm-slow">ภาพอัปเดตช้า (~ชั่วโมงละครั้ง)</span>' : ''}<span class="rm-own">${esc(c.s || '')}${c.d ? ` · เขต${esc(c.d)}` : ''}</span></div>
+    <div class="rm-meta"><span class="rm-time"></span>${slow(c) ? '<span class="rm-slow">ภาพอัปเดตช้า (~ชั่วโมงละครั้ง)</span>' : ''}${c.d ? `<span class="rm-own">เขต${esc(c.d)}</span>` : ''}</div>
   </article>`;
 }
 
