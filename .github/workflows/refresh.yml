@@ -83,6 +83,12 @@ jobs:
           WINDY_FORCE: ${{ inputs.fresh_youtube }}
         run: |
           node scripts/fetch-windy.mjs || curl -sf https://bkkflood.web.app/data/windy-cams.json -o public/data/windy-cams.json || true
+      - name: Camera catalogue from cctv.maholan.net (probes each frame; reuses the live copy for 12 h)
+        continue-on-error: true
+        env:
+          MAHOLAN_FORCE: ${{ inputs.fresh_youtube }}
+        run: |
+          node scripts/fetch-maholan.mjs || curl -sf https://bkkflood.web.app/data/maholan-cams.json -o public/data/maholan-cams.json || true
       - name: Accuracy report (every 6 h; other runs reuse the live one)
         continue-on-error: true
         run: |

@@ -296,13 +296,23 @@ function repeatHistoryCard(f) {
 function camerasNearCard(f) {
   const t = state.traffic;
   const windy = (state.windyCams?.cams || []).map((c) => ({ ...c, km: distKm(f.lat, f.lng, c.lat, c.lng) })).filter((c) => c.km <= 3).sort((a, b) => a.km - b.km).slice(0, 4);
-  if (!t.cameras.length && !t.events.length && !windy.length) return '';
+  const mcSpots = new Map(); // several cameras on one pole → one row ("N กล้อง"), the popup steps through them
+  for (const c of (state.mcams?.cams || []).map((x) => ({ ...x, km: distKm(f.lat, f.lng, x.lat, x.lng) })).filter((x) => x.km <= 1.5).sort((a, b) => a.km - b.km)) {
+    const k = `${c.lat.toFixed(4)},${c.lng.toFixed(4)}`;
+    if (mcSpots.has(k)) mcSpots.get(k).count++;
+    else mcSpots.set(k, { ...c, count: 1 });
+  }
+  const mc = [...mcSpots.values()].slice(0, 5);
+  if (!t.cameras.length && !t.events.length && !windy.length && !mc.length) return '';
   const near = t.cameras.map((c) => ({ ...c, km: distKm(f.lat, f.lng, c.lat, c.lng) })).filter((c) => c.km <= 3).sort((a, b) => a.km - b.km).slice(0, 4);
   const evs = t.events.map((e) => ({ ...e, km: distKm(f.lat, f.lng, e.lat, e.lng) })).filter((e) => e.km <= 3).sort((a, b) => (b.kind === 'flood') - (a.kind === 'flood') || a.km - b.km);
   return `<section class="card"><h3>สภาพถนนรอบจุดนี้ (ภายใน 3 กม.)</h3>
     ${evs.length ? `<div class="why">เหตุการณ์จราจรวันนี้ (กทม.)</div><div class="list">${evs.slice(0, 4).map((e) => evRow(e, ` · ${e.km.toFixed(1)} กม.`)).join('')}</div>` : '<p class="small">ไม่มีเหตุการณ์จราจรที่ กทม. ประกาศรอบจุดนี้วันนี้</p>'}
     ${near.length ? `<div class="why">กล้องจราจรใกล้เคียง — ดูภาพสดที่เว็บทางการ</div><div class="list">${near.map((c) => `<button class="row-item" data-act="fly-camera" data-id="${esc(c.id)}"><span class="dot" style="background:${c.flood ? '#00a6c8' : '#4a5b6c'}"></span>
       <span class="grow"><b>${esc(c.name)}</b><small>${c.km.toFixed(1)} กม.${c.flood ? ' · จุดเฝ้าระวังน้ำท่วม' : ''}${c.desc && c.desc !== '-' ? ` · ${esc(c.desc)}` : ''}</small></span></button>`).join('')}</div>` : '<p class="muted small">ไม่มีกล้อง กทม. ภายใน 3 กม. (ครอบคลุมเฉพาะกรุงเทพฯ)</p>'}
+    ${mc.length ? `<div class="why">ภาพกล้อง CCTV ล่าสุดใกล้จุดนี้ (ภายใน 1.5 กม.) — กดเพื่อดูภาพ</div><div class="list">${mc.map((c) => `<button class="row-item" data-act="mcam-open" data-id="${esc(c.id)}"><span class="dot" style="background:#7a4fd6"></span>
+      <span class="grow"><b>${esc(c.n)}</b><small>${c.km.toFixed(1)} กม.${c.count > 1 ? ` · ${c.count} กล้องที่จุดนี้` : ''} · ${esc(c.s || 'เจ้าของกล้องไม่ระบุ')}</small></span></button>`).join('')}</div>
+      <p class="muted tiny">ภาพนิ่งล่าสุดรวบรวมโดย <a href="https://cctv.maholan.net" target="_blank" rel="noopener noreferrer">cctv.maholan.net</a> ดูเวลาที่พิมพ์บนภาพเสมอ</p>` : ''}
     ${windy.length ? `<div class="why">กล้องจาก Windy ใกล้จุดนี้ — ดูภาพย้อนหลัง 24 ชม.</div><div class="list">${windy.map((c) => `<button class="row-item" data-act="windy-open" data-id="${esc(c.id)}"><span class="dot" style="background:#0e9f8e"></span>
       <span class="grow"><b>${esc(c.title)}</b><small>${c.km.toFixed(1)} กม.${c.updated ? ` · ภาพล่าสุด ${ago(c.updated)}` : ''}</small></span></button>`).join('')}</div>
       <p class="muted tiny">Webcams provided by <a href="https://www.windy.com" target="_blank" rel="noopener noreferrer">Windy.com</a> — <a href="https://www.windy.com/webcams/add" target="_blank" rel="noopener noreferrer">add a webcam</a></p>` : ''}

@@ -98,6 +98,8 @@ export const loadNews = () => snapshot('news');
 export const loadYtLive = () => snapshot('youtube-live');
 // Windy webcams in Thailand (metadata + timelapse player links; built by scripts/fetch-windy.mjs); optional
 export const loadWindyCams = () => snapshot('windy-cams');
+// Still-image cameras from cctv.maholan.net (catalogue only; built by scripts/fetch-maholan.mjs); optional
+export const loadMaholanCams = () => snapshot('maholan-cams');
 // Radar-satellite flood extent from GISTDA (built on a Thai network by scripts/sync-gistda.mjs); optional
 export const loadSatFlood = () => snapshot('gistda-flood');
 export async function loadTraffic() {

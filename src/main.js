@@ -4,7 +4,8 @@ import './style.css';
 
 import { state, emit, onChange, savePlaces } from './state.js';
 import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
-import { loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { MAHOLAN, snapUrl as mcamSnapUrl, sameSpot, isCamId } from './lib/maholan-cams.js';
+import { loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -175,6 +176,11 @@ function initLayers() {
     id: 'windy', type: 'circle', source: 'windy', minzoom: 8, layout: { visibility: 'none' },
     paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 3, 13, 6, 16, 9], 'circle-color': '#0e9f8e', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 },
   });
+  map.addSource('mcams', { type: 'geojson', data: emptyFC });
+  map.addLayer({
+    id: 'mcams', type: 'circle', source: 'mcams', minzoom: 12, layout: { visibility: 'none' },
+    paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 3, 16, 7], 'circle-color': '#7a4fd6', 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 },
+  });
   map.addSource('cameras', { type: 'geojson', data: emptyFC });
   map.addLayer({ id: 'cameras', type: 'circle', source: 'cameras', minzoom: 11, layout: { visibility: 'none' }, paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 16, 8], 'circle-color': ['case', ['get', 'flood'], '#00a6c8', '#4a5b6c'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5 } });
 
@@ -293,6 +299,50 @@ function windyPopup(c) {
     <div class="row wrap"><button class="btn btn-sm btn-primary" data-act="windy-open" data-id="${esc(c.id)}">ดูภาพย้อนหลัง 24 ชม.</button>
     ${c.detail ? `<a class="btn btn-sm" href="${esc(c.detail)}" target="_blank" rel="noopener noreferrer">เปิดที่ Windy ↗</a>` : ''}</div>
     <p class="muted tiny">Webcams provided by <a href="https://www.windy.com" target="_blank" rel="noopener noreferrer">Windy.com</a> — <a href="${WINDY_CREDIT_URL}" target="_blank" rel="noopener noreferrer">add a webcam</a></p></div>`);
+}
+function refreshMcamLayer() {
+  const m = state.mcams;
+  if (!m?.cams) return;
+  map?.getSource('mcams')?.setData({
+    type: 'FeatureCollection',
+    features: m.cams.map((c) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [c.lng, c.lat] }, properties: { id: c.id } })),
+  });
+}
+// A camera's latest frame comes straight from cctv.maholan.net's snapshot URL (same 30 s time bucket as their own page) while it is open here;
+// nothing is stored. A pole can carry several cameras (CAM1..CAM3) → step through them.
+let mcamTimer = null;
+const stopMcamTimer = () => { clearInterval(mcamTimer); mcamTimer = null; };
+function mcamBody(c, group, i) {
+  const many = group.length > 1;
+  return `<p class="small"><b>${esc(c.n)}</b></p>
+    <div class="mcam-frame"><img class="mcam-img" data-mcam-img="${esc(c.id)}" src="${mcamSnapUrl(c.id)}" alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" decoding="async" /><p class="mcam-err muted small" hidden>ภาพจากกล้องนี้ไม่พร้อมตอนนี้</p></div>
+    <p class="muted tiny">ภาพนิ่งล่าสุด รีเฟรชเองทุก 30 วินาที — <b>ดูเวลาที่พิมพ์บนภาพ</b> บางกล้องอัปเดตช้ากว่านั้น · เจ้าของกล้อง: ${esc(c.s || 'ไม่ระบุ')}${c.d ? ` · เขต${esc(c.d)}` : ''}</p>
+    <div class="row wrap">${many ? `<button class="btn btn-sm" data-act="mcam-step" data-id="${esc(c.id)}" data-dir="-1">‹ ก่อนหน้า</button><span class="muted small">${i + 1}/${group.length} กล้องที่จุดนี้</span><button class="btn btn-sm" data-act="mcam-step" data-id="${esc(c.id)}" data-dir="1">ถัดไป ›</button>` : ''}
+    <button class="btn btn-sm btn-primary" data-act="mcam-big" data-id="${esc(c.id)}">ขยายภาพ</button></div>
+    <p class="muted tiny">รวบรวมโดย <a href="${MAHOLAN}" target="_blank" rel="noopener noreferrer">cctv.maholan.net</a></p>`;
+}
+function wireMcamImg(root) {
+  const img = root?.querySelector?.('[data-mcam-img]');
+  if (!img) return;
+  const err = root.querySelector('.mcam-err');
+  img.onerror = () => { img.hidden = true; if (err) err.hidden = false; };
+  img.onload = () => { img.hidden = false; if (err) err.hidden = true; };
+  stopMcamTimer();
+  const id = img.dataset.mcamImg;
+  mcamTimer = setInterval(() => {
+    if (!img.isConnected) return stopMcamTimer();
+    if (document.hidden) return;
+    img.src = mcamSnapUrl(id);
+  }, 30000);
+}
+function mcamPopup(c, idx = null) {
+  const cams = state.mcams?.cams || [];
+  const group = sameSpot(cams, c);
+  const i = idx ?? Math.max(0, group.findIndex((x) => x.id === c.id));
+  const cur = group[i] || c;
+  const p = openPopup([cur.lng, cur.lat], `<div class="pp mcam-pp"><div class="pp-title">ภาพกล้อง CCTV</div><div data-mcam-body>${mcamBody(cur, group, i)}</div></div>`);
+  p.on('close', stopMcamTimer);
+  wireMcamImg(p.getElement());
 }
 function refreshSatLayer() {
   const s = state.satFlood;
@@ -811,6 +861,36 @@ const actions = {
     floodPopup(f);
   },
   'point-forecast': ({ lat, lng }) => selectPoint(+lat, +lng),
+  'mcam-open': ({ id }) => {
+    const c = state.mcams?.cams?.find((x) => x.id === id);
+    if (!c) return;
+    $('#panel').dataset.open = 'false';
+    map.flyTo({ center: [c.lng, c.lat], zoom: 16 });
+    mcamPopup(c);
+  },
+  'mcam-step': ({ id, dir }) => {
+    const cams = state.mcams?.cams || [];
+    const c = cams.find((x) => x.id === id);
+    if (!c || !popup) return;
+    const group = sameSpot(cams, c);
+    const i = (group.findIndex((x) => x.id === id) + (+dir || 1) + group.length) % group.length;
+    const el = popup.getElement()?.querySelector('[data-mcam-body]');
+    if (!el) return;
+    el.innerHTML = mcamBody(group[i], group, i);
+    wireMcamImg(popup.getElement());
+  },
+  'mcam-big': ({ id }) => {
+    const c = state.mcams?.cams?.find((x) => x.id === id);
+    if (!c || !isCamId(c.id)) return;
+    const dlg = $('#mcam-dialog');
+    dlg.innerHTML = `<div class="cam-head"><b class="clip">${esc(c.n)}</b><span><button class="btn btn-sm" data-mcam-close>ปิด</button></span></div>
+      <div class="mcam-big"><img data-mcam-img="${esc(c.id)}" src="${mcamSnapUrl(c.id)}" alt="ภาพล่าสุดจากกล้อง ${esc(c.n)}" referrerpolicy="no-referrer" /><p class="mcam-err muted small" hidden>ภาพจากกล้องนี้ไม่พร้อมตอนนี้</p></div>
+      <p class="muted tiny cam-foot">ภาพนิ่งล่าสุด รีเฟรชเองทุก 30 วินาที — ดูเวลาที่พิมพ์บนภาพ · เจ้าของกล้อง: ${esc(c.s || 'ไม่ระบุ')} · รวบรวมโดย <a href="${MAHOLAN}" target="_blank" rel="noopener noreferrer">cctv.maholan.net</a></p>`;
+    dlg.querySelector('[data-mcam-close]').onclick = () => dlg.close();
+    dlg.addEventListener('close', () => { stopMcamTimer(); dlg.innerHTML = ''; }, { once: true });
+    dlg.showModal();
+    wireMcamImg(dlg);
+  },
   'windy-open': ({ id }) => {
     const c = state.windyCams?.cams?.find((x) => x.id === String(id));
     if (!c || !isWindyPlayer(c.day)) return;
@@ -977,6 +1057,7 @@ $('#ly-traffic').addEventListener('change', (e) => {
   const v = e.target.checked ? 'visible' : 'none';
   ['traffic-roads-casing', 'traffic-roads', 'traffic-events'].forEach((l) => map.setLayoutProperty(l, 'visibility', v));
 });
+$('#ly-mcams').addEventListener('change', (e) => map.setLayoutProperty('mcams', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-windy').addEventListener('change', (e) => map.setLayoutProperty('windy', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-sat').addEventListener('change', (e) => map.setLayoutProperty('sat-flood', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-repeat').addEventListener('change', (e) => map.setLayoutProperty('repeat', 'visibility', e.target.checked ? 'visible' : 'none'));
@@ -1156,7 +1237,7 @@ async function main() {
 
   map.on('click', (e) => {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
-    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     if (hit) {
       if (['reports', 'report-lines', 'report-areas'].includes(hit.layer.id)) {
         const r = state.reports.find((x) => x.id === hit.properties.id);
@@ -1173,6 +1254,9 @@ async function main() {
         repeatPopup(hit.properties, e.lngLat);
       } else if (hit.layer.id === 'sat-flood') {
         satPopup(hit.properties, e.lngLat);
+      } else if (hit.layer.id === 'mcams') {
+        const c = state.mcams?.cams?.find((x) => x.id === String(hit.properties.id));
+        if (c) mcamPopup(c);
       } else if (hit.layer.id === 'windy') {
         const c = state.windyCams?.cams?.find((x) => x.id === String(hit.properties.id));
         if (c) windyPopup(c);
@@ -1190,7 +1274,7 @@ async function main() {
     }
     selectPoint(e.lngLat.lat, e.lngLat.lng);
   });
-  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy'].forEach((l) => {
+  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams'].forEach((l) => {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   });
@@ -1229,6 +1313,7 @@ async function main() {
     verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
     loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
+    loadMaholanCams().then((m) => { state.mcams = m; $('#ly-mcams').closest('label').hidden = false; refreshMcamLayer(); emit(); }).catch(() => {});
     loadWindyCams().then((w) => { state.windyCams = w; $('#ly-windy').closest('label').hidden = false; refreshWindyLayer(); emit(); }).catch(() => {});
     loadYtLive().then((y) => { state.ytLive = y; emit(); }).catch(() => {});
     loadSatFlood().then((s) => { state.satFlood = s; $('#ly-sat').closest('label').hidden = false; refreshSatLayer(); emit(); }).catch(() => {});
@@ -1256,6 +1341,7 @@ async function main() {
   refreshRepeatLayer(); // the history may have arrived before the layers existed
   refreshSatLayer();
   refreshWindyLayer();
+  refreshMcamLayer();
   refreshSelectedLayer();
 }
 
