@@ -496,29 +496,55 @@ a.btn.btn-primary { color: #fff; }
 .kpi span { font-size: 12.5px; font-weight: 600; }
 .kpi small { font-size: 11px; color: var(--muted); }
 
-/* route check */
-.rt-dialog { width: min(560px, calc(100vw - 16px)); }
-.rt-body { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 14px 16px; }
-.rt-field { margin: 8px 0; }
-.rt-field > label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-.rt-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
-.rt-row input { flex: 1; min-width: 0; min-height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; font: inherit; }
-.rt-sugg { margin-top: 4px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.rt-route { border: 1px solid var(--line); border-left: 5px solid var(--c); border-radius: 10px; padding: 8px 10px; margin: 8px 0; cursor: pointer; }
-.rt-route.sel { background: #f1f7fb; box-shadow: 0 0 0 2px #1c7fb8 inset; }
-.rt-verdict { display: flex; gap: 6px; align-items: baseline; font-size: 13.5px; margin: 4px 0; }
-.rt-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); display: inline-block; flex: none; }
-.route-bar { position: absolute; z-index: 7; left: 50%; transform: translateX(-50%); top: calc(64px + env(safe-area-inset-top, 0px)); display: flex; gap: 8px; align-items: center; background: #fff; border-radius: 999px; box-shadow: var(--shadow); padding: 6px 8px 6px 6px; max-width: calc(100vw - 24px); border-left: 6px solid var(--c); }
-.route-bar[hidden] { display: none; }
-.route-bar .rb-badge { background: var(--c); color: #fff; border-radius: 999px; padding: 3px 10px; font-weight: 700; font-size: 13px; white-space: nowrap; }
-.route-bar .rb-txt { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (min-width: 900px) { .route-bar { top: 62px; left: calc(50% + 190px); } }
-@media (max-width: 899px) { .route-bar { left: 12px; right: 12px; transform: none; max-width: none; top: calc(62px + env(safe-area-inset-top, 0px)); } .route-bar .rb-txt { flex: 1; } }
-.rt-dialog { width: min(560px, calc(100vw - 16px)); max-width: calc(100vw - 16px); box-sizing: border-box; }
-.rt-body { overflow-x: hidden; }
-.rt-field .rt-row .btn { flex: none; }
-.rt-body .rm-select { max-width: 100%; background: #fff; color: var(--ink); border: 1px solid var(--line); min-height: 40px; }
 
 /* "ถนนที่ฉันใช้" */
 .linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--brand); text-align: left; cursor: pointer; }
 .row-item select { font: inherit; font-size: 12.5px; border: 1px solid var(--line); border-radius: 8px; padding: 2px 4px; background: #fff; }
+
+/* route check (maps-style): top bar + result sheet over the map; the usual panel/search/buttons step aside */
+.rtui[hidden] { display: none; }
+.route-open .topbar, .route-open #search, .route-open #panel, .route-open #bottom-nav, .route-open .fab-col, .route-open #layers-pop, .route-open #banner, .route-open .maplibregl-ctrl-top-right { display: none !important; }
+.rtui { position: fixed; inset: 0; z-index: 9; pointer-events: none; font-size: 14px; }
+.rtu-top { position: absolute; top: calc(8px + env(safe-area-inset-top, 0px)); left: 8px; right: 8px; background: #fff; border-radius: 16px; box-shadow: var(--shadow); padding: 8px; pointer-events: auto; }
+.rtu-row { display: flex; align-items: center; gap: 6px; }
+.rtu-back, .rtu-swap { border: 0; background: transparent; width: 40px; height: 40px; border-radius: 10px; font-size: 20px; color: var(--ink); cursor: pointer; flex: none; }
+.rtu-fields { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.rtu-f { display: flex; align-items: center; gap: 8px; background: #f1f4f7; border-radius: 10px; padding: 0 10px; }
+.rtu-f input { flex: 1; min-width: 0; border: 0; background: transparent; min-height: 40px; font: inherit; outline: none; }
+.rtu-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.rtu-dot.from { background: #2e9e5b; }
+.rtu-dot.to { background: #d7263d; }
+.rtu-sugg { margin-top: 6px; border-top: 1px solid var(--line); max-height: 40vh; overflow-y: auto; }
+.rtu-sugg[hidden] { display: none; }
+.rtu-opt { display: block; width: 100%; text-align: left; border: 0; background: transparent; padding: 10px 12px; font: inherit; cursor: pointer; border-bottom: 1px solid #eef1f4; }
+.rtu-opt:active, .rtu-opt:hover { background: #f1f7fb; }
+.rtu-veh { display: flex; gap: 6px; margin-top: 8px; overflow-x: auto; scrollbar-width: none; }
+.rtu-chip { flex: none; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.rtu-chip.on { background: #1c7fb8; border-color: #1c7fb8; color: #fff; font-weight: 600; }
+.rtu-sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 46vh; overflow-y: auto; background: #fff; border-radius: 18px 18px 0 0; box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.18); padding: 6px 12px calc(14px + env(safe-area-inset-bottom, 0px)); pointer-events: auto; overscroll-behavior: contain; }
+.rtu-grab { width: 40px; height: 4px; border-radius: 4px; background: #cfd6dd; margin: 2px auto 8px; }
+.rtu-msg { padding: 10px 4px; }
+.rtu-card { border: 1px solid var(--line); border-left: 6px solid var(--c); border-radius: 12px; padding: 8px 10px; margin: 8px 0; cursor: pointer; background: #fff; }
+.rtu-card.sel { background: #f1f7fb; box-shadow: 0 0 0 2px #1c7fb8 inset; }
+.rtu-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.rtu-time { font-size: 18px; font-weight: 700; }
+.rtu-badge { margin-left: auto; background: var(--c); color: #fff; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.rtu-sum { font-size: 13px; margin-top: 2px; }
+.rtu-detail { margin-top: 6px; border-top: 1px dashed var(--line); padding-top: 6px; }
+.rtu-credit { margin: 8px 2px 0; }
+.rtu-pick { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(24px + env(safe-area-inset-bottom, 0px)); background: #0b3d5c; color: #fff; border-radius: 999px; padding: 8px 8px 8px 16px; box-shadow: var(--shadow); pointer-events: auto; display: flex; gap: 10px; align-items: center; white-space: nowrap; }
+.rtu-pick[hidden] { display: none; }
+.rtui.picking .rtu-sheet, .rtui.picking .rtu-top { display: none; }
+.rt-pin { border: 2px solid #fff; background: var(--c); color: #fff; border-radius: 999px; padding: 2px 8px; font-weight: 700; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.35); cursor: pointer; line-height: 1.3; }
+.rt-pin small { font-size: 10px; margin-left: 1px; }
+.pair { display: flex; gap: 6px; align-items: center; }
+.pair .row-item { flex: 1; min-width: 0; }
+/* desktop: the route UI takes the place of the left panel, the map stays on the right */
+@media (min-width: 900px) {
+  .rtu-top { left: 0; right: auto; top: 0; width: var(--panel-w); border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--line); padding: 12px; box-sizing: border-box; }
+  .rtu-sheet { left: 0; right: auto; top: 0; bottom: 0; width: var(--panel-w); max-height: none; border-radius: 0; box-shadow: 4px 0 18px rgba(0,0,0,.12); padding-top: 178px; box-sizing: border-box; }
+  .rtu-grab { display: none; }
+  .rtu-sugg { max-height: 50vh; }
+  .rtu-top { z-index: 2; }
+  .rtu-pick { bottom: 24px; left: calc(50% + 200px); }
+}

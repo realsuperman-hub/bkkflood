@@ -108,3 +108,36 @@ export const ROUTE_SUMMARY = [
   'มีช่วงที่เสี่ยง ควรพิจารณาเส้นทางอื่น',
   'มีช่วงที่ผ่านไม่ได้ ควรเลี่ยงเส้นทางนี้',
 ];
+
+// Hand the trip over to Google Maps for turn-by-turn. Two waypoints near 1/3 and 2/3 of the chosen route (only on trips over ~3 km) make Google follow about
+// the same way instead of picking its own — it still snaps them to roads, so the result is "close to", not "identical to", our route.
+export function waypointsOf(coords, parts = 3, minTotalM = 3000) {
+  const seg = [];
+  let total = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const d = lengthM([[coords[i - 1], coords[i]]]);
+    seg.push(d);
+    total += d;
+  }
+  if (total < minTotalM) return [];
+  const out = [];
+  let acc = 0;
+  let k = 1;
+  for (let i = 0; i < seg.length && k < parts; i++) {
+    acc += seg[i];
+    if (acc >= (total * k) / parts) { out.push(coords[i + 1]); k++; }
+  }
+  return out;
+}
+
+export function gmapsUrl(from, to, coords = []) {
+  const p = (x) => `${x.lat.toFixed(5)},${x.lng.toFixed(5)}`;
+  const u = new URL('https://www.google.com/maps/dir/');
+  u.searchParams.set('api', '1');
+  u.searchParams.set('origin', p(from));
+  u.searchParams.set('destination', p(to));
+  u.searchParams.set('travelmode', 'driving');
+  const wp = waypointsOf(coords).map((c) => `${c[1].toFixed(5)},${c[0].toFixed(5)}`);
+  if (wp.length) u.searchParams.set('waypoints', wp.join('|'));
+  return u.toString();
+}

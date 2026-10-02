@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseOsrm, densify, checkRoute, rankRoutes, segVerdict, osrmUrl } from '../src/lib/route-check.js';
+import { parseOsrm, densify, checkRoute, rankRoutes, segVerdict, osrmUrl, gmapsUrl, waypointsOf } from '../src/lib/route-check.js';
 
 // a flooded road along y=13.75 from x=100.600 to 100.606 (~650 m) and a perpendicular one crossing at x=100.603
 const flood = (name, coords, p = {}) => ({ type: 'Feature', geometry: { type: 'MultiLineString', coordinates: [coords] }, properties: { n: name, d: 30, a: 0, s: 0, c: 80, u: 0, v: [2, 2, 1, 0], ...p } });
@@ -47,4 +47,17 @@ test('a route with no flooded roads on it reports nothing', () => {
   const c = checkRoute([far], route, 1);
   assert.equal(c.worst, 0);
   assert.equal(c.groups.length, 0);
+});
+
+test('Google Maps hand-over: origin, destination, driving, and two waypoints only on longer trips', () => {
+  const long = [[100.5, 13.7], [100.55, 13.72], [100.6, 13.74], [100.65, 13.76], [100.7, 13.78]]; // ~25 km
+  const u = new URL(gmapsUrl({ lat: 13.7, lng: 100.5 }, { lat: 13.78, lng: 100.7 }, long));
+  assert.equal(u.origin + u.pathname, 'https://www.google.com/maps/dir/');
+  assert.equal(u.searchParams.get('origin'), '13.70000,100.50000');
+  assert.equal(u.searchParams.get('destination'), '13.78000,100.70000');
+  assert.equal(u.searchParams.get('travelmode'), 'driving');
+  assert.equal(u.searchParams.get('waypoints').split('|').length, 2);
+  const short = [[100.5, 13.7], [100.51, 13.7]]; // ~1 km
+  assert.equal(new URL(gmapsUrl({ lat: 13.7, lng: 100.5 }, { lat: 13.7, lng: 100.51 }, short)).searchParams.has('waypoints'), false);
+  assert.deepEqual(waypointsOf(short), []);
 });

@@ -780,7 +780,7 @@ function searchCard() {
   }
   if (s.places.length) {
     parts.push(`<div class="why">สถานที่ที่พบบนแผนที่ (แตะเพื่อดูพยากรณ์และจุดท่วมรอบๆ)</div><div class="list">${s.places.map((p) => `
-      <button class="row-item" data-act="goto-place" data-lat="${p.lat}" data-lng="${p.lng}"><span class="grow"><b>${esc(p.name)}</b></span><span class="val">ไป ›</span></button>`).join('')}</div>`);
+      <div class="pair"><button class="row-item" data-act="goto-place" data-lat="${p.lat}" data-lng="${p.lng}"><span class="grow"><b>${esc(p.name)}</b></span><span class="val">ไป ›</span></button><button class="btn btn-sm" data-act="route-to" data-lat="${p.lat}" data-lng="${p.lng}" data-label="${esc(p.name)}" aria-label="เส้นทางไป ${esc(p.name)}">🧭 เส้นทาง</button></div>`).join('')}</div>`);
   }
   if (s.roads?.length) {
     parts.push(`<div class="why">ถนนที่มีน้ำท่วม (ประมาณ) — ${s.roads.length} สาย</div><div class="list">${s.roads.map((g) => roadRow(g)).join('')}</div>${roadCreditLine()}`);
