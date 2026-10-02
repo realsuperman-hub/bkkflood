@@ -8,6 +8,7 @@ import { snapUrl as mcamSnapUrl, sameSpot, isCamId, placeLabel } from './lib/mah
 import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
 import { DEPTH_BANDS, CLOSED_COLOR, VERDICT_TH, VERDICT_COLOR, VEHICLES, ROADS_CREDIT, confLabel, depthWord, matchRoads, roadGroup, centroid as roadCentroid } from './lib/road-flood.js';
 import { initRoom, openRoom, refreshRoom } from './ui/room.js';
+import { initRouteLayers, openRoute, routeGo, routeSwap, routeShow, routeClose, clearRoute, routePicking, routePick } from './ui/route.js';
 import { isDhrPage } from './lib/dhr-cams.js';
 import { LEGEND, EV_COLOR, stripHtml, compactHtml, dialogHtml } from './lib/legend.js';
 import { loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
@@ -275,6 +276,7 @@ function initLayers() {
     paint: { 'circle-radius': 9, 'circle-color': '#0b3d5c', 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 },
   });
 
+  initRouteLayers(map);
   map.addSource('draft', { type: 'geojson', data: emptyFC });
   map.addLayer({ id: 'draft-fill', type: 'fill', source: 'draft', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': '#0b6fa8', 'fill-opacity': 0.25 } });
   map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', filter: ['in', ['geometry-type'], ['literal', ['LineString', 'Polygon']]], layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#0b3d5c', 'line-width': 4, 'line-dasharray': [1.5, 1.2] } });
@@ -905,6 +907,13 @@ const actions = {
   },
   'point-forecast': ({ lat, lng }) => selectPoint(+lat, +lng),
   'legend-open': () => openLegend(),
+  'route-open': () => openRoute(),
+  'route-to': ({ lat, lng }) => openRoute({ to: { lat: +lat, lng: +lng, label: 'จุดที่เลือกบนแผนที่' } }),
+  'route-go': () => routeGo(),
+  'route-swap': () => routeSwap(),
+  'route-show': () => routeShow(),
+  'route-close': () => routeClose(),
+  'route-clear': () => clearRoute(),
   'road-open': ({ name }) => {
     const g = roadGroup(state.roadFlood?.features || [], name);
     if (!g) return;
@@ -1305,6 +1314,7 @@ async function main() {
 
   map.on('click', (e) => {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
+    if (routePicking()) return routePick(e.lngLat.lat, e.lngLat.lng);
     const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     // thin road lines are hard to hit exactly: if nothing else is under the finger, look in a small box for a flooded road
     const roadHit = !hit && map.getLayoutProperty('roadflood', 'visibility') !== 'none'

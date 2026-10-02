@@ -454,6 +454,14 @@ const roadRow = (g, extra = '') => `<button class="row-item" data-act="road-open
     <small class="muted">ความเชื่อมั่น ${confLabel(g.conf)} · อัปเดต ${ago(g.upd)}</small></span>
   <span class="val" style="color:${(bandOf(g.maxD) || { color: '#12222e' }).color}">≈${g.maxD}<small> ซม.</small></span></button>`;
 
+// one-tap entry to the route check
+function routeEntryCard() {
+  if (!state.roadFlood?.features) return '';
+  return `<section class="card"><h3>ไปทางนี้ผ่านไหม?</h3>
+    <p class="small">ใส่ต้นทาง-ปลายทาง ระบบหาเส้นทางแล้วบอกว่าผ่านถนนที่น้ำท่วมช่วงไหน ลึกเท่าไร รถของคุณผ่านได้หรือไม่ และเส้นทางไหนท่วมน้อยที่สุด</p>
+    <div class="row wrap"><button class="btn btn-primary" data-act="route-open">🧭 ตรวจเส้นทาง</button></div></section>`;
+}
+
 // The first card of the overview: one sentence + four numbers + where to look first (hot districts and roads), in the spirit of a control-room summary
 function nowSummaryCard() {
   const floods = state.floods || [];
@@ -637,7 +645,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${nowSummaryCard()}${floodsOverviewCard()}${roadsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${nowSummaryCard()}${routeEntryCard()}${floodsOverviewCard()}${roadsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {
@@ -691,9 +699,11 @@ export function forecastTab() {
     <button class="btn btn-sm btn-ghost" data-act="copy-link">คัดลอกลิงก์</button></div>`;
 
   // right under the risk card: the user just tapped this point, so the camera view is one tap away without leaving this tab
+  const routeRow = state.roadFlood?.features ? `<div class="row wrap"><button class="btn" data-act="route-to" data-lat="${f.lat}" data-lng="${f.lng}">🧭 ตรวจเส้นทางไปจุดนี้</button></div>` : '';
   const camRow = camViewerEnabled() ? `<div class="row wrap"><button class="btn btn-primary" data-act="cam-viewer" data-lat="${f.lat}" data-lng="${f.lng}" data-zoom="14">📷 ดูกล้องสดรอบจุดนี้</button></div>` : '';
 
   return `${riskCard(f, title)}
+    ${routeRow}
     ${camRow}
     ${saveCard}
     ${nearCard}
