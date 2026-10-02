@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseOsrm, densify, checkRoute, rankRoutes, segVerdict, osrmUrl, gmapsUrl, waypointsOf } from '../src/lib/route-check.js';
+import { parseOsrm, densify, checkRoute, rankRoutes, segVerdict, osrmUrl, gmapsUrl, waypointsOf, depthVerdict } from '../src/lib/route-check.js';
 
 // a flooded road along y=13.75 from x=100.600 to 100.606 (~650 m) and a perpendicular one crossing at x=100.603
 const flood = (name, coords, p = {}) => ({ type: 'Feature', geometry: { type: 'MultiLineString', coordinates: [coords] }, properties: { n: name, d: 30, a: 0, s: 0, c: 80, u: 0, v: [2, 2, 1, 0], ...p } });
@@ -60,4 +60,50 @@ test('Google Maps hand-over: origin, destination, driving, and two waypoints onl
   const short = [[100.5, 13.7], [100.51, 13.7]]; // ~1 km
   assert.equal(new URL(gmapsUrl({ lat: 13.7, lng: 100.5 }, { lat: 13.7, lng: 100.51 }, short)).searchParams.has('waypoints'), false);
   assert.deepEqual(waypointsOf(short), []);
+});
+
+// POPNIX depth sensors: { c, n, la, ln, cm, lv, k, g, t, s }
+const NOW = Date.parse('2026-10-02T15:10:00Z');
+const sensor = (o = {}) => ({ c: 'S1', n: 'เซ็นเซอร์ตัวอย่าง', d: '', la: 13.75, ln: 100.603, cm: 22, lv: 'flood', k: 1, g: 1, t: NOW - 5 * 60e3, s: null, ...o });
+
+test('depthVerdict: the same depth is worse for a lower vehicle', () => {
+  assert.deepEqual([0, 1, 2, 3].map((v) => depthVerdict(22, v)), [2, 2, 1, 1]);
+  assert.deepEqual([0, 1, 2, 3].map((v) => depthVerdict(3, v)), [0, 0, 0, 0]);
+  assert.equal(depthVerdict(30, 1), 3);
+  assert.equal(depthVerdict(60, 3), 3);
+});
+
+test('a measured sensor on the route counts even where the flood estimate has nothing, and sets the verdict for the vehicle', () => {
+  const c = checkRoute([], route, 1, { sensors: [sensor()], now: NOW });
+  assert.equal(c.groups.length, 0);
+  assert.equal(c.sensors.list.length, 1);
+  assert.equal(c.worst, 2); // 22 cm, sedan
+  assert.equal(checkRoute([], route, 3, { sensors: [sensor()], now: NOW }).worst, 1); // truck: caution
+});
+
+test('sensors off the route (more than 35 m away) are ignored', () => {
+  const c = checkRoute([], route, 1, { sensors: [sensor({ la: 13.7508 })], now: NOW }); // ~90 m north
+  assert.equal(c.sensors.list.length, 0);
+  assert.equal(c.worst, 0);
+});
+
+test('dry and stale sensors never raise the verdict; they are counted so the sheet can say "no value is not dry"', () => {
+  const c = checkRoute([], route, 1, { sensors: [sensor({ cm: 2, lv: 'dry' }), sensor({ c: 'S2', t: NOW - 3 * 3600e3 }), sensor({ c: 'S3', cm: null, lv: 'off' })], now: NOW });
+  assert.equal(c.sensors.list.length, 0);
+  assert.equal(c.sensors.dry, 1);
+  assert.equal(c.sensors.stale, 2);
+  assert.equal(c.worst, 0);
+});
+
+test('the worst of the estimate and the sensors wins, and sensors reorder the ranking', () => {
+  const withSensor = { check: checkRoute([along], route, 1, { sensors: [sensor({ cm: 35 })], now: NOW }), durationS: 600 }; // estimate risky, sensor blocked
+  assert.equal(withSensor.check.worst, 3);
+  const clean = { check: checkRoute([], [[100.598, 13.755], [100.608, 13.755]], 1, { sensors: [sensor()], now: NOW }), durationS: 900 };
+  assert.deepEqual(rankRoutes([withSensor, clean]), [1, 0]);
+});
+
+test('without a sensor list checkRoute behaves as before', () => {
+  const c = checkRoute([along], route, 1);
+  assert.deepEqual(c.sensors, { list: [], worst: 0, dry: 0, stale: 0 });
+  assert.equal(c.worst, 2);
 });

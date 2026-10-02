@@ -9,6 +9,7 @@ import { geocode } from '../lib/search.js';
 import { inBounds } from '../lib/geo.js';
 import { osrmUrl, parseOsrm, checkRoute, rankRoutes, gmapsUrl, ROUTE_SUMMARY } from '../lib/route-check.js';
 import { VERDICT_TH, VERDICT_COLOR, VEHICLES, ROADS_CREDIT, depthWord, centroid } from '../lib/road-flood.js';
+import { POPNIX_CREDIT, depthText } from '../lib/popnix.js';
 
 const $ = (s) => document.querySelector(s);
 const LABEL = ['A', 'B', 'C', 'D'];
@@ -193,10 +194,16 @@ const credit = () => `<p class="muted tiny rtu-credit">ตรวจเฉพา�
 function card(r, i, best) {
   const c = r.check;
   const sel = i === rt.sel;
-  const sum = c.groups.length ? `ผ่านน้ำ <b>${c.groups.length}</b> สาย ราว ${c.floodedM >= 1000 ? fmtKm(c.floodedM) : `${c.floodedM} ม.`} · ลึกสุด ≈ ${Math.max(...c.groups.map((g) => g.maxD))} ซม.` : 'ไม่พบถนนท่วมตามทาง (จากข้อมูลที่มี)';
+  const sn = c.sensors;
+  const snSum = sn.list.length ? ` · เซ็นเซอร์วัดจริง <b>${sn.list.length}</b> จุดพบน้ำ` : '';
+  const sum = (c.groups.length ? `ผ่านน้ำ <b>${c.groups.length}</b> สาย ราว ${c.floodedM >= 1000 ? fmtKm(c.floodedM) : `${c.floodedM} ม.`} · ลึกสุด ≈ ${Math.max(...c.groups.map((g) => g.maxD))} ซม.` : (sn.list.length ? 'ไม่พบถนนท่วมในข้อมูลค่าประมาณ' : 'ไม่พบถนนท่วมตามทาง (จากข้อมูลที่มี)')) + snSum;
+  const sensorBlock = sn.list.length || sn.dry || sn.stale
+    ? `<div class="why">เซ็นเซอร์วัดน้ำจริงตามเส้นทาง</div>${sn.list.length ? `<div class="list">${sn.list.slice(0, 6).map((x) => `<div class="row-item static"><span class="dot" style="background:${VERDICT_COLOR[x.verdict]}"></span><span class="grow"><b>${esc(x.n)}</b><small>วัดได้ ${depthText(x)}${x.g === 2 && x.cm >= 20 ? ' (เซ็นเซอร์วัดได้สูงสุดเท่านี้ อาจลึกกว่า)' : ''} · ${VEHICLES[rt.veh]}: ${VERDICT_TH[x.verdict]}</small></span></div>`).join('')}</div>` : ''}<p class="muted tiny">${sn.dry ? `ผ่านเซ็นเซอร์ที่ไม่พบน้ำ ${sn.dry} จุด · ` : ''}${sn.stale ? `เซ็นเซอร์ ${sn.stale} จุดบนทางนี้ไม่มีค่าล่าสุด (ไม่ได้แปลว่าแห้ง) · ` : ''}เซ็นเซอร์วัดเฉพาะจุดที่ติดตั้ง · ${esc(POPNIX_CREDIT.text)} (<a href="${POPNIX_CREDIT.url}" target="_blank" rel="noopener noreferrer">flood.pop.in.th</a>)</p>`
+    : '';
   const detail = sel ? `<div class="rtu-detail">
       <p class="small">${ROUTE_SUMMARY[c.worst]}</p>
       ${c.groups.length ? `<div class="list">${c.groups.slice(0, 8).map((g) => `<div class="row-item static"><span class="dot" style="background:${VERDICT_COLOR[g.worst]}"></span><span class="grow"><b>${esc(g.name)}${g.closed ? ' <span class="tag warn">ปิด</span>' : ''}</b><small>ลึกสุด ≈ ${g.maxD} ซม.${depthWord(g.maxD) ? ` (${depthWord(g.maxD)})` : ''} · ผ่านราว ${g.onM} ม. · ${VEHICLES[rt.veh]}: ${VERDICT_TH[g.worst]}</small></span></div>`).join('')}</div>${c.groups.length > 8 ? `<p class="muted tiny">และอีก ${c.groups.length - 8} สาย</p>` : ''}` : ''}
+      ${sensorBlock}
       <div class="row wrap"><a class="btn btn-primary btn-sm" href="${esc(gmapsUrl(rt.from, rt.to, r.coords))}" target="_blank" rel="noopener noreferrer">เปิดใน Google Maps ↗</a><button class="btn btn-sm" data-rtu="fit">ดูทั้งเส้นทาง</button></div>
       <p class="muted tiny">Google Maps จะคำนวณเส้นทางเอง (ผมใส่จุดกลางทางให้ใกล้เส้นทางนี้) — ตรวจชื่อถนนอีกครั้งก่อนออกเดินทาง</p>
     </div>` : '';
@@ -325,7 +332,7 @@ async function run(force = false) {
     const routes = parseOsrm(await res.json());
     state.routeSvc = { ok: true, at: Date.now() };
     if (id !== runId) return; // the user changed an end meanwhile
-    rt.routes = routes.slice(0, 4).map((r) => ({ ...r, check: checkRoute(state.roadFlood.features, r.coords, rt.veh) }));
+    rt.routes = routes.slice(0, 4).map((r) => ({ ...r, check: checkRoute(state.roadFlood.features, r.coords, rt.veh, { sensors: state.popnix?.roads || null }) }));
     rt.sel = rankRoutes(rt.routes)[0];
     rt.status = 'done';
     lastKey = key;
@@ -343,7 +350,7 @@ async function run(force = false) {
 
 function recheck() {
   if (!rt.routes.length || !state.roadFlood?.features) return;
-  rt.routes = rt.routes.map((r) => ({ ...r, check: checkRoute(state.roadFlood.features, r.coords, rt.veh) }));
+  rt.routes = rt.routes.map((r) => ({ ...r, check: checkRoute(state.roadFlood.features, r.coords, rt.veh, { sensors: state.popnix?.roads || null }) }));
   rt.sel = rankRoutes(rt.routes)[0];
   draw();
   renderSheet();

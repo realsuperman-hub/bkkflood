@@ -3,6 +3,7 @@
 // the worst pass/caution/risky/blocked verdict, and ranks alternatives by it. Only roads present in the flood data are known: "nothing found" never means
 // "dry". DOM-free.
 import { lengthM } from './road-flood.js';
+import { roadCurrent } from './popnix.js';
 
 export const OSRM = 'https://router.project-osrm.org/route/v1/driving';
 export const osrmUrl = (from, to) =>
@@ -52,6 +53,14 @@ const nearGrid = (g, x, y, tolM) => {
   return false;
 };
 
+// Verdict (0 pass · 1 caution · 2 risky · 3 blocked) from a MEASURED depth in cm, per vehicle (index as VEHICLES: motorbike, sedan, pickup, truck).
+// Rule-of-thumb thresholds [caution, risky, blocked] — a guide for a decision, not a guarantee: moving water, potholes and a low exhaust change everything.
+export const DEPTH_LIMITS = [[5, 15, 25], [10, 20, 30], [15, 30, 45], [20, 40, 60]];
+export const depthVerdict = (cm, veh = 1) => {
+  const t = DEPTH_LIMITS[veh] || DEPTH_LIMITS[1];
+  return cm >= t[2] ? 3 : cm >= t[1] ? 2 : cm >= t[0] ? 1 : 0;
+};
+
 // the verdict of one segment for a vehicle (0 pass … 3 blocked); a closed road blocks everything it is closed to
 export function segVerdict(p, veh) {
   if (p.a) return 3;
@@ -60,7 +69,7 @@ export function segVerdict(p, veh) {
 }
 
 // → { worst, floodedM, groups:[{ name, maxD, onM, worst, closed }], hits:[feature…] }
-export function checkRoute(features, coords, veh = 1, { tolM = 22, minOnM = 60 } = {}) {
+export function checkRoute(features, coords, veh = 1, { tolM = 22, minOnM = 60, sensors = null, now = Date.now() } = {}) {
   const pts = densify(coords, 12);
   const grid = gridOf(pts);
   const bb = pts.reduce((b, p) => [Math.min(b[0], p[0]), Math.min(b[1], p[1]), Math.max(b[2], p[0]), Math.max(b[3], p[1])], [180, 90, -180, -90]);
@@ -94,7 +103,23 @@ export function checkRoute(features, coords, veh = 1, { tolM = 22, minOnM = 60 }
     byName.set(name, g);
   }
   const groups = [...byName.values()].map((g) => ({ ...g, onM: Math.round(g.onM / 10) * 10 })).sort((a, b) => b.worst - a.worst || b.maxD - a.maxD || b.onM - a.onM);
-  return { worst: groups.reduce((m, g) => Math.max(m, g.worst), 0), floodedM: groups.reduce((s, g) => s + g.onM, 0), groups, hits };
+  const sens = sensors ? checkSensors(sensors, grid, veh, now) : { list: [], worst: 0, dry: 0, stale: 0 };
+  return { worst: Math.max(groups.reduce((m, g) => Math.max(m, g.worst), 0), sens.worst), floodedM: groups.reduce((s, g) => s + g.onM, 0), groups, hits, sensors: sens };
+}
+
+// POPNIX depth sensors sitting on the route (≤ sensorTolM from it): measured, so they count even where the Floodboard estimate has nothing.
+// → { list:[{ …sensor, verdict }] flooded/slight ones, deepest first, worst, dry: sensors with a current reading of no water, stale: sensors without a current reading }
+export function checkSensors(sensors, grid, veh, now = Date.now(), sensorTolM = 35) {
+  const list = [];
+  let dry = 0, stale = 0;
+  for (const r of sensors) {
+    if (!nearGrid(grid, r.ln, r.la, sensorTolM)) continue;
+    if (!roadCurrent(r, now)) { stale++; continue; }
+    if (r.lv === 'dry') { dry++; continue; }
+    list.push({ ...r, verdict: depthVerdict(r.cm, veh) });
+  }
+  list.sort((a, b) => b.verdict - a.verdict || b.cm - a.cm);
+  return { list, worst: list.reduce((m, r) => Math.max(m, r.verdict), 0), dry, stale };
 }
 
 // best first: least bad verdict, then least flooded length, then quickest
