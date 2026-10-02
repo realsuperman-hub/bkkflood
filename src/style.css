@@ -63,6 +63,7 @@ p { margin: 6px 0; }
 .lg { display: flex; align-items: center; gap: 8px; font-size: 13.5px; padding: 1px 0; }
 .lg i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #9aa6b2; display: inline-block; }
 .lg i.pin { border-radius: 50% 50% 50% 0; transform: rotate(-45deg) scale(0.85); }
+.lg i.sq { border-radius: 3px; }
 
 .banner {
   position: absolute; z-index: 4; top: calc(56px + env(safe-area-inset-top, 0px)); left: 12px; right: 64px; max-width: 520px; background: #fff3cd;

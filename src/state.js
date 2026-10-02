@@ -19,6 +19,7 @@ const loadSaved = () => {
 };
 
 export const state = {
+  popnix: null, // measured road-depth sensors + canal gauges (POPNIX Flood open API)
   store: null,
   map: null,
   stations: [],

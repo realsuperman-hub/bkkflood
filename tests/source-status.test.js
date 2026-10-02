@@ -17,6 +17,7 @@ const fresh = () => ({
   traffic: { eventsAt: ago(10 * MIN), roadsAt: ago(10 * MIN), camerasAt: ago(6 * H), dds: { reportDate: '2026-10-01' } },
   dams: { date: '2026-10-02' }, satFlood: { lastPass: '2026-09-29' }, news: { generatedAt: ago(H) },
   mcams: { generatedAt: ago(5 * H) }, mcamAi: { generatedAt: ago(30 * MIN) },
+  popnix: { generatedAt: ago(10 * MIN), roads: [{ t: ago(8 * MIN) }], upstream: {} },
 });
 const by = (list) => Object.fromEntries(list.map((x) => [x.id, x.level]));
 
@@ -101,4 +102,15 @@ test('the BMA camera list goes slow, then old, when its source stops answering (
   assert.equal(by(sourceStatuses(s, NOW)).bmacams, SLOW);
   s.traffic.camerasAt = ago(4 * D);
   assert.equal(by(sourceStatuses(s, NOW)).bmacams, OLD);
+});
+
+test('POPNIX sensors: stale snapshot, quiet sensors behind a fresh copy, and a failing upstream each show', () => {
+  const s = fresh();
+  assert.equal(by(sourceStatuses(s, NOW)).popnix, OK);
+  s.popnix.roads = [{ t: ago(5 * H) }];
+  assert.equal(by(sourceStatuses(s, NOW)).popnix, SLOW);
+  s.popnix = { generatedAt: ago(10 * MIN), roads: [{ t: ago(5 * MIN) }], upstream: { roadsFailing: true } };
+  assert.equal(by(sourceStatuses(s, NOW)).popnix, SLOW);
+  s.popnix = { generatedAt: ago(4 * H), roads: [{ t: ago(5 * MIN) }], upstream: {} };
+  assert.equal(by(sourceStatuses(s, NOW)).popnix, OLD);
 });

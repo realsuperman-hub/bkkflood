@@ -7,6 +7,7 @@ import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
 import { snapUrl as mcamSnapUrl, sameSpot, isCamId, placeLabel } from './lib/maholan-cams.js';
 import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
 import { MAX_ROADS, DEFAULT_MIN } from './lib/notify-roads.js';
+import { POPNIX_CREDIT, ROAD_LEVEL, CANAL_LEVEL, roadLevel, canalLevel, depthText } from './lib/popnix.js';
 import { DEPTH_BANDS, CLOSED_COLOR, VERDICT_TH, VERDICT_COLOR, VEHICLES, ROADS_CREDIT, confLabel, depthWord, matchRoads, roadGroup, centroid as roadCentroid } from './lib/road-flood.js';
 import { initRoom, openRoom, refreshRoom } from './ui/room.js';
 import { statusList } from './ui/panel.js';
@@ -14,7 +15,7 @@ import { OK, SLOW, OLD, MISSING, LOADING } from './lib/source-status.js';
 import { initRouteLayers, openRoute, clearRoute, routePicking, routePick, routeHit } from './ui/route.js';
 import { isDhrPage } from './lib/dhr-cams.js';
 import { LEGEND, EV_COLOR, stripHtml, compactHtml, dialogHtml } from './lib/legend.js';
-import { loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { loadPopnix, loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -166,6 +167,17 @@ function initLayers() {
       'line-opacity': ['interpolate', ['linear'], ['get', 'c'], 0, 0.5, 100, 1],
       'line-width': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 13, 5, 16, 11],
     },
+  });
+  // measured sensors (POPNIX Flood open API): road/tunnel depth sensors, and canal gauges (off by default)
+  map.addSource('canals', { type: 'geojson', data: emptyFC });
+  map.addLayer({
+    id: 'canals', type: 'circle', source: 'canals', minzoom: 10, layout: { visibility: 'none' },
+    paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 16, 8], 'circle-color': ['get', 'color'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.5, 'circle-opacity': ['case', ['get', 'stale'], 0.5, 0.95] },
+  });
+  map.addSource('sensors', { type: 'geojson', data: emptyFC });
+  map.addLayer({
+    id: 'sensors', type: 'circle', source: 'sensors', minzoom: 10,
+    paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, ['case', ['get', 'flood'], 5, 3.5], 16, ['case', ['get', 'flood'], 11, 7]], 'circle-color': ['get', 'color'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2, 'circle-opacity': ['case', ['get', 'stale'], 0.5, 0.95] },
   });
   map.addSource('repeat', { type: 'geojson', data: emptyFC });
   map.addLayer({
@@ -325,6 +337,42 @@ function refreshRoadFloodLayer() {
   const r = state.roadFlood;
   if (!r?.features) return;
   map?.getSource('roadflood')?.setData({ type: 'FeatureCollection', features: r.features });
+}
+function refreshPopnixLayers() {
+  const p = state.popnix;
+  if (!p || !map) return;
+  const now = Date.now();
+  map.getSource('sensors')?.setData({
+    type: 'FeatureCollection',
+    features: p.roads.map((r) => {
+      const lv = roadLevel(r, now);
+      return { type: 'Feature', geometry: { type: 'Point', coordinates: [r.ln, r.la] }, properties: { id: r.c, color: ROAD_LEVEL[lv].color, flood: lv === 'flood', stale: lv === 'stale' } };
+    }),
+  });
+  map.getSource('canals')?.setData({
+    type: 'FeatureCollection',
+    features: p.canals.map((c) => {
+      const lv = canalLevel(c, now);
+      return { type: 'Feature', geometry: { type: 'Point', coordinates: [c.ln, c.la] }, properties: { id: String(c.id), color: CANAL_LEVEL[lv].color, stale: lv === 'stale' } };
+    }),
+  });
+}
+const popnixCredit = () => `<p class="muted tiny">${esc(POPNIX_CREDIT.text)} — <a href="${POPNIX_CREDIT.url}" target="_blank" rel="noopener noreferrer">flood.pop.in.th</a> · ไม่ใช่ประกาศเตือนภัยทางการ ค่านี้เป็นของจุดที่ติดตั้งเท่านั้น</p>`;
+function sensorPopup(r) {
+  const lv = roadLevel(r);
+  const cur = lv !== 'stale';
+  openPopup([r.ln, r.la], `<div class="pp"><div class="pp-title">${esc(r.n)}</div><div class="muted small">${r.k === 2 ? 'อุโมงค์/ทางลอด' : 'ถนน'}${r.d ? ` · เขต${esc(r.d)}` : ''}</div>
+    <p class="small">${cur ? `<span class="tag" style="background:${ROAD_LEVEL[lv].color};color:#fff">${ROAD_LEVEL[lv].label}</span> ความลึกที่เซ็นเซอร์ <b>${depthText(r)}</b>${depthWord(r.cm) ? ` (${depthWord(r.cm)})` : ''}${lv === 'flood' && r.s ? `<br>มีน้ำตั้งแต่ ${fmtTime(r.s)} น.` : ''}` : '<b>ไม่มีค่าล่าสุดจากเซ็นเซอร์นี้</b> (ขัดข้อง ปิดปรับปรุง หรือไม่ส่งค่าเกิน 45 นาที) — ไม่ได้แปลว่าแห้ง'}</p>
+    <p class="muted tiny">${r.t ? `วัดเมื่อ ${fmtTime(r.t)} น. (${ago(r.t)})` : ''}</p>${popnixCredit()}
+    <button class="btn btn-sm btn-primary" data-act="point-forecast" data-lat="${r.la}" data-lng="${r.ln}">ดูพยากรณ์ตรงนี้</button></div>`);
+}
+function canalPopup(c) {
+  const lv = canalLevel(c);
+  const cur = lv !== 'stale';
+  const tr = { up: 'กำลังขึ้น', down: 'กำลังลด', flat: 'ทรงตัว' }[c.tr] || '';
+  openPopup([c.ln, c.la], `<div class="pp"><div class="pp-title">${esc(c.n)}</div><div class="muted small">${esc(c.r)}</div>
+    <p class="small">${cur ? `<span class="tag" style="background:${CANAL_LEVEL[lv].color};color:#fff">${CANAL_LEVEL[lv].label}</span> ระดับน้ำ <b>${c.wl} ม.รทก.</b>${tr ? ` · ${tr}` : ''}` : '<b>ไม่มีค่าล่าสุดจากสถานีนี้</b> (ไม่ส่งค่าเกิน 45 นาที หรือออฟไลน์)'}</p>
+    <p class="muted tiny">เกณฑ์ที่ กทม. ตั้งไว้: เฝ้าระวัง ${c.warn ?? '—'} · วิกฤต ${c.crit ?? '—'} · ตลิ่ง ${c.bank ?? '—'} (ม.รทก.) — เป็นระดับน้ำเหนือทะเลปานกลาง ไม่ใช่ความลึก${c.t ? ` · วัดเมื่อ ${fmtTime(c.t)} น. (${ago(c.t)})` : ''}</p>${popnixCredit()}</div>`);
 }
 const following = (name) => state.myRoads.some((r) => r.name === name);
 const followRow = (name) => `<div class="row wrap">${following(name) ? `<span class="small">🔔 ติดตามถนนนี้อยู่ (ดู/ตั้งค่าที่หน้า “สถานการณ์”)</span>` : `<button class="btn btn-sm" data-act="road-follow" data-name="${esc(name)}">🔔 แจ้งเตือนถนนนี้</button>`}</div>`;
@@ -962,6 +1010,21 @@ const actions = {
     if (nq.length < 2) toast('พิมพ์ชื่อถนนอย่างน้อย 2 ตัวอักษร');
     emit();
   },
+  'sensor-open': ({ c }) => {
+    const r = state.popnix?.roads.find((x) => x.c === c);
+    if (!r) return;
+    $('#panel').dataset.open = 'false';
+    map.flyTo({ center: [r.ln, r.la], zoom: 16 });
+    sensorPopup(r);
+  },
+  'canal-open': ({ id }) => {
+    const c = state.popnix?.canals.find((x) => String(x.id) === id);
+    if (!c) return;
+    $('#panel').dataset.open = 'false';
+    if (!$('#ly-canals').checked) { $('#ly-canals').checked = true; map.setLayoutProperty('canals', 'visibility', 'visible'); }
+    map.flyTo({ center: [c.ln, c.la], zoom: 16 });
+    canalPopup(c);
+  },
   'road-open': ({ name }) => {
     const g = roadGroup(state.roadFlood?.features || [], name);
     if (!g) return;
@@ -1190,6 +1253,8 @@ $('#layers-pop').addEventListener('change', renderLegend);
 initRoom({ showOnMap: (id) => actions['mcam-open']({ id }), toast, openLongdo: camViewerEnabled() ? openLongdoHere : null });
 $('#btn-room').addEventListener('click', openCameras);
 $('#btn-route').addEventListener('click', () => openRoute());
+$('#ly-sensors').addEventListener('change', (e) => map.setLayoutProperty('sensors', 'visibility', e.target.checked ? 'visible' : 'none'));
+$('#ly-canals').addEventListener('change', (e) => map.setLayoutProperty('canals', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-roadflood').addEventListener('change', (e) => ['roadflood-casing', 'roadflood'].forEach((l) => map.setLayoutProperty(l, 'visibility', e.target.checked ? 'visible' : 'none')));
 $('#ly-mcams').addEventListener('change', (e) => map.setLayoutProperty('mcams', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-windy').addEventListener('change', (e) => map.setLayoutProperty('windy', 'visibility', e.target.checked ? 'visible' : 'none'));
@@ -1394,7 +1459,7 @@ async function main() {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
     if (routePicking()) return routePick(e.lngLat.lat, e.lngLat.lng);
     if (routeHit(e.point)) return;
-    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood', 'sensors', 'canals'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     // thin road lines are hard to hit exactly: if nothing else is under the finger, look in a small box for a flooded road
     const roadHit = !hit && map.getLayoutProperty('roadflood', 'visibility') !== 'none'
       ? map.queryRenderedFeatures([[e.point.x - 9, e.point.y - 9], [e.point.x + 9, e.point.y + 9]], { layers: ['roadflood'] })[0]
@@ -1423,6 +1488,12 @@ async function main() {
       } else if (hit.layer.id === 'windy') {
         const c = state.windyCams?.cams?.find((x) => x.id === String(hit.properties.id));
         if (c) windyPopup(c);
+      } else if (hit.layer.id === 'sensors') {
+        const r = state.popnix?.roads.find((x) => x.c === String(hit.properties.id));
+        if (r) sensorPopup(r);
+      } else if (hit.layer.id === 'canals') {
+        const c = state.popnix?.canals.find((x) => String(x.id) === String(hit.properties.id));
+        if (c) canalPopup(c);
       } else if (hit.layer.id === 'rainobs') {
         const g = state.rainObs.find((x) => String(x.id) === String(hit.properties.id));
         if (g) rainPopup(g);
@@ -1437,7 +1508,7 @@ async function main() {
     }
     selectPoint(e.lngLat.lat, e.lngLat.lng);
   });
-  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood'].forEach((l) => {
+  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood', 'sensors', 'canals'].forEach((l) => {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   });
@@ -1495,6 +1566,16 @@ async function main() {
     }).catch(() => {});
     reloadRoads();
     setInterval(reloadRoads, 5 * 60 * 1000);
+    const reloadPopnix = () => loadPopnix().then((p) => {
+      if (!Array.isArray(p?.roads) || !Array.isArray(p?.canals)) return;
+      state.popnix = p;
+      $('#ly-sensors').closest('label').hidden = false;
+      $('#ly-canals').closest('label').hidden = false;
+      refreshPopnixLayers();
+      emit();
+    }).catch(() => {});
+    reloadPopnix();
+    setInterval(reloadPopnix, 5 * 60 * 1000);
     loadMaholanCams().then((m) => { state.mcams = m; $('#ly-mcams').closest('label').hidden = false; $('#btn-room').hidden = false; refreshMcamLayer(); refreshRoom(); emit(); }).catch(() => {});
     const reloadAi = () => loadMaholanAi().then((a) => { state.mcamAi = a; refreshMcamLayer(); refreshRoom(); }).catch(() => {});
     reloadAi();
@@ -1528,6 +1609,7 @@ async function main() {
   refreshWindyLayer();
   refreshMcamLayer();
   refreshRoadFloodLayer();
+  refreshPopnixLayers();
   refreshSelectedLayer();
 }
 

@@ -6,6 +6,7 @@ import { SEVERITY } from './traffy.js';
 import { SPEED_LEVEL } from './bma-traffic.js';
 import { esc } from './util.js';
 import { DEPTH_BANDS, CLOSED_COLOR } from './road-flood.js';
+import { ROAD_LEVEL, CANAL_LEVEL } from './popnix.js';
 
 export const EV_COLOR = { flood: '#0b6fa8', accident: '#f28c28', fire: '#d7263d', closed: '#12222e', other: '#5b6876' };
 
@@ -19,6 +20,16 @@ export const LEGEND = [
       { shape: 'ln', color: CLOSED_COLOR, label: 'ปิดการจราจร' },
     ],
     note: 'ค่าประมาณจาก Floodboard (CC BY 4.0) ที่รวมเซ็นเซอร์ กทม. Traffy ข่าว โซเชียล · เส้นจางลง = ความเชื่อมั่นต่ำ · กดเส้นเพื่อดูว่ารถแต่ละแบบผ่านได้ไหม',
+  },
+  {
+    id: 'sensors', ly: 'ly-sensors', title: 'เซ็นเซอร์น้ำท่วมถนน กทม. (วัดจริง)',
+    items: ['flood', 'slight', 'dry', 'stale'].map((k) => dot(ROAD_LEVEL[k].color, ROAD_LEVEL[k].label)),
+    note: 'วัดเฉพาะจุดที่ติดตั้ง ถนนช่วงอื่นอาจลึกหรือตื้นกว่า · วงเทา = ไม่มีค่าใน 45 นาทีล่าสุด ไม่ได้แปลว่าแห้ง · ข้อมูลของ สนน. ผ่าน POPNIX Flood',
+  },
+  {
+    id: 'canals', ly: 'ly-canals', title: 'ระดับน้ำในคลอง กทม. (วัดจริง)',
+    items: ['crit', 'warn', 'ok', 'stale'].map((k) => ({ shape: 'sq', color: CANAL_LEVEL[k].color, label: CANAL_LEVEL[k].label })),
+    note: 'เทียบกับระดับเฝ้าระวัง/วิกฤตที่ กทม. ตั้งไว้ ไม่ใช่การเตือนภัยทางการ · สถานีที่ไม่ส่งค่าจะเป็นสีเทา',
   },
   {
     id: 'floods', ly: 'ly-floods', title: 'จุดน้ำท่วมที่ประชาชนแจ้ง กทม.',

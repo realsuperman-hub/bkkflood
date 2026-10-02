@@ -14,7 +14,8 @@ import { placeLabel } from '../lib/maholan-cams.js';
 import { THRESHOLDS, MAX_ROADS } from '../lib/notify-roads.js';
 import { sourceStatuses, overallStatus } from '../lib/source-status.js';
 import { DEPTH_BANDS, VERDICT_TH, VERDICT_COLOR, ROADS_CREDIT, confLabel, depthWord, summarizeRoads, nearRoads, roadGroup, bandOf } from '../lib/road-flood.js';
-import { distKm } from '../lib/geo.js';
+import { distKm, inCore } from '../lib/geo.js';
+import { POPNIX_CREDIT, ROAD_LEVEL, CANAL_LEVEL, roadLevel, canalLevel, depthText, nearby, summarize } from '../lib/popnix.js';
 import { validQuery } from '../lib/search.js';
 import { platform } from '../lib/push.js';
 import { intensity1h, intensity24h } from '../lib/rain-obs.js';
@@ -580,6 +581,46 @@ function roadsNearCard(f) {
     <div class="list">${near.map((g) => roadRow(g, ` · ห่าง ~${g.m} ม.`)).join('')}</div>${roadCreditLine()}</section>`;
 }
 
+// ───── measured sensors in Bangkok (POPNIX Flood open API; the readings are the Drainage and Sewerage Dept's) ─────
+const popnixCreditLine = () => `<p class="muted tiny">${esc(POPNIX_CREDIT.text)} — <a href="${POPNIX_CREDIT.url}" target="_blank" rel="noopener noreferrer">flood.pop.in.th</a> · ไม่ใช่ประกาศเตือนภัยทางการ · ค่าเป็นของจุดที่ติดตั้งเท่านั้น ถนนหรือคลองช่วงอื่นอาจลึกหรือตื้นกว่า</p>`;
+const sensorRow = (r, extra = '') => `<button class="row-item" data-act="sensor-open" data-c="${esc(r.c)}"><span class="dot" style="background:${ROAD_LEVEL[roadLevel(r)].color}"></span>
+  <span class="grow"><b>${esc(r.n)}</b><small>${r.k === 2 ? 'อุโมงค์/ทางลอด · ' : ''}${r.d ? `เขต${esc(r.d)} · ` : ''}วัดเมื่อ ${r.t ? ago(r.t) : '—'}${extra}</small></span>
+  <span class="val" style="color:${ROAD_LEVEL[roadLevel(r)].color}">${roadLevel(r) === 'stale' ? '—' : depthText(r)}</span></button>`;
+const canalRow = (c, extra = '') => `<button class="row-item" data-act="canal-open" data-id="${esc(String(c.id))}"><span class="dot" style="background:${CANAL_LEVEL[canalLevel(c)].color}"></span>
+  <span class="grow"><b>${esc(c.n)}</b><small>${esc(c.r)} · ${canalLevel(c) === 'stale' ? 'ไม่มีค่าล่าสุด' : `${CANAL_LEVEL[canalLevel(c)].label}${c.tr === 'up' ? ' · กำลังขึ้น' : c.tr === 'down' ? ' · กำลังลด' : ''}`}${extra}</small></span>
+  <span class="val">${canalLevel(c) === 'stale' ? '—' : `${c.wl} ม.`}</span></button>`;
+
+function popnixOverviewCard() {
+  const p = state.popnix;
+  if (!p) return '';
+  const sm = summarize(p.roads, p.canals);
+  const stale = Date.now() - (p.generatedAt || 0) > 90 * 60e3;
+  const fl = sm.roads.flooded;
+  return `<section class="card${fl.some((r) => r.cm >= 20) ? ' alert' : ''}"><h3>เซ็นเซอร์น้ำท่วมถนนและคลอง กทม. (วัดจริง)</h3>
+    ${fl.length ? `<p class="alert-line">เซ็นเซอร์ถนน <b>${fl.length}</b> จุดวัดน้ำได้เกิน 10 ซม. · ลึกสุด <b>${depthText(fl[0])}</b> ที่ ${esc(fl[0].n)}</p>` : `<p class="small">ตอนนี้ไม่มีเซ็นเซอร์ถนนจุดใดวัดน้ำได้เกิน 10 ซม. (จาก <b>${sm.roads.current}</b> จุดที่ส่งค่าล่าสุด) — <b>ไม่ได้แปลว่าถนนที่ไม่มีเซ็นเซอร์แห้ง</b></p>`}
+    ${stale ? `<p class="note">ข้อมูลชุดนี้อายุ ${ago(p.generatedAt)} — อาจไม่ตรงปัจจุบัน</p>` : ''}
+    ${fl.length ? `<div class="list">${fl.slice(0, 5).map((r) => sensorRow(r)).join('')}</div>${fl.length > 5 ? `<details class="fold"><summary>ดูอีก ${fl.length - 5} จุด</summary><div class="list">${fl.slice(5).map((r) => sensorRow(r)).join('')}</div></details>` : ''}` : ''}
+    <div class="why">ระดับน้ำในคลอง (เทียบเกณฑ์ที่ กทม. ตั้งไว้)</div>
+    <p class="small">ถึงระดับวิกฤต <b>${sm.canals.crit}</b> · เกินระดับเฝ้าระวัง <b>${sm.canals.warn}</b> สถานี จาก ${sm.canals.current} สถานีที่ส่งค่าล่าสุด (ทั้งหมด ${sm.canals.total})</p>
+    ${sm.canals.worst.length ? `<details class="fold"><summary>ดูสถานีที่เกินเกณฑ์ (${sm.canals.worst.length})</summary><div class="list">${sm.canals.worst.slice(0, 15).map((c) => canalRow(c)).join('')}</div></details>` : ''}
+    ${popnixCreditLine()}</section>`;
+}
+
+// the selected point (inside Bangkok): measured sensors close by — or an honest "none here"
+function popnixNearCard(f) {
+  const p = state.popnix;
+  if (!p || !inCore(f.lat, f.lng)) return '';
+  const roads = nearby(p.roads, f.lat, f.lng, 1.5).slice(0, 3);
+  const canals = nearby(p.canals, f.lat, f.lng, 2).slice(0, 2);
+  if (!roads.length && !canals.length) {
+    return `<section class="card"><h3>เซ็นเซอร์วัดน้ำรอบจุดนี้</h3><p class="small">ไม่มีเซ็นเซอร์ถนนหรือคลองของ กทม. ในรัศมี 1.5 กม. — <b>ไม่ได้แปลว่าไม่มีน้ำ</b> แค่ไม่มีจุดวัด</p>${popnixCreditLine()}</section>`;
+  }
+  return `<section class="card"><h3>เซ็นเซอร์วัดน้ำรอบจุดนี้ (วัดจริง)</h3>
+    ${roads.length ? `<div class="why">ถนน/อุโมงค์ (ภายใน 1.5 กม.)</div><div class="list">${roads.map((r) => sensorRow(r, ` · ห่าง ${r.km.toFixed(1)} กม.`)).join('')}</div>` : ''}
+    ${canals.length ? `<div class="why">คลอง (ภายใน 2 กม.)</div><div class="list">${canals.map((c) => canalRow(c, ` · ห่าง ${c.km.toFixed(1)} กม.`)).join('')}</div>` : ''}
+    ${popnixCreditLine()}</section>`;
+}
+
 function floodsOverviewCard() {
   if (!state.floods.length) return state.floodsError ? `<section class="card">${floodsSourceNote()}</section>` : skeleton('กำลังโหลดจุดน้ำท่วมจาก กทม.…');
   const top = districtStats().slice(0, 6);
@@ -695,7 +736,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${statusLine()}${nowSummaryCard()}${routeEntryCard()}${myRoadsCard()}${floodsOverviewCard()}${roadsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${statusLine()}${nowSummaryCard()}${routeEntryCard()}${myRoadsCard()}${floodsOverviewCard()}${roadsOverviewCard()}${popnixOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {
@@ -758,6 +799,7 @@ export function forecastTab() {
     ${saveCard}
     ${nearCard}
     ${roadsNearCard(f)}
+    ${popnixNearCard(f)}
     ${repeatHistoryCard(f)}
     ${camerasNearCard(f)}
     ${rainNearCard(f)}

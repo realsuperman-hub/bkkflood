@@ -59,6 +59,17 @@ export function sourceStatuses(s, now = Date.now(), { loading = false } = {}) {
     add('roads', 'core', 'ระดับน้ำบนถนน', 'ตรวจเส้นทาง · แจ้งเตือนถนน · เลเยอร์ระดับน้ำบนถนน', r, note);
   }
   {
+    const p = s.popnix;
+    let r = miss(!p) || judge(p.generatedAt, 45 * MIN, 3 * H, now);
+    let note = 'POPNIX Flood (ข้อมูล สนน. กทม.) · ดึงใหม่ทุก ~15 นาที';
+    if (p && r.level === OK) {
+      const inner = newest(p.roads || [], (x) => x.t); // our copy can be fresh while the sensors behind it have gone quiet
+      if (inner && now - inner > 3 * H) { r = { level: SLOW, at: inner }; note = 'ต้นทาง (กทม. ผ่าน POPNIX) ไม่ส่งค่าเซ็นเซอร์ใหม่มาหลายชั่วโมง'; }
+      else if (p.upstream?.roadsFailing || p.upstream?.canalsFailing) { r = { level: SLOW, at: r.at }; note = 'POPNIX แจ้งว่าดึงข้อมูลจาก กทม. ไม่สำเร็จในรอบล่าสุด'; }
+    }
+    add('popnix', 'extra', 'เซ็นเซอร์ถนนและระดับน้ำคลอง กทม.', 'เลเยอร์เซ็นเซอร์ท่วมถนน · ระดับน้ำคลอง · การ์ดในหน้าแรก', r, note);
+  }
+  {
     const o = s.overview;
     const r = !o ? { level: loading ? LOADING : MISSING, at: null } : o.rain && o.tide ? { level: OK, at: o.at } : o.rain || o.tide ? { level: SLOW, at: o.at } : { level: OLD, at: o.at };
     add('forecast', 'core', 'พยากรณ์ฝนและน้ำทะเลหนุน', 'Open-Meteo · พยากรณ์ 48 ชม. · คะแนนความเสี่ยง', r, o && !(o.rain && o.tide) ? `ไม่ได้ข้อมูล${o.rain ? 'น้ำทะเลหนุน' : o.tide ? 'ฝน' : 'ฝนและน้ำทะเลหนุน'}` : '');

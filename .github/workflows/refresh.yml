@@ -96,6 +96,10 @@ jobs:
         continue-on-error: true
         run: |
           node scripts/fetch-roads.mjs || curl -sf https://bkkflood.web.app/data/road-flood.json -o public/data/road-flood.json || true
+      - name: Measured road depth and canal levels (POPNIX Flood open API, attribution required; keeps the live copy if unreachable)
+        continue-on-error: true
+        run: |
+          node scripts/fetch-popnix.mjs || curl -sf https://bkkflood.web.app/data/popnix.json -o public/data/popnix.json || true
       - name: Accuracy report (every 6 h; other runs reuse the live one)
         continue-on-error: true
         run: |
