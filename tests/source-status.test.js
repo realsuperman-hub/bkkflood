@@ -14,7 +14,7 @@ const fresh = () => ({
   rainObs: [{ t: ago(30 * MIN) }], rainObsAt: ago(5 * MIN),
   roadFlood: { generatedAt: ago(8 * MIN), features: [f(ago(10 * MIN))] },
   overview: { rain: {}, tide: {}, at: ago(MIN) },
-  traffic: { eventsAt: ago(10 * MIN), roadsAt: ago(10 * MIN), dds: { reportDate: '2026-10-01' } },
+  traffic: { eventsAt: ago(10 * MIN), roadsAt: ago(10 * MIN), camerasAt: ago(6 * H), dds: { reportDate: '2026-10-01' } },
   dams: { date: '2026-10-02' }, satFlood: { lastPass: '2026-09-29' }, news: { generatedAt: ago(H) },
   mcams: { generatedAt: ago(5 * H) }, mcamAi: { generatedAt: ago(30 * MIN) },
 });
@@ -93,4 +93,12 @@ test('the routing service appears once it has been used, and a failure shows', (
   assert.equal(sourceStatuses(s, NOW).some((x) => x.id === 'route'), false);
   s.routeSvc = { ok: false, at: NOW };
   assert.equal(by(sourceStatuses(s, NOW)).route, OLD);
+});
+
+test('the BMA camera list goes slow, then old, when its source stops answering (the page was removed in 2026-10)', () => {
+  const s = fresh();
+  s.traffic.camerasAt = ago(2 * D);
+  assert.equal(by(sourceStatuses(s, NOW)).bmacams, SLOW);
+  s.traffic.camerasAt = ago(4 * D);
+  assert.equal(by(sourceStatuses(s, NOW)).bmacams, OLD);
 });

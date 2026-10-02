@@ -68,6 +68,7 @@ export function sourceStatuses(s, now = Date.now(), { loading = false } = {}) {
   const t = s.traffic || {};
   add('events', 'extra', 'เหตุการณ์จราจร กทม.', 'ป้ายเหตุน้ำท่วมบนถนน', miss(!t.eventsAt) || judge(t.eventsAt, 45 * MIN, 3 * H, now));
   add('speed', 'extra', 'ความเร็วรถบนถนน กทม.', 'เส้นถนนติดขัด', miss(!t.roadsAt) || judge(t.roadsAt, 45 * MIN, 3 * H, now));
+  add('bmacams', 'extra', 'รายชื่อกล้องจราจร กทม.', 'จุดกล้องสีเทา/ฟ้าบนแผนที่ (ลิงก์ไปเว็บ กทม.)', miss(!t.camerasAt) || judge(t.camerasAt, 36 * H, 72 * H, now), 'ตรวจใหม่วันละครั้ง · ถ้าหน้าเว็บ กทม. ปิด จะใช้รายชื่อเดิมที่เคยดึงได้'); 
   add('dds', 'extra', 'รายงานน้ำท่วมถนนสายหลัก สนน.', 'การ์ดรายงานรายวัน', miss(!s.traffic?.dds) || judge(s.traffic.dds.reportDate, 2 * D, 5 * D, now), 'รายงานรายวันของ กทม.');
   add('dams', 'extra', 'เขื่อน', 'กรมชลประทาน · การ์ดเขื่อน', miss(!s.dams) || judge(s.dams.date, 2 * D, 4 * D, now), 'รายงานรายวัน');
   add('sat', 'extra', 'น้ำท่วมจากดาวเทียม', 'GISTDA · เลเยอร์ดาวเทียม', miss(!s.satFlood) || judge(s.satFlood.lastPass ?? s.satFlood.generatedAt, 6 * D, 14 * D, now), 'ดาวเทียมผ่านทุก 3–6 วัน (วันที่ภาพล่าสุด)');

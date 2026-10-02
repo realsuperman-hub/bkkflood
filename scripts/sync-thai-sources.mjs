@@ -71,7 +71,8 @@ for (const [name, obj] of jobs) {
   } catch {
     /* file does not exist yet */
   }
-  if (old && strip(old) === strip(obj)) {
+  // unchanged content is not committed, except once a day: the file's own timestamp is what the app's status page reads to tell "checked, same" from "source gone"
+  if (old && strip(old) === strip(obj) && Date.now() - (old.generatedAt || 0) < 24 * 3600e3) {
     console.log(`${name}: unchanged`);
     continue;
   }
