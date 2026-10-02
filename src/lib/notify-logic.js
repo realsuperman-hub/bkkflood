@@ -1,17 +1,21 @@
 // Decides whether a subscriber should be notified. Pure — unit-tested; used by scripts/notify.mjs.
 export const MIN_GAP_MS = 2 * 3600e3; // at most one push per device per 2 h (unless danger appears)
+// Alerts driven by the risk SCORE are paused (2026-10-02): the accuracy deep-dive found the "prepare/danger" levels had 0 hits in 451 graded samples where complaints
+// can be seen. Alerts about things that were actually observed (a heavy complaint near a saved place, a followed road reaching its depth) are unchanged.
+// Set to true again once the score has been re-calibrated (see the accuracy report).
+export const RISK_ALERTS = false;
 
 // Safe as a Firestore map key (no dots): 13.7500,100.5000 -> p137500_1005000
 export const placeKey = (p) => `p${Math.round(p.lat * 1e4)}_${Math.round(p.lng * 1e4)}`;
 
 // prev: { level, heavy, at } | undefined      cur: { level, heavy }
 // Returns { notify: false } or { notify: true, kind: 'risk'|'observed', dangerJump }
-export function decide(prev, cur, { now, lastSentAt = 0 }) {
+export function decide(prev, cur, { now, lastSentAt = 0, riskAlerts = RISK_ALERTS }) {
   const p = prev || { level: 0, heavy: 0 };
-  const riskUp = cur.level >= 2 && cur.level > p.level;
+  const riskUp = riskAlerts && cur.level >= 2 && cur.level > p.level;
   const heavyUp = cur.heavy >= 1 && cur.heavy > p.heavy;
   if (!riskUp && !heavyUp) return { notify: false };
-  const dangerJump = cur.level === 3 && p.level < 3;
+  const dangerJump = riskAlerts && cur.level === 3 && p.level < 3;
   if (now - lastSentAt < MIN_GAP_MS && !dangerJump) return { notify: false, suppressed: true };
   return { notify: true, kind: riskUp ? 'risk' : 'observed', dangerJump };
 }
@@ -38,7 +42,7 @@ export function buildMessage(place, ev, kind) {
   if (kind === 'observed') {
     return {
       title: `น้ำท่วมหนักใกล้${place.label}`,
-      body: `มีผู้แจ้ง กทม. ${ev.nearby.heavy} จุด ในรัศมี 1 กม. (12 ชม. ล่าสุด) · ระดับความเสี่ยง: ${r.label}`,
+      body: `มีผู้แจ้ง กทม. ${ev.nearby.heavy} จุด ในรัศมี 1 กม. (12 ชม. ล่าสุด) — เป็นรายงานจากประชาชน ยังไม่ผ่านการยืนยัน`,
       url,
       tag: `obs-${placeKey(place)}`,
     };

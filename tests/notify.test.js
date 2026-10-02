@@ -1,32 +1,32 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decide, nextState, sanitizePlaces, placeKey, buildMessage, MIN_GAP_MS } from '../src/lib/notify-logic.js';
+import { decide, nextState, sanitizePlaces, placeKey, buildMessage, MIN_GAP_MS, RISK_ALERTS } from '../src/lib/notify-logic.js';
 
 const now = 1_000_000_000_000;
 const inB = (la, ln) => la > 13.3 && la < 14.4 && ln > 99.9 && ln < 101.1;
 
 test('first sighting at "prepare" or worse notifies; "watch" does not', () => {
-  assert.equal(decide(undefined, { level: 2, heavy: 0 }, { now }).notify, true);
-  assert.equal(decide(undefined, { level: 1, heavy: 0 }, { now }).notify, false);
-  assert.equal(decide(undefined, { level: 0, heavy: 0 }, { now }).notify, false);
+  assert.equal(decide(undefined, { level: 2, heavy: 0 }, { now, riskAlerts: true }).notify, true);
+  assert.equal(decide(undefined, { level: 1, heavy: 0 }, { now, riskAlerts: true }).notify, false);
+  assert.equal(decide(undefined, { level: 0, heavy: 0 }, { now, riskAlerts: true }).notify, false);
 });
 test('only escalation notifies; steady or falling does not', () => {
-  assert.equal(decide({ level: 2, heavy: 0 }, { level: 2, heavy: 0 }, { now }).notify, false);
-  assert.equal(decide({ level: 3, heavy: 0 }, { level: 2, heavy: 0 }, { now }).notify, false);
-  assert.equal(decide({ level: 2, heavy: 0 }, { level: 3, heavy: 0 }, { now }).notify, true);
+  assert.equal(decide({ level: 2, heavy: 0 }, { level: 2, heavy: 0 }, { now, riskAlerts: true }).notify, false);
+  assert.equal(decide({ level: 3, heavy: 0 }, { level: 2, heavy: 0 }, { now, riskAlerts: true }).notify, false);
+  assert.equal(decide({ level: 2, heavy: 0 }, { level: 3, heavy: 0 }, { now, riskAlerts: true }).notify, true);
 });
 test('a new heavy complaint nearby notifies even when the score is low', () => {
-  const d = decide({ level: 0, heavy: 0 }, { level: 1, heavy: 2 }, { now });
+  const d = decide({ level: 0, heavy: 0 }, { level: 1, heavy: 2 }, { now, riskAlerts: true });
   assert.equal(d.notify, true);
   assert.equal(d.kind, 'observed');
-  assert.equal(decide({ level: 1, heavy: 2 }, { level: 1, heavy: 2 }, { now }).notify, false);
+  assert.equal(decide({ level: 1, heavy: 2 }, { level: 1, heavy: 2 }, { now, riskAlerts: true }).notify, false);
 });
 test('cooldown suppresses repeats but not a jump into danger', () => {
   const recent = now - MIN_GAP_MS / 2;
-  const s = decide({ level: 0, heavy: 0 }, { level: 2, heavy: 0 }, { now, lastSentAt: recent });
+  const s = decide({ level: 0, heavy: 0 }, { level: 2, heavy: 0 }, { now, lastSentAt: recent, riskAlerts: true });
   assert.deepEqual([s.notify, s.suppressed], [false, true]);
-  assert.equal(decide({ level: 2, heavy: 0 }, { level: 3, heavy: 0 }, { now, lastSentAt: recent }).notify, true);
-  assert.equal(decide({ level: 0, heavy: 0 }, { level: 2, heavy: 0 }, { now, lastSentAt: now - MIN_GAP_MS - 1 }).notify, true);
+  assert.equal(decide({ level: 2, heavy: 0 }, { level: 3, heavy: 0 }, { now, lastSentAt: recent, riskAlerts: true }).notify, true);
+  assert.equal(decide({ level: 0, heavy: 0 }, { level: 2, heavy: 0 }, { now, lastSentAt: now - MIN_GAP_MS - 1, riskAlerts: true }).notify, true);
 });
 test('state: suppressed keeps the old baseline; a drop lowers it so re-escalation notifies again', () => {
   const prev = { level: 0, heavy: 0, at: 5 };
@@ -53,4 +53,13 @@ test('buildMessage: risk vs observed, deep link to the point', () => {
   assert.match(b.title, /น้ำท่วมหนักใกล้บ้าน/);
   assert.match(b.body, /2 จุด/);
   assert.notEqual(a.tag, b.tag);
+});
+
+test('score-driven alerts are paused by default; observed heavy complaints and the cooldown still work', () => {
+  assert.equal(RISK_ALERTS, false);
+  assert.equal(decide(undefined, { level: 3, heavy: 0 }, { now }).notify, false); // danger by score alone: silent
+  assert.equal(decide({ level: 0, heavy: 0 }, { level: 3, heavy: 0 }, { now }).notify, false);
+  const d = decide({ level: 0, heavy: 0 }, { level: 3, heavy: 2 }, { now });
+  assert.deepEqual([d.notify, d.kind, d.dangerJump], [true, 'observed', false]); // a real heavy report nearby still alerts
+  assert.equal(decide({ level: 0, heavy: 0 }, { level: 1, heavy: 2 }, { now, lastSentAt: now - 1000 }).suppressed, true);
 });
