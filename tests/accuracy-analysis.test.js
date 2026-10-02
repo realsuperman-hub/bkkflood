@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, levelOfScore } from '../src/lib/accuracy-analysis.js';
+import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, levelOfScore, coverageMask } from '../src/lib/accuracy-analysis.js';
 
 const s = (score, event, o = {}) => ({ i: 0, score, fcScore: score, event, elev: 0, tideHigh: false, wet: false, ...o });
 
@@ -48,4 +48,10 @@ test('variantReport applies the same level cut-offs as the live score', () => {
   assert.equal(r.byLevel[0].warned, 2);
   assert.equal(r.byLevel[0].hits, 1);
   assert.equal(r.auc, 0.75);
+});
+
+test('coverageMask keeps grid points that have a complaint of any severity nearby and drops the rest', () => {
+  const grid = [[13.75, 100.5], [13.95, 100.6], [13.75, 100.9]];
+  const m = coverageMask(grid, [{ lat: 13.76, lng: 100.5, lvl: 1 }, { lat: 13.95, lng: 100.9, lvl: 3 }]);
+  assert.deepEqual([...m], [0]); // point 1 and 2 have no complaint within 3 km
 });

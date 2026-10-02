@@ -1,6 +1,17 @@
 // Deeper look at the logged forecasts (see accuracy.js): threshold-free skill (AUC), event rate by score, by place, and "what if" variants of the
 // low-ground rule re-scored from the logged scores. Pure — used by scripts/analyze-accuracy.mjs and unit-tested.
 import { contingency } from './accuracy.js';
+import { distKm } from './geo.js';
+
+// The complaint feed (Traffy, BMA's own team) only exists inside Bangkok: a grid point in Nonthaburi, Pathum Thani or Samut Prakan can never have an "event",
+// so every warning there counts as a false alarm. A point is gradable only if the feed shows life nearby: a complaint of ANY severity within radiusKm during the window.
+export function coverageMask(grid, complaints, radiusKm = 3) {
+  const ok = new Set();
+  grid.forEach(([la, ln], i) => {
+    if (complaints.some((c) => Math.abs(c.lat - la) < 0.04 && Math.abs(c.lng - ln) < 0.04 && distKm(la, ln, c.lat, c.lng) <= radiusKm)) ok.add(i);
+  });
+  return ok;
+}
 
 export const levelOfScore = (s) => (s >= 7 ? 3 : s >= 5 ? 2 : s >= 3 ? 1 : 0); // same cut-offs as risk.js
 
