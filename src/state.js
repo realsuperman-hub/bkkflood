@@ -47,6 +47,7 @@ export const state = {
   forecast: null, // evaluate() result for selected, or { loading } / { error }
   saved: loadSaved(), // [{ id, label, lat, lng }]
   myRoads: loadRoads(), // roads I follow for flood alerts: [{ name, min }] (min = depth in cm)
+  roadSync: null, // state of the followed roads on the server: { status: 'saving'|'ok'|'error', error?, at? }
   roadFind: { q: '', results: [] }, // search box in the "ถนนที่ฉันใช้" card
   savedEval: {}, // id -> evaluate() result
   overview: null, // evaluate() result for Bangkok centre

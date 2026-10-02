@@ -127,6 +127,20 @@ export async function disablePush() {
   }
 }
 
+// Does the server's copy hold exactly the roads I follow (name + threshold)? → { ok, why }
+export async function verifyRoads(roads) {
+  try {
+    const doc = await state.store.getSub();
+    if (!doc || !doc.enabled || doc.token !== ls.get(TOKEN)) return { ok: false, why: 'ไม่พบการลงทะเบียนของเครื่องนี้บนเซิร์ฟเวอร์' };
+    const have = new Map((doc.roads || []).map((r) => [r.name, r.min]));
+    const want = roadsPayload(roads);
+    const same = want.length === have.size && want.every((r) => have.get(r.name) === r.min);
+    return same ? { ok: true } : { ok: false, why: 'รายการถนนบนเซิร์ฟเวอร์ยังไม่ตรงกับที่เลือกไว้' };
+  } catch (e) {
+    return { ok: false, why: `อ่านข้อมูลจากเซิร์ฟเวอร์ไม่ได้ (${e?.code || e?.message || e})` };
+  }
+}
+
 // Does the SERVER really hold this device's subscription? (The local flag alone can be stale or wrong.)
 export async function verifyPush() {
   if (!pushStatus().enabled) return null;

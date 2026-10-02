@@ -455,6 +455,14 @@ const roadRow = (g, extra = '') => `<button class="row-item" data-act="road-open
     <small class="muted">ความเชื่อมั่น ${confLabel(g.conf)} · อัปเดต ${ago(g.upd)}</small></span>
   <span class="val" style="color:${(bandOf(g.maxD) || { color: '#12222e' }).color}">≈${g.maxD}<small> ซม.</small></span></button>`;
 
+// what the server knows about my followed roads (so a silent failure can never look like "all set")
+function roadSyncLine() {
+  const rs = state.roadSync;
+  if (!rs || rs.status === 'saving') return '<p class="small">🔔 แจ้งเตือนเปิดอยู่ — กำลังบันทึกรายการถนนที่เซิร์ฟเวอร์…</p>';
+  if (rs.status === 'ok') return `<p class="small">✅ เซิร์ฟเวอร์รับรายการถนนแล้ว (${state.myRoads.length} สาย) — จะแจ้งเตือนเมื่อถนนเหล่านี้ท่วมถึงเกณฑ์ (ไม่เกิน 1 ครั้งต่อ 30 นาที)</p>`;
+  return `<p class="note">⚠ บันทึกการแจ้งเตือนถนนที่เซิร์ฟเวอร์ไม่สำเร็จ — ${esc(rs.error || 'ไม่ทราบสาเหตุ')}<br>ตอนนี้ยังไม่ได้รับแจ้งเตือนถนนเหล่านี้</p><div class="row"><button class="btn btn-primary btn-sm" data-act="road-resync">ลองบันทึกใหม่</button></div>`;
+}
+
 // "ถนนที่ฉันใช้": follow up to 5 roads; each gets a depth threshold and a push alert when it is reached (needs alerts switched on)
 function myRoadsCard() {
   if (!state.roadFlood?.features) return '';
@@ -476,7 +484,7 @@ function myRoadsCard() {
     : `<p class="muted small">ติดตามครบ ${MAX_ROADS} สายแล้ว</p>`;
   const alertLine = !mine.length ? ''
     : !pushOk ? '<p class="note">เบราว์เซอร์/อุปกรณ์นี้ยังรับแจ้งเตือนไม่ได้ — ดูการ์ด “แจ้งเตือนอัตโนมัติ” ด้านล่าง</p>'
-    : p.enabled ? '<p class="small">🔔 แจ้งเตือนเปิดอยู่ — จะส่งเมื่อถนนเหล่านี้ท่วมถึงเกณฑ์ (ไม่เกิน 1 ครั้งต่อ 30 นาที)</p>'
+    : p.enabled ? roadSyncLine()
     : `<p class="small">ยังไม่ได้เปิดแจ้งเตือน — เปิดเพื่อรับข้อความบนมือถือแม้ไม่ได้เปิดเว็บ</p><div class="row"><button class="btn btn-primary" data-act="push-enable"${p.busy ? ' disabled' : ''}>🔔 เปิดแจ้งเตือน</button></div>${p.error ? `<p class="note">${esc(p.error)}</p>` : ''}`;
   return `<section class="card"><h3>ถนนที่ฉันใช้</h3>
     ${mine.length ? `<div class="list">${mine.map(row).join('')}</div>` : '<p class="small">เลือกถนนที่คุณขับผ่านเป็นประจำ แล้วรับแจ้งเตือนเมื่อน้ำท่วมถึงระดับที่ตั้งไว้ (ค่าประมาณจาก Floodboard · เฉพาะ กทม.)</p>'}

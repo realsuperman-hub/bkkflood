@@ -27,7 +27,7 @@ import { matchFloods, matchStations, matchReports, matchTraffic, geocode, validQ
 import { historyGeoJson } from './lib/flood-history.js';
 import { corroborateState, TIER } from './lib/corroborate.js';
 import { openCamViewer, camViewerEnabled } from './lib/longdo-cams.js';
-import { pushStatus, enablePush, disablePush, syncPush, verifyPush } from './lib/push.js';
+import { pushStatus, enablePush, disablePush, syncPush, verifyPush, verifyRoads } from './lib/push.js';
 import { SITE_URL, lineLink, shareNative, siteShare, pointShare } from './lib/share.js';
 import { KINDS, MIN_VERTS, MAX_VERTS, toGeometry, unflatten, validate, describe, lengthM, areaM2, fmtLen, fmtArea, anchor } from './lib/shape.js';
 
@@ -327,8 +327,22 @@ function refreshRoadFloodLayer() {
 const following = (name) => state.myRoads.some((r) => r.name === name);
 const followRow = (name) => `<div class="row wrap">${following(name) ? `<span class="small">🔔 ติดตามถนนนี้อยู่ (ดู/ตั้งค่าที่หน้า “สถานการณ์”)</span>` : `<button class="btn btn-sm" data-act="road-follow" data-name="${esc(name)}">🔔 แจ้งเตือนถนนนี้</button>`}</div>`;
 // keep the server's copy in step with the roads/places saved here (silent when alerts are off)
-function syncAlerts(refreshStatus = false) {
-  syncPush(state.saved, state.myRoads).then(() => { if (refreshStatus) { state.push = pushStatus(); emit(); } }).catch(() => {});
+// and says what happened for the followed roads: saving → ok (the server's copy was read back and matches) or error (with the reason, e.g. permission-denied)
+async function syncAlerts(refreshStatus = false) {
+  if (!pushStatus().enabled) { state.roadSync = null; if (refreshStatus) { state.push = pushStatus(); emit(); } return; }
+  const withRoads = state.myRoads.length > 0;
+  if (withRoads) { state.roadSync = { status: 'saving' }; emit(); }
+  try {
+    await syncPush(state.saved, state.myRoads);
+    if (withRoads) {
+      const v = await verifyRoads(state.myRoads);
+      state.roadSync = v.ok ? { status: 'ok', at: Date.now() } : { status: 'error', error: v.why };
+    } else state.roadSync = null;
+  } catch (e) {
+    state.roadSync = { status: 'error', error: `${e?.code ? `${e.code}: ` : ''}${String(e?.message || e).slice(0, 140)}` };
+  }
+  if (refreshStatus) state.push = pushStatus();
+  emit();
 }
 const vehicleChips = (v) => VEHICLES.map((n, i) => `<span class="vd" style="--c:${VERDICT_COLOR[v[i]]}"><i></i>${n}: <b>${VERDICT_TH[v[i]]}</b></span>`).join('');
 const roadCredit = () => `<p class="muted tiny">ค่าประมาณที่รวมจากหลายแหล่ง (เซ็นเซอร์ กทม. Traffy ข่าว โซเชียล) ไม่ใช่ค่าวัดทางการ · ข้อมูลจาก <a href="${ROADS_CREDIT.url}" target="_blank" rel="noopener noreferrer">${ROADS_CREDIT.name}</a> (<a href="${ROADS_CREDIT.licenceUrl}" target="_blank" rel="noopener noreferrer">${ROADS_CREDIT.licence}</a>) ปรับรูปแบบให้กะทัดรัด</p>`;
@@ -827,6 +841,7 @@ const actions = {
       }, state.myRoads);
       toast('เปิดแจ้งเตือนแล้ว');
       state.push = { ...pushStatus(), verified: await verifyPush() };
+      if (state.myRoads.length) { const v = await verifyRoads(state.myRoads); state.roadSync = v.ok ? { status: 'ok', at: Date.now() } : { status: 'error', error: v.why }; }
     } catch (e) {
       state.push = { ...pushStatus(), error: e.message || String(e) };
     }
@@ -921,6 +936,7 @@ const actions = {
   'route-show': () => routeShow(),
   'route-close': () => routeClose(),
   'route-clear': () => clearRoute(),
+  'road-resync': () => { syncAlerts(true); },
   'road-follow': ({ name }) => {
     if (!name || following(name)) return;
     if (state.myRoads.length >= MAX_ROADS) return toast(`ติดตามได้สูงสุด ${MAX_ROADS} สาย — ลบสายเก่าที่หน้า “สถานการณ์” ก่อน`);
@@ -1439,7 +1455,10 @@ async function main() {
     refreshSaved();
     if (sharedPt) selectPoint(+sharedPt[1], +sharedPt[3], { fly: true });
     state.push = pushStatus();
-    verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
+    verifyPush().then((v) => {
+      if (v !== null) { state.push = { ...state.push, verified: v }; emit(); }
+      if (v && state.myRoads.length) verifyRoads(state.myRoads).then((r) => { if (r.ok) { state.roadSync = { status: 'ok', at: Date.now() }; emit(); } else syncAlerts(); }); // the server copy lacks my roads → send them
+    });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
     loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
     let roadLinkHandled = false;
