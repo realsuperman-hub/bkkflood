@@ -3,7 +3,7 @@
 // Question it answers: does the risk score separate flooded places from dry ones, which part of it misleads, and would a different low-ground rule be better?
 import { traffyDayUrl, normalizeFloods } from '../src/lib/traffy.js';
 import { sampleGrid, labelSamples, contingency } from '../src/lib/accuracy.js';
-import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS } from '../src/lib/accuracy-analysis.js';
+import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, coverageMask } from '../src/lib/accuracy-analysis.js';
 import { loadRain, MARINE, GULF_POINT } from '../src/lib/forecast.js';
 
 const now = Date.now();
@@ -60,6 +60,16 @@ const annotated = samples.map((s) => {
   return { ...s, elev, elevM: e, tideHigh: !!tideHighAt(s.t), wet: s.fcScore - elev >= 1 };
 });
 
+const mask = coverageMask(grid, uniq, 3);
+const covered = annotated.filter((s) => mask.has(s.i));
+const report = (rows) => ({
+  samples: rows.length,
+  events: rows.filter((s) => s.event).length,
+  baseRate: +(rows.filter((s) => s.event).length / rows.length).toFixed(3),
+  aucOfParts: { score: auc(rows, (s) => s.score), fcScore: auc(rows, (s) => s.fcScore), fcWithoutElevation: auc(rows, (s) => s.fcScore - s.elev), obsScore: auc(rows, (s) => s.obsScore) },
+  eventRateByScore: bandRates(rows, (s) => s.score),
+  variants: Object.fromEntries(Object.entries(VARIANTS).map(([k, f]) => [k, variantReport(rows, f)])),
+});
 const cells = cellStats(annotated, grid);
 const out = {
   generatedAt: new Date(now).toISOString(),
@@ -78,6 +88,8 @@ const out = {
     lowAndHighTide: contingency(annotated.filter((s) => s.elev), (s) => s.tideHigh),
   },
   variants: Object.fromEntries(Object.entries(VARIANTS).map(([k, f]) => [k, variantReport(annotated, f)])),
+  coverage: { gridPoints: grid.length, coveredPoints: mask.size, uncoveredPoints: grid.map((g, i) => (mask.has(i) ? null : g)).filter(Boolean) },
+  onlyWhereComplaintsExist: report(covered),
   spatial: {
     spearmanMeanScoreVsEventRate: spearman(cells.map((c) => c.meanScore), cells.map((c) => c.eventRate)),
     spearmanElevationVsEventRate: spearman(cells.map((c) => elevAt(c.i) ?? 0), cells.map((c) => c.eventRate)),
@@ -88,3 +100,6 @@ const out = {
 console.log('ANALYSIS_JSON_START');
 console.log(JSON.stringify(out, null, 1));
 console.log('ANALYSIS_JSON_END');
+console.log('ANALYSIS_B64_START');
+console.log(Buffer.from(JSON.stringify(out)).toString('base64').match(/.{1,200}/g).join(String.fromCharCode(10)));
+console.log('ANALYSIS_B64_END');
