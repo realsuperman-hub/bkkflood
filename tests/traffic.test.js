@@ -77,3 +77,15 @@ test('segments: keep fresh + slow only; drop free-flow, stale, and geometry-less
   assert.deepEqual(out[0].paths[0][0], [100.51235, 13.71235]);
   assert.equal(out[0].t, now - 10 * 60e3);
 });
+
+test('DDS report: when the page lists one section per day, the newest day is used (not the first, oldest one)', () => {
+  const head = '<tr><th>ลำดับที่</th><th>พื้นที่เขต</th><th>ถนน</th><th>บริเวณ</th><th>ความสูง<br>(ซม.)</th><th>ความยาว<br>(ม.)</th><th>กระทบผิวจราจร<br>(เลน)</th><th>เวลาท่วม<br>(น.)</th><th>เวลาแห้ง<br>(น.)</th><th>ระยะเวลาท่วม<br>(ชม:นาที)</th><th>ปริมาณฝนรวม<br>(มม.)</th></tr>';
+  const day = (label, road, depth) => `<div style="text-align:center;">วันที่ ${label}</div><center><table class="blueTable"><thead><tr><th>รายการที่</th><th>พื้นที่เขต</th><th>จำนวนรายการน้ำท่วมขัง (แห่ง)</th></tr></thead><tbody><tr><td>1</td><td>เขตก</td><td>1</td></tr></tbody></table>
+    <table class="blueTable"><thead>${head}</thead><tbody><tr><td>1</td><td>ห้วยขวาง</td><td>${road}</td><td>จุดทดสอบ</td><td>${depth}</td><td>200</td><td></td><td>14:45</td><td>-</td><td>-</td><td>-</td></tr></tbody></table></center>`;
+  const html = `<html><body>${'x'.repeat(600)}<div>รายงาน วันที่ 25 กันยายน 2569 ถึง 2 ตุลาคม 2569</div>${day('25 กันยายน 2569', 'ถนนเก่า', 10)}${day('1 ตุลาคม 2569', 'ถนนกลาง', 15)}${day('2 ตุลาคม 2569', 'ถนนใหม่', 25)}<div>วันที่ 2 ตุลาคม 2569 เวลา 11:34 สถิติผู้เข้าชม</div></body></html>`;
+  const r = parseDdsReport(html);
+  assert.equal(r.reportDate, '2026-10-02');
+  assert.equal(r.rangeFrom, '2026-09-25');
+  assert.equal(r.rangeTo, '2026-10-02');
+  assert.deepEqual(r.rows.map((x) => [x.road, x.depthCm]), [['ถนนใหม่', 25]]);
+});

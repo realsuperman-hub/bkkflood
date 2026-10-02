@@ -9,6 +9,8 @@ import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
 import { MAX_ROADS, DEFAULT_MIN } from './lib/notify-roads.js';
 import { DEPTH_BANDS, CLOSED_COLOR, VERDICT_TH, VERDICT_COLOR, VEHICLES, ROADS_CREDIT, confLabel, depthWord, matchRoads, roadGroup, centroid as roadCentroid } from './lib/road-flood.js';
 import { initRoom, openRoom, refreshRoom } from './ui/room.js';
+import { statusList } from './ui/panel.js';
+import { OK, SLOW, OLD, MISSING, LOADING } from './lib/source-status.js';
 import { initRouteLayers, openRoute, clearRoute, routePicking, routePick, routeHit } from './ui/route.js';
 import { isDhrPage } from './lib/dhr-cams.js';
 import { LEGEND, EV_COLOR, stripHtml, compactHtml, dialogHtml } from './lib/legend.js';
@@ -929,6 +931,7 @@ const actions = {
   },
   'point-forecast': ({ lat, lng }) => selectPoint(+lat, +lng),
   'legend-open': () => openLegend(),
+  'status-open': () => openStatus(),
   'route-open': () => openRoute(),
   'route-to': ({ lat, lng, label }) => openRoute({ to: { lat: +lat, lng: +lng, label: label || 'จุดที่เลือกบนแผนที่' } }),
   'route-close': () => clearRoute(),
@@ -1333,6 +1336,23 @@ function buildLegend() {
 function renderLegend() {
   const on = LEGEND.filter((g) => document.getElementById(g.ly)?.checked);
   $('#legend-items').innerHTML = on.length ? on.map(compactHtml).join('') : '<p class="muted small">เปิดเลเยอร์ด้านบนเพื่อดูสัญลักษณ์ของเลเยอร์นั้น</p>';
+}
+const SDOT = { [OK]: ['#2e9e5b', 'ปกติ'], [SLOW]: ['#d9b300', 'ล่าช้า'], [OLD]: ['#d7263d', 'ไม่อัปเดต'], [MISSING]: ['#8a94a3', 'ไม่มีข้อมูล'], [LOADING]: ['#8a94a3', 'กำลังโหลด'] };
+function openStatus() {
+  const dlg = $('#status-dialog');
+  const list = statusList();
+  const row = (x) => {
+    const [c, w] = SDOT[x.level] ?? SDOT[MISSING];
+    return `<div class="st-row"><span class="st-dot" style="background:${c}" aria-hidden="true"></span><div class="grow"><b>${esc(x.label)}</b> <span class="st-word" style="color:${c}">${w}</span>
+      <small>${x.at ? `ข้อมูลล่าสุด ${ago(x.at)}` : 'ยังไม่ได้ข้อมูล'}${x.note ? ` · ${esc(x.note)}` : ''}</small><small class="muted">${esc(x.feeds)}</small></div></div>`;
+  };
+  dlg.innerHTML = `<div class="cam-head"><b>สถานะแหล่งข้อมูล</b><button class="btn btn-sm" data-status-close>ปิด</button></div>
+    <div class="lg-body"><h4 class="st-h">ข้อมูลหลัก (ที่คะแนนความเสี่ยงและตัวเลขหน้าแรกอ้างอิง)</h4>${list.filter((x) => x.group === 'core').map(row).join('')}
+    <h4 class="st-h">ข้อมูลเสริม</h4>${list.filter((x) => x.group === 'extra').map(row).join('')}
+    <p class="muted tiny">เว็บนี้รวมข้อมูลใหม่ทุก ~15 นาที แต่ต้นทางบางแห่งอัปเดตช้ากว่านั้นเป็นปกติ (เช่น ระดับน้ำรายชั่วโมง รายงานรายวัน ภาพดาวเทียมทุกไม่กี่วัน) · “ล่าช้า” = เก่ากว่าปกติ “ไม่อัปเดต” = เก่ามาก ให้ใช้ตัวเลขนั้นด้วยความระวัง · เวลาคำนวณจากข้อมูลที่เครื่องของคุณโหลดมา เปิดหน้าเว็บใหม่เพื่อโหลดล่าสุด</p></div>`;
+  dlg.querySelector('[data-status-close]').onclick = () => dlg.close();
+  dlg.addEventListener('close', () => { dlg.innerHTML = ''; }, { once: true });
+  dlg.showModal();
 }
 function openLegend() {
   const dlg = $('#legend-dialog');

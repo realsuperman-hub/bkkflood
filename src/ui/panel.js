@@ -12,6 +12,7 @@ import { camViewerEnabled } from '../lib/longdo-cams.js';
 import { BMA_LINKS, EVENT_LABEL, SPEED_LEVEL } from '../lib/bma-traffic.js';
 import { placeLabel } from '../lib/maholan-cams.js';
 import { THRESHOLDS, MAX_ROADS } from '../lib/notify-roads.js';
+import { sourceStatuses, overallStatus } from '../lib/source-status.js';
 import { DEPTH_BANDS, VERDICT_TH, VERDICT_COLOR, ROADS_CREDIT, confLabel, depthWord, summarizeRoads, nearRoads, roadGroup, bandOf } from '../lib/road-flood.js';
 import { distKm } from '../lib/geo.js';
 import { validQuery } from '../lib/search.js';
@@ -492,6 +493,15 @@ function myRoadsCard() {
     <p class="muted tiny">ระบบจะเก็บ <b>ชื่อถนนที่ติดตาม</b> พร้อมรหัสอุปกรณ์บนเซิร์ฟเวอร์ เพื่อส่งแจ้งเตือนเท่านั้น ไม่เก็บตัวตน ปิดเมื่อไรก็ได้ · เป็นค่าประมาณ ไม่ใช่การเตือนภัยทางการ · แตะที่เส้นถนนบนแผนที่แล้วกด “🔔 แจ้งเตือนถนนนี้” ก็ได้</p></section>`;
 }
 
+// one line at the top of the overview: are the sources up to date? (tap → the full list)
+const pageLoading = () => typeof performance !== 'undefined' && performance.now() < 20000;
+export const statusList = () => sourceStatuses(state, Date.now(), { loading: pageLoading() });
+function statusLine() {
+  const o = overallStatus(statusList());
+  const icon = { ok: '●', warn: '⚠', bad: '⚠' }[o.tone];
+  return `<button class="statline ${o.tone}" data-act="status-open"><span class="sl-ic">${icon}</span><span class="sl-txt">${esc(o.text)}</span><span class="sl-go">รายละเอียด ›</span></button>`;
+}
+
 // one-tap entry to the route check
 function routeEntryCard() {
   if (!state.roadFlood?.features) return '';
@@ -684,7 +694,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${nowSummaryCard()}${routeEntryCard()}${myRoadsCard()}${floodsOverviewCard()}${roadsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${statusLine()}${nowSummaryCard()}${routeEntryCard()}${myRoadsCard()}${floodsOverviewCard()}${roadsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {
@@ -857,7 +867,9 @@ function accuracyCard() {
 
 export function helpTab() {
   const tel = (n, t, sub) => `<a class="tel" href="tel:${n}"><b>${n}</b><span>${t}<small>${sub}</small></span></a>`;
-  return `<section class="card"><h3>อ่านแผนที่ให้ออก</h3><p class="small">สัญลักษณ์แต่ละสีบนแผนที่คืออะไร จุดสีม่วง จุดแดง ปุ่มแดง และอื่น ๆ</p>
+  return `<section class="card"><h3>สถานะแหล่งข้อมูล</h3><p class="small">ดูว่าข้อมูลแต่ละแหล่งอัปเดตล่าสุดเมื่อไร และแหล่งไหนล่าช้า</p>
+    <div class="row wrap"><button class="btn" data-act="status-open">ดูสถานะแหล่งข้อมูล</button></div></section>
+  <section class="card"><h3>อ่านแผนที่ให้ออก</h3><p class="small">สัญลักษณ์แต่ละสีบนแผนที่คืออะไร จุดสีม่วง จุดแดง ปุ่มแดง และอื่น ๆ</p>
     <div class="row wrap"><button class="btn btn-primary" data-act="legend-open">ดูสัญลักษณ์บนแผนที่</button></div></section>
   <section class="card"><h3>เบอร์ฉุกเฉิน (แตะเพื่อโทร)</h3>
     <div class="tels">${tel('1669', 'แพทย์ฉุกเฉิน / กู้ภัย', 'ผู้บาดเจ็บ ติดอยู่ในพื้นที่น้ำ')}

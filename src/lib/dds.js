@@ -27,20 +27,9 @@ const num = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
-export function parseDdsReport(html) {
-  if (typeof html !== 'string' || html.length < 500) throw new Error('DDS: empty page');
-
-  // dates: the range line ("… ถึง …") and the standalone day that the table is for
-  const stand = [...html.matchAll(new RegExp(`วันที่\\s*(\\d{1,2})\\s*(${MONTH_RE})\\s*(\\d{4})`, 'g'))];
-  const range = html.match(new RegExp(`(\\d{1,2})\\s*(${MONTH_RE})\\s*(\\d{4})\\s*ถึง\\s*(\\d{1,2})\\s*(${MONTH_RE})\\s*(\\d{4})`));
-  // The table's own date is the last "วันที่ …" BEFORE the first table — the page footer also says "วันที่ <today> เวลา …" (visitor stats)
-  const firstTable = html.search(/<table/i);
-  const last = stand.filter((m) => firstTable < 0 || m.index < firstTable).at(-1);
-  const reportDate = last ? thaiDateToIso(last[1], last[2], last[3]) : null;
-  const rangeFrom = range ? thaiDateToIso(range[1], range[2], range[3]) : null;
-  const rangeTo = range ? thaiDateToIso(range[4], range[5], range[6]) : null;
-
-  const tables = html.match(/<table[\s\S]*?<\/table>/gi) || [];
+// the detail rows of the first table that has the road/height columns in a piece of the page
+function rowsFrom(fragment) {
+  const tables = fragment.match(/<table[\s\S]*?<\/table>/gi) || [];
   let rows = [];
   for (const t of tables) {
     const trs = t.match(/<tr[\s\S]*?<\/tr>/gi) || [];
@@ -70,6 +59,36 @@ export function parseDdsReport(html) {
     }
     break;
   }
+  return rows;
+}
+
+export function parseDdsReport(html) {
+  if (typeof html !== 'string' || html.length < 500) throw new Error('DDS: empty page');
+
+  // dates: the range line ("… ถึง …") and the standalone day that the table is for
+  const stand = [...html.matchAll(new RegExp(`วันที่\\s*(\\d{1,2})\\s*(${MONTH_RE})\\s*(\\d{4})`, 'g'))];
+  const range = html.match(new RegExp(`(\\d{1,2})\\s*(${MONTH_RE})\\s*(\\d{4})\\s*ถึง\\s*(\\d{1,2})\\s*(${MONTH_RE})\\s*(\\d{4})`));
+  // The table's own date is the last "วันที่ …" BEFORE the first table — the page footer also says "วันที่ <today> เวลา …" (visitor stats)
+  const firstTable = html.search(/<table/i);
+  const last = stand.filter((m) => firstTable < 0 || m.index < firstTable).at(-1);
+  const reportDate = last ? thaiDateToIso(last[1], last[2], last[3]) : null;
+  const rangeFrom = range ? thaiDateToIso(range[1], range[2], range[3]) : null;
+  const rangeTo = range ? thaiDateToIso(range[4], range[5], range[6]) : null;
+
+  // Since the BMA page started covering a range ("25 ก.ย. ถึง 2 ต.ค.") it lists one section per day: a standalone date line, then that day's tables.
+  // The newest section is the one that matters (the first one is the oldest day).
+  const DATE_DIV = new RegExp(String.raw`<div[^>]*>\s*วันที่\s*(\d{1,2})\s*(${MONTH_RE})\s*(\d{4})\s*</div>`, 'g');
+  const heads = [...html.matchAll(DATE_DIV)];
+  let rows = [];
+  let day = reportDate;
+  if (heads.length) {
+    for (let k = 0; k < heads.length; k++) {
+      const iso = thaiDateToIso(heads[k][1], heads[k][2], heads[k][3]);
+      const sec = rowsFrom(html.slice(heads[k].index + heads[k][0].length, heads[k + 1]?.index ?? html.length));
+      if (sec.length && iso && (!day || rows.length === 0 || iso >= day)) { rows = sec; day = iso; }
+    }
+  }
+  if (!rows.length) rows = rowsFrom(html); // older page layout: a single report with no per-day sections
   if (!rows.length) throw new Error('DDS: no flood rows found — page layout may have changed');
-  return { reportDate, rangeFrom, rangeTo, rows };
+  return { reportDate: day || reportDate, rangeFrom, rangeTo, rows };
 }

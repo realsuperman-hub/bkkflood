@@ -323,6 +323,7 @@ async function run(force = false) {
     const res = await fetch(osrmUrl(rt.from, rt.to), { signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const routes = parseOsrm(await res.json());
+    state.routeSvc = { ok: true, at: Date.now() };
     if (id !== runId) return; // the user changed an end meanwhile
     rt.routes = routes.slice(0, 4).map((r) => ({ ...r, check: checkRoute(state.roadFlood.features, r.coords, rt.veh) }));
     rt.sel = rankRoutes(rt.routes)[0];
@@ -333,6 +334,7 @@ async function run(force = false) {
     fit();
   } catch (e) {
     if (id !== runId) return;
+    if (!/NoRoute|no route/i.test(e.message)) state.routeSvc = { ok: false, at: Date.now() };
     rt.status = 'error';
     rt.err = /NoRoute|no route/i.test(e.message) ? 'ไม่พบเส้นทางรถยนต์ระหว่างสองจุดนี้' : 'หาเส้นทางไม่สำเร็จ (บริการคำนวณเส้นทางไม่ตอบ) ลองใหม่อีกครั้งในอีกสักครู่';
     renderSheet();
