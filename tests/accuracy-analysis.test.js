@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, levelOfScore, coverageMask } from '../src/lib/accuracy-analysis.js';
+import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, levelOfScore, coverageMask, componentLift } from '../src/lib/accuracy-analysis.js';
 
 const s = (score, event, o = {}) => ({ i: 0, score, fcScore: score, event, elev: 0, tideHigh: false, wet: false, ...o });
 
@@ -54,4 +54,14 @@ test('coverageMask keeps grid points that have a complaint of any severity nearb
   const grid = [[13.75, 100.5], [13.95, 100.6], [13.75, 100.9]];
   const m = coverageMask(grid, [{ lat: 13.76, lng: 100.5, lvl: 1 }, { lat: 13.95, lng: 100.9, lvl: 3 }]);
   assert.deepEqual([...m], [0]); // point 1 and 2 have no complaint within 3 km
+});
+
+test('componentLift: event rate where each score part fired, only on v3 records', () => {
+  const rows = [
+    { v: 3, comp: 0b01, event: true }, { v: 3, comp: 0b01, event: false }, { v: 3, comp: 0b10, event: false }, { v: 3, comp: 0, event: false },
+    { v: 2, comp: 0, event: true }, // old record: ignored
+  ];
+  const r = componentLift(rows, { a: 0, b: 1 });
+  assert.deepEqual(r.map((x) => [x.name, x.n, x.events, x.rate]), [['a', 2, 1, 0.5], ['b', 1, 0, 0]]);
+  assert.equal(r[0].lift, 2); // base rate 1/4 = 0.25 → 0.5 / 0.25
 });

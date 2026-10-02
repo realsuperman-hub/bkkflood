@@ -23,7 +23,7 @@ for (let i = 0; i < grid.length; i++) {
   try {
     const ev = await evaluatePoint(lat, lng, { stations, floods, rainObs, events, now, rainAt });
     if (ev.errors.includes('พยากรณ์ฝน (Open-Meteo)')) continue; // never log a run that is missing its forecast — it would poison the grading
-    results.push({ i, level: ev.risk.level, score: ev.risk.score, fcScore: ev.risk.fcScore, obsScore: ev.risk.score - ev.risk.fcScore });
+    results.push({ i, level: ev.risk.level, score: ev.risk.score, fcScore: ev.risk.fcScore, obsScore: ev.risk.score - ev.risk.fcScore, comp: ev.risk.comp });
   } catch (e) {
     console.error(`point ${i}: ${e.message}`);
   }

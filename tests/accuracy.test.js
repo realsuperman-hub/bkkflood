@@ -41,8 +41,26 @@ test('contingency metrics', () => {
 
 test('buildReport says "not ready" until enough days and events', () => {
   const recs = [T, T + 3600e3].map((t) => makeRecord(t, [{ i: 0, level: 2, score: 5, fcScore: 3, obsScore: 2 }]));
-  const r = buildReport(recs, [], grid, now);
+  const near0 = [{ t: T - 3600e3, lat: grid[0][0], lng: grid[0][1], lvl: 1 }]; // a complaint near point 0: the feed is alive there
+  const r = buildReport(recs, near0, grid, now);
   assert.equal(r.ready, false);
   assert.equal(r.samples, 2);
   assert.equal(r.byLevel.length, 3);
+});
+
+test('buildReport grades only grid points that have complaint activity nearby (the feed does not exist outside Bangkok)', () => {
+  const recs = [makeRecord(T, [{ i: 0, level: 2, score: 5, fcScore: 3, obsScore: 2 }, { i: 40, level: 2, score: 5, fcScore: 3, obsScore: 2 }])];
+  const r = buildReport(recs, [{ t: T + 3600e3, lat: grid[0][0], lng: grid[0][1], lvl: 3 }], grid, now);
+  assert.equal(r.samples, 1); // point 40 has no complaint anywhere near it → not graded
+  assert.equal(r.events, 1);
+  assert.deepEqual([r.coverage.gridPoints, r.coverage.coveredPoints, r.coverage.samplesBeforeMask], [grid.length, 1, 2]);
+});
+
+test('log format v3 carries the component mask; v2 records (stride 5) are still read', () => {
+  const v3 = makeRecord(T, [{ i: 3, level: 1, score: 3, fcScore: 1, obsScore: 2, comp: 0b101 }]);
+  assert.equal(v3.v, 3);
+  assert.deepEqual(v3.p, [3, 1, 3, 1, 2, 5]);
+  const v2 = { t: T, v: 2, p: [3, 1, 3, 1, 2, 4, 2, 5, 3, 2] }; // two samples, stride 5
+  const s = labelSamples([v2, v3], [], grid, now);
+  assert.deepEqual(s.map((x) => [x.i, x.comp, x.v]), [[3, 0, 2], [4, 0, 2], [3, 5, 3]]);
 });

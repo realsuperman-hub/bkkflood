@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assess } from '../src/lib/risk.js';
+import { assess, COMP } from '../src/lib/risk.js';
 import { normalizeStations, trendOf } from '../src/lib/thaiwater.js';
 import { summarizeRain, summarizeTide, dailyPeaks, antecedentIndex } from '../src/lib/forecast.js';
 
@@ -159,4 +159,24 @@ test('antecedentIndex weights recent days more and settles near R/(1-K) in stead
   const old = Array.from({ length: hours }, (_, i) => (i >= hours - 24 * 7 && i < hours - 24 * 6 ? 10 : 0));
   assert.ok(antecedentIndex(recent, hours).api > antecedentIndex(old, hours).api * 2);
   assert.equal(antecedentIndex([1, 2, 3], 3), null); // not enough history → no index
+});
+
+test('low ground is information only: no points, a note for the user, and a logged component bit', () => {
+  const dry = { next24: 0, peakHour: 0, past48: 0, max24: 0, min24: 0 };
+  const low = assess({ rain: dry, elevation: 1 });
+  const high = assess({ rain: dry, elevation: 5 });
+  assert.equal(low.score, high.score);
+  assert.equal(low.level, 0);
+  assert.equal(low.reasons.length, 0);
+  assert.equal(low.info.length, 1);
+  assert.match(low.info[0], /ไม่นับเป็นคะแนน/);
+  assert.equal((low.comp >> COMP.lowGround) & 1, 1);
+  assert.equal(high.info.length, 0);
+});
+
+test('component bits record which parts of the score fired', () => {
+  const r = assess({ rain: { next24: 80, peakHour: 45, past48: 70, max24: 90, min24: 60 }, tide: { high: true, peak: 1.8 }, gauges: [gauge({ level: 5, over: 0.24, trend: 0.05 })], upstream: { q: 2600 } });
+  const on = (k) => (r.comp >> COMP[k]) & 1;
+  assert.deepEqual(['fcNext24', 'fcPeakHour', 'fcPast48', 'tideHigh', 'gaugeOver', 'gaugeRising', 'upstream'].map(on), [1, 1, 1, 1, 1, 1, 1]);
+  assert.deepEqual(['nearHeavy', 'official', 'obsRain1h', 'lowGround', 'regional'].map(on), [0, 0, 0, 0, 0]);
 });

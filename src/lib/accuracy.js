@@ -17,14 +17,29 @@ export function sampleGrid() {
   return pts;
 }
 
-// Compact log record. Firestore forbids nested arrays, so p is FLAT with stride 5: [index, level, score, fcScore, obsScore, index, ...]
-export const STRIDE = 5;
-export const makeRecord = (t, results) => ({ t, v: 2, p: results.flatMap((r) => [r.i, r.level, r.score, r.fcScore, r.obsScore]) });
+// Compact log record. Firestore forbids nested arrays, so p is FLAT. v3 (from 2026-10-02) has stride 6: [index, level, score, fcScore, obsScore, comp, index, ...]
+// where comp is the bit mask of the score parts that fired (risk.js COMP). v2 records (stride 5, no comp) are still read; from v3 on low ground is not scored.
+export const STRIDE = 6;
+export const makeRecord = (t, results) => ({ t, v: 3, p: results.flatMap((r) => [r.i, r.level, r.score, r.fcScore, r.obsScore, r.comp ?? 0]) });
 const rows = (rec) => {
+  const stride = (rec.v ?? 2) >= 3 ? 6 : 5;
   const out = [];
-  for (let k = 0; k + STRIDE <= rec.p.length; k += STRIDE) out.push(rec.p.slice(k, k + STRIDE));
+  for (let k = 0; k + stride <= rec.p.length; k += stride) {
+    const r = rec.p.slice(k, k + stride);
+    out.push(stride === 5 ? [...r, 0] : r);
+  }
   return out;
 };
+
+// The complaint feed (Traffy, BMA's own team) only exists inside Bangkok: a grid point in Nonthaburi, Pathum Thani or Samut Prakan can never have an "event",
+// so every warning there would count as a false alarm. A point is gradable only if the feed shows life nearby: a complaint of ANY severity within radiusKm.
+export function coverageMask(grid, complaints, radiusKm = 3) {
+  const ok = new Set();
+  grid.forEach(([la, ln], i) => {
+    if (complaints.some((c) => Math.abs(c.lat - la) < 0.04 && Math.abs(c.lng - ln) < 0.04 && distKm(la, ln, c.lat, c.lng) <= radiusKm)) ok.add(i);
+  });
+  return ok;
+}
 
 const near = (a, b) => Math.abs(a[0] - b[0]) < 0.03 && Math.abs(a[1] - b[1]) < 0.03 && distKm(a[0], a[1], b[0], b[1]) <= RADIUS_KM;
 
@@ -35,7 +50,7 @@ export function labelSamples(records, complaints, grid, now = Date.now()) {
   for (const rec of records) {
     if (rec.t + HORIZON_MS > now) continue; // the 24 h outcome window is not complete yet
     const win = hot.filter((c) => c.t > rec.t - HORIZON_MS && c.t <= rec.t + HORIZON_MS);
-    for (const [i, level, score, fcScore, obsScore] of rows(rec)) {
+    for (const [i, level, score, fcScore, obsScore, comp] of rows(rec)) {
       const g = grid[i];
       if (!g) continue;
       let event = false;
@@ -45,7 +60,7 @@ export function labelSamples(records, complaints, grid, now = Date.now()) {
         if (c.t > rec.t) event = true;
         else before = true; // already flooded in the 24 h before the forecast
       }
-      out.push({ i, t: rec.t, level, score, fcScore, obsScore, event, before });
+      out.push({ i, t: rec.t, level, score, fcScore, obsScore, comp, v: rec.v ?? 2, event, before });
     }
   }
   return out;
@@ -72,7 +87,9 @@ export function contingency(samples, predict) {
 }
 
 export function buildReport(records, complaints, grid, now = Date.now()) {
-  const samples = labelSamples(records, complaints, grid, now);
+  const all = labelSamples(records, complaints, grid, now);
+  const mask = coverageMask(grid, complaints, 3);
+  const samples = all.filter((s) => mask.has(s.i)); // only where complaints can be seen at all
   const events = samples.filter((s) => s.event).length;
   const days = records.length ? +((records.at(-1).t - records[0].t) / 86400e3).toFixed(1) : 0;
   const graded = new Set(samples.map((s) => s.t)).size;
@@ -87,6 +104,7 @@ export function buildReport(records, complaints, grid, now = Date.now()) {
     samples: samples.length,
     events,
     baseRate: samples.length ? +(events / samples.length).toFixed(3) : null,
+    coverage: { gridPoints: grid.length, coveredPoints: mask.size, samplesBeforeMask: all.length },
     // the system's overall level (1 watch, 2 prepare, 3 danger)
     byLevel: [1, 2, 3].map((th) => ({ th, ...contingency(samples, (s) => s.level >= th) })),
     // forecast-only part (rain/tide/terrain) — is the forecast itself any good?

@@ -93,7 +93,8 @@ function riskCard(ev, title) {
   const reasons = r.reasons.length
     ? `<ul class="reasons">${r.reasons.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>`
     : '<p class="muted small">ไม่พบปัจจัยเสี่ยงเด่นจากข้อมูลที่มี</p>';
-  const notes = r.notes.map((n) => `<p class="note">⚠ ${esc(n)}</p>`).join('') +
+  const infoLines = (r.info || []).map((t) => `<p class="muted small">ℹ ${esc(t)}</p>`).join('');
+  const notes = r.notes.map((n) => `<p class="note">⚠ ${esc(n)}</p>`).join('') + infoLines +
     (ev.core === false ? '<p class="note">⚠ พื้นที่นอกกรุงเทพฯ และปริมณฑล: ยังไม่ได้ประเมินความแม่นยำของคะแนนนี้ — กฎคะแนนปรับจากข้อมูลกรุงเทพฯ และไม่มีรายงานน้ำท่วมจากประชาชนในพื้นที่นี้ ใช้ประกอบกับฝน ระดับน้ำ และสภาพจริงเท่านั้น</p>' : '');
   const errs = ev.errors.length
     ? `<p class="note">ดึงข้อมูลไม่สำเร็จ: ${esc(ev.errors.join(', '))} — การประเมินอาจต่ำกว่าความเป็นจริง</p>`
@@ -852,7 +853,7 @@ function accuracyCard() {
   const a = state.accuracy;
   if (!a) return '';
   const head = '<h3>ความแม่นยำของระบบเตือน (ทดลอง)</h3>';
-  const foot = `<p class="muted tiny">วัดจากเรื่องแจ้งน้ำท่วมระดับปานกลาง/หนักที่ประชาชนแจ้ง กทม. ภายใน 24 ชม. หลังการประเมิน ในรัศมี 2 กม. — เป็นตัวแทนที่ไม่สมบูรณ์ (พื้นที่คนน้อยมักแจ้งน้อย) · อัปเดต ${a.generatedAt ? fmtTime(a.generatedAt) : ''} น.</p>`;
+  const foot = `<p class="muted tiny">วัดจากเรื่องแจ้งน้ำท่วมระดับปานกลาง/หนักที่ประชาชนแจ้ง กทม. (นับเฉพาะ ${a.coverage?.coveredPoints ?? '—'} จาก ${a.coverage?.gridPoints ?? '—'} จุดตัวอย่างที่มีการแจ้งน้ำท่วมอยู่ใกล้ — นอก กทม. ไม่มีข้อมูลแจ้งจึงไม่นับ) ภายใน 24 ชม. หลังการประเมิน ในรัศมี 2 กม. — เป็นตัวแทนที่ไม่สมบูรณ์ (พื้นที่คนน้อยมักแจ้งน้อย) · อัปเดต ${a.generatedAt ? fmtTime(a.generatedAt) : ''} น.</p>`;
   if (!a.ready) {
     return `<section class="card">${head}<p class="small">กำลังเก็บข้อมูลเพื่อตรวจสอบ: มีผลประเมินครบ 24 ชม. แล้ว <b>${a.samples.toLocaleString('th-TH')}</b> ตัวอย่าง (${a.days} วัน, ${a.events} เหตุการณ์) — จะแสดงผลเมื่อมีอย่างน้อย ${a.need.minDays} วันและ ${a.need.minEvents} เหตุการณ์</p>${foot}</section>`;
   }

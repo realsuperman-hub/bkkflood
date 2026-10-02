@@ -3,7 +3,8 @@
 // Question it answers: does the risk score separate flooded places from dry ones, which part of it misleads, and would a different low-ground rule be better?
 import { traffyDayUrl, normalizeFloods } from '../src/lib/traffy.js';
 import { sampleGrid, labelSamples, contingency } from '../src/lib/accuracy.js';
-import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, coverageMask } from '../src/lib/accuracy-analysis.js';
+import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, coverageMask, componentLift } from '../src/lib/accuracy-analysis.js';
+import { COMP } from '../src/lib/risk.js';
 import { loadRain, MARINE, GULF_POINT } from '../src/lib/forecast.js';
 
 const now = Date.now();
@@ -90,6 +91,7 @@ const out = {
   variants: Object.fromEntries(Object.entries(VARIANTS).map(([k, f]) => [k, variantReport(annotated, f)])),
   coverage: { gridPoints: grid.length, coveredPoints: mask.size, uncoveredPoints: grid.map((g, i) => (mask.has(i) ? null : g)).filter(Boolean) },
   onlyWhereComplaintsExist: report(covered),
+  componentLift: { allPoints: componentLift(annotated, COMP), onlyWhereComplaintsExist: componentLift(covered, COMP), v3Samples: annotated.filter((s) => (s.v ?? 2) >= 3).length },
   spatial: {
     spearmanMeanScoreVsEventRate: spearman(cells.map((c) => c.meanScore), cells.map((c) => c.eventRate)),
     spearmanElevationVsEventRate: spearman(cells.map((c) => elevAt(c.i) ?? 0), cells.map((c) => c.eventRate)),

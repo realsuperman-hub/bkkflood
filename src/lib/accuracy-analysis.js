@@ -1,17 +1,8 @@
 // Deeper look at the logged forecasts (see accuracy.js): threshold-free skill (AUC), event rate by score, by place, and "what if" variants of the
 // low-ground rule re-scored from the logged scores. Pure — used by scripts/analyze-accuracy.mjs and unit-tested.
 import { contingency } from './accuracy.js';
-import { distKm } from './geo.js';
 
-// The complaint feed (Traffy, BMA's own team) only exists inside Bangkok: a grid point in Nonthaburi, Pathum Thani or Samut Prakan can never have an "event",
-// so every warning there counts as a false alarm. A point is gradable only if the feed shows life nearby: a complaint of ANY severity within radiusKm during the window.
-export function coverageMask(grid, complaints, radiusKm = 3) {
-  const ok = new Set();
-  grid.forEach(([la, ln], i) => {
-    if (complaints.some((c) => Math.abs(c.lat - la) < 0.04 && Math.abs(c.lng - ln) < 0.04 && distKm(la, ln, c.lat, c.lng) <= radiusKm)) ok.add(i);
-  });
-  return ok;
-}
+export { coverageMask } from './accuracy.js';
 
 export const levelOfScore = (s) => (s >= 7 ? 3 : s >= 5 ? 2 : s >= 3 ? 1 : 0); // same cut-offs as risk.js
 
@@ -96,4 +87,16 @@ export function variantReport(samples, scoreOf) {
     byLevel: [1, 2, 3].map((th) => ({ th, ...contingency(samples, (s) => lvl(s) >= th) })),
     eventRateByLevel: bandRates(samples, lvl),
   };
+}
+
+// event rate of the samples where each score part fired (v3 records only): [{ id, name, n, events, rate, lift }]; lift = rate / base rate
+export function componentLift(samples, comp) {
+  const rows = samples.filter((s) => (s.v ?? 2) >= 3);
+  const base = rows.length ? rows.filter((s) => s.event).length / rows.length : null;
+  return Object.entries(comp).map(([name, bit]) => {
+    const on = rows.filter((s) => (s.comp >> bit) & 1);
+    const events = on.filter((s) => s.event).length;
+    const rate = on.length ? events / on.length : null;
+    return { name, bit, n: on.length, events, rate: rate === null ? null : +rate.toFixed(3), lift: rate === null || !base ? null : +(rate / base).toFixed(2) };
+  });
 }
