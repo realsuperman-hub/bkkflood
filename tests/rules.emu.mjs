@@ -134,3 +134,30 @@ test('push subscriptions: owner-only, validated, and clients cannot touch server
   await assertFails(deleteDoc(doc(b, 'subs', 'ua')));
   await assertSucceeds(deleteDoc(doc(a, 'subs', 'ua')));
 });
+
+test('push subscriptions can follow up to 5 roads (validated); a road-only device is allowed, an empty one is not', async () => {
+  const { setDoc } = await import('firebase/firestore');
+  const a = env.authenticatedContext('ra').firestore();
+  const road = { name: 'ถนนรามคำแหง', min: 20 };
+  const sub = (over = {}) => ({ token: 'T'.repeat(40), places: [], enabled: true, updatedAt: serverTimestamp(), ...over });
+  await assertSucceeds(setDoc(doc(a, 'subs', 'ra'), sub({ roads: [road] }), { merge: true })); // roads only
+  await assertSucceeds(setDoc(doc(a, 'subs', 'ra'), sub({ roads: Array(5).fill(road) }), { merge: true }));
+  await assertSucceeds(setDoc(doc(a, 'subs', 'ra'), sub({ places: [{ lat: 13.7, lng: 100.5, label: 'บ้าน' }], roads: [] }), { merge: true })); // cleared roads, one place
+  await assertFails(setDoc(doc(a, 'subs', 'ra'), sub({ roads: Array(6).fill(road) }), { merge: true })); // too many
+  await assertFails(setDoc(doc(a, 'subs', 'ra'), sub({ roads: [{ name: 'x', min: 500 }] }), { merge: true })); // threshold out of range
+  await assertFails(setDoc(doc(a, 'subs', 'ra'), sub({ roads: [{ name: '', min: 20 }] }), { merge: true })); // empty name
+  await assertFails(setDoc(doc(a, 'subs', 'ra'), sub({ roads: [{ name: 'x', min: 20, extra: 1 }] }), { merge: true })); // unknown field
+  await assertFails(setDoc(doc(a, 'subs', 'ra'), sub({ roads: 'ถนน' }), { merge: true })); // not a list
+  await assertFails(setDoc(doc(a, 'subs', 'ra'), sub({ rstate: { x: { on: true } } }), { merge: true })); // notifier-only field
+  const b = env.authenticatedContext('rb').firestore();
+  await assertFails(setDoc(doc(b, 'subs', 'rb'), sub({ places: [], roads: [] }), { merge: true })); // nothing to alert on
+});
+
+test('reports can be created in the eastern provinces (service area widened) but not outside it', async () => {
+  const a = env.authenticatedContext('ea').firestore();
+  await assertSucceeds(create(a, 'ea', { lat: 12.68, lng: 101.28 })); // Rayong
+  const b = env.authenticatedContext('eb').firestore();
+  await assertFails(create(b, 'eb', { lat: 12.2, lng: 101.28 })); // south of the area
+  const c = env.authenticatedContext('ec').firestore();
+  await assertFails(create(c, 'ec', { lat: 13.7, lng: 102.5 })); // east of the area
+});

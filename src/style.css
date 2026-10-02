@@ -518,3 +518,7 @@ a.btn.btn-primary { color: #fff; }
 .rt-body { overflow-x: hidden; }
 .rt-field .rt-row .btn { flex: none; }
 .rt-body .rm-select { max-width: 100%; background: #fff; color: var(--ink); border: 1px solid var(--line); min-height: 40px; }
+
+/* "ถนนที่ฉันใช้" */
+.linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--brand); text-align: left; cursor: pointer; }
+.row-item select { font: inherit; font-size: 12.5px; border: 1px solid var(--line); border-radius: 8px; padding: 2px 4px; background: #fff; }

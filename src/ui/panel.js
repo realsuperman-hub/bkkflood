@@ -11,7 +11,8 @@ import { mcmDayToCms, damStatus, outflowTrend } from '../lib/dams.js';
 import { camViewerEnabled } from '../lib/longdo-cams.js';
 import { BMA_LINKS, EVENT_LABEL, SPEED_LEVEL } from '../lib/bma-traffic.js';
 import { placeLabel } from '../lib/maholan-cams.js';
-import { DEPTH_BANDS, VERDICT_TH, VERDICT_COLOR, ROADS_CREDIT, confLabel, depthWord, summarizeRoads, nearRoads, bandOf } from '../lib/road-flood.js';
+import { THRESHOLDS, MAX_ROADS } from '../lib/notify-roads.js';
+import { DEPTH_BANDS, VERDICT_TH, VERDICT_COLOR, ROADS_CREDIT, confLabel, depthWord, summarizeRoads, nearRoads, roadGroup, bandOf } from '../lib/road-flood.js';
 import { distKm } from '../lib/geo.js';
 import { validQuery } from '../lib/search.js';
 import { platform } from '../lib/push.js';
@@ -454,6 +455,35 @@ const roadRow = (g, extra = '') => `<button class="row-item" data-act="road-open
     <small class="muted">ความเชื่อมั่น ${confLabel(g.conf)} · อัปเดต ${ago(g.upd)}</small></span>
   <span class="val" style="color:${(bandOf(g.maxD) || { color: '#12222e' }).color}">≈${g.maxD}<small> ซม.</small></span></button>`;
 
+// "ถนนที่ฉันใช้": follow up to 5 roads; each gets a depth threshold and a push alert when it is reached (needs alerts switched on)
+function myRoadsCard() {
+  if (!state.roadFlood?.features) return '';
+  const mine = state.myRoads;
+  const feats = state.roadFlood.features;
+  const p = state.push;
+  const pushOk = p && p.reason !== 'no-backend';
+  const row = (r) => {
+    const g = roadGroup(feats, r.name);
+    const now = g ? `${g.closedAll ? 'ปิดการจราจร · ' : ''}ตอนนี้ลึกราว <b>${g.maxD} ซม.</b>${g.maxD >= r.min || g.closedAll ? ' — <b>ถึงเกณฑ์แล้ว</b>' : ''}` : 'ตอนนี้ไม่พบน้ำท่วมบนถนนนี้';
+    return `<div class="row-item static"><span class="grow"><button class="linkish" data-act="road-open" data-name="${esc(r.name)}"><b>${esc(r.name)}</b></button><small>${now}</small>
+      <small>เตือนเมื่อน้ำลึกถึง <select data-road-min="${esc(r.name)}" aria-label="เกณฑ์ความลึก ${esc(r.name)}">${THRESHOLDS.map((t) => `<option value="${t}"${t === r.min ? ' selected' : ''}>${t} ซม.</option>`).join('')}</select> หรือเมื่อปิดถนน</small></span>
+      <button class="btn btn-sm btn-ghost" data-act="road-unfollow" data-name="${esc(r.name)}" aria-label="เลิกติดตาม ${esc(r.name)}">✕</button></div>`;
+  };
+  const f = state.roadFind;
+  const finder = mine.length < MAX_ROADS
+    ? `<div class="rt-row"><input id="road-q" type="search" placeholder="ค้นชื่อถนนที่ใช้ เช่น รามคำแหง" value="${esc(f.q)}" autocomplete="off" /><button class="btn btn-sm" data-act="road-find">ค้นหา</button></div>
+       ${f.results.length ? `<div class="list">${f.results.map((n) => `<button class="row-item" data-act="road-follow" data-name="${esc(n)}"><span class="grow"><b>${esc(n)}</b></span><span class="val">+ ติดตาม</span></button>`).join('')}</div>` : f.q && f.q.length >= 2 ? '<p class="muted small">ไม่พบถนนนี้ในรายการที่ระบบเฝ้าดู (ครอบคลุมเฉพาะ กทม.) ลองชื่อสั้นลง</p>' : ''}`
+    : `<p class="muted small">ติดตามครบ ${MAX_ROADS} สายแล้ว</p>`;
+  const alertLine = !mine.length ? ''
+    : !pushOk ? '<p class="note">เบราว์เซอร์/อุปกรณ์นี้ยังรับแจ้งเตือนไม่ได้ — ดูการ์ด “แจ้งเตือนอัตโนมัติ” ด้านล่าง</p>'
+    : p.enabled ? '<p class="small">🔔 แจ้งเตือนเปิดอยู่ — จะส่งเมื่อถนนเหล่านี้ท่วมถึงเกณฑ์ (ไม่เกิน 1 ครั้งต่อ 30 นาที)</p>'
+    : `<p class="small">ยังไม่ได้เปิดแจ้งเตือน — เปิดเพื่อรับข้อความบนมือถือแม้ไม่ได้เปิดเว็บ</p><div class="row"><button class="btn btn-primary" data-act="push-enable"${p.busy ? ' disabled' : ''}>🔔 เปิดแจ้งเตือน</button></div>${p.error ? `<p class="note">${esc(p.error)}</p>` : ''}`;
+  return `<section class="card"><h3>ถนนที่ฉันใช้</h3>
+    ${mine.length ? `<div class="list">${mine.map(row).join('')}</div>` : '<p class="small">เลือกถนนที่คุณขับผ่านเป็นประจำ แล้วรับแจ้งเตือนเมื่อน้ำท่วมถึงระดับที่ตั้งไว้ (ค่าประมาณจาก Floodboard · เฉพาะ กทม.)</p>'}
+    ${finder}${alertLine}
+    <p class="muted tiny">ระบบจะเก็บ <b>ชื่อถนนที่ติดตาม</b> พร้อมรหัสอุปกรณ์บนเซิร์ฟเวอร์ เพื่อส่งแจ้งเตือนเท่านั้น ไม่เก็บตัวตน ปิดเมื่อไรก็ได้ · เป็นค่าประมาณ ไม่ใช่การเตือนภัยทางการ · แตะที่เส้นถนนบนแผนที่แล้วกด “🔔 แจ้งเตือนถนนนี้” ก็ได้</p></section>`;
+}
+
 // one-tap entry to the route check
 function routeEntryCard() {
   if (!state.roadFlood?.features) return '';
@@ -564,7 +594,8 @@ function pushCard() {
   const p = state.push;
   if (!p || p.reason === 'no-backend') return '';
   const n = state.saved.length;
-  const consent = '<p class="muted tiny">เปิดแล้วระบบจะเก็บ <b>พิกัดของจุดที่บันทึก</b> และรหัสอุปกรณ์บนเซิร์ฟเวอร์ เพื่อส่งแจ้งเตือนเท่านั้น ปิดเมื่อไรก็ได้ (ข้อมูลถูกลบ) · การแจ้งเตือนเป็นการประเมินอัตโนมัติ อาจคลาดเคลื่อนหรือล่าช้า ไม่ใช่ประกาศทางการ</p>';
+  const rn = state.myRoads.length;
+  const consent = '<p class="muted tiny">เปิดแล้วระบบจะเก็บ <b>พิกัดของจุดที่บันทึก ชื่อถนนที่ติดตาม</b> และรหัสอุปกรณ์บนเซิร์ฟเวอร์ เพื่อส่งแจ้งเตือนเท่านั้น ปิดเมื่อไรก็ได้ (ข้อมูลถูกลบ) · การแจ้งเตือนเป็นการประเมินอัตโนมัติ อาจคลาดเคลื่อนหรือล่าช้า ไม่ใช่ประกาศทางการ</p>';
   let body;
   if (p.reason === 'ios-install') {
     body = `<p class="small">บน iPhone/iPad ต้อง <b>เพิ่มเว็บนี้ลงหน้าจอโฮมก่อน</b> จึงจะรับแจ้งเตือนได้:</p>
@@ -582,12 +613,12 @@ function pushCard() {
     body = `<p class="note">เบราว์เซอร์บล็อกการแจ้งเตือนของเว็บนี้ไว้ (เคยกด "บล็อก" หรือปิดหน้าต่างขออนุญาตหลายครั้ง) — เว็บสั่งเปิดเองไม่ได้ ต้องเปิดที่ตั้งค่าของเบราว์เซอร์:</p><ol class="small steps">${steps}</ol>`;
   } else if (p.enabled) {
     const ver = p.verified === true ? '<p class="small">✅ ลงทะเบียนกับเซิร์ฟเวอร์เรียบร้อยแล้ว</p>' : p.verified === false ? '<p class="note">⚠ เครื่องนี้บอกว่าเปิดอยู่ แต่<b>ไม่พบการลงทะเบียนบนเซิร์ฟเวอร์</b> จึงจะยังไม่ได้รับแจ้งเตือน — กด "ลงทะเบียนใหม่" ด้านล่าง</p>' : '';
-    body = `${ver}<p class="small">🔔 <b>เปิดอยู่</b> — จะแจ้งเมื่อจุดที่บันทึกไว้ (${n} จุด) เสี่ยงสูงขึ้น หรือมีผู้แจ้ง กทม. ว่าท่วมหนักใกล้จุดนั้น (ไม่เกิน 1 ครั้งต่อ 2 ชม.)</p>
+    body = `${ver}<p class="small">🔔 <b>เปิดอยู่</b> — จะแจ้งเมื่อจุดที่บันทึกไว้ (${n} จุด)${rn ? ` และถนนที่ติดตาม (${rn} สาย)` : ''} เสี่ยงสูงขึ้น หรือมีผู้แจ้ง กทม. ว่าท่วมหนักใกล้จุดนั้น (ไม่เกิน 1 ครั้งต่อ 2 ชม.)</p>
       <div class="row wrap">${p.verified === false ? `<button class="btn btn-primary" data-act="push-enable" ${p.busy ? 'disabled' : ''}>ลงทะเบียนใหม่</button>` : ''}<button class="btn btn-sm" data-act="push-disable" ${p.busy ? 'disabled' : ''}>ปิดแจ้งเตือน</button></div>`;
-  } else if (!n) {
+  } else if (!n && !rn) {
     body = '<p class="small">บันทึกจุดของคุณ (บ้าน/ที่จอดรถ) ก่อน — แตะแผนที่แล้วกด "บันทึกจุดนี้เป็น" ที่แท็บพยากรณ์จุด จากนั้นกลับมาเปิดแจ้งเตือน</p>';
   } else {
-    body = `<p class="small">รับแจ้งเตือนบนมือถือเมื่อจุดที่บันทึกไว้ (${n} จุด) เสี่ยงท่วมสูงขึ้น แม้ไม่ได้เปิดเว็บอยู่</p>
+    body = `<p class="small">รับแจ้งเตือนบนมือถือเมื่อจุดที่บันทึกไว้ (${n} จุด)${rn ? ` และถนนที่ติดตาม (${rn} สาย)` : ''} เสี่ยงท่วมสูงขึ้น แม้ไม่ได้เปิดเว็บอยู่</p>
       <div class="row"><button class="btn btn-primary" data-act="push-enable" ${p.busy ? 'disabled' : ''}>${p.busy ? 'กำลังเปิด…' : '🔔 เปิดแจ้งเตือน'}</button></div>
       ${p.busy && p.stage ? `<p class="small muted">ขั้นตอนตอนนี้: ${esc(p.stage)}</p>${p.stage === 'ขออนุญาตแจ้งเตือน' ? '<p class="note">ถ้าไม่เห็นหน้าต่างถาม ให้มองหา <b>ไอคอนรูประฆัง 🔔</b> ที่แถบที่อยู่ด้านบน (Edge/Chrome บางครั้งซ่อนหน้าต่างไว้ที่นั่น) แล้วคลิกเลือก <b>"อนุญาต"</b></p>' : ''}` : ''}${consent}`;
   }
@@ -645,7 +676,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${nowSummaryCard()}${routeEntryCard()}${floodsOverviewCard()}${roadsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${nowSummaryCard()}${routeEntryCard()}${myRoadsCard()}${floodsOverviewCard()}${roadsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {

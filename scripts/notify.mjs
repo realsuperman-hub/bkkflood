@@ -9,6 +9,7 @@ import { inBounds } from '../src/lib/geo.js';
 import { STALE_MS } from '../src/lib/thaiwater.js';
 import { RAIN_STALE_MS } from '../src/lib/rain-obs.js';
 import { decide, nextState, sanitizePlaces, placeKey, buildMessage } from '../src/lib/notify-logic.js';
+import { sanitizeRoads, roadKey, currentRoad, decideRoad, nextRoadState, buildRoadMessage, SNAPSHOT_MAX_AGE_MS } from '../src/lib/notify-roads.js';
 
 const arg = (n) => {
   const i = process.argv.indexOf(n);
@@ -27,7 +28,9 @@ const stations = (await readJson('public/data/stations.json').catch(() => ({ sta
 const floods = (await readJson('public/data/floods.json').catch(() => ({ floods: [] }))).floods.filter((f) => now - f.t < 24 * 3600e3);
 const rainObs = (await readJson('public/data/rain.json').catch(() => ({ gauges: [] }))).gauges.map((g) => ({ ...g, stale: g.t === null || now - g.t > RAIN_STALE_MS }));
 const events = (await readJson('public/data/traffic-events.json').catch(() => ({ events: [] }))).events;
-console.log(`data: ${stations.length} stations, ${floods.length} flood complaints, ${rainObs.length} rain gauges`);
+const roadSnap = await readJson('public/data/road-flood.json').catch(() => null);
+const roadsFresh = !!roadSnap?.features && now - (roadSnap.generatedAt || 0) < SNAPSHOT_MAX_AGE_MS; // an old snapshot never triggers a road alert
+console.log(`data: ${stations.length} stations, ${floods.length} flood complaints, ${rainObs.length} rain gauges, ${roadSnap?.features?.length ?? 0} flooded road segments${roadsFresh ? '' : ' (road data missing/old: road alerts paused)'}`);
 
 let db = null;
 let messaging = null;
@@ -70,7 +73,8 @@ let failed = 0;
 for (const sub of subs) {
   try {
     const places = sanitizePlaces(sub.places, inBounds);
-    if (!sub.token || !places.length) continue;
+    const roads = sanitizeRoads(sub.roads);
+    if (!sub.token || (!places.length && !roads.length)) continue;
 
     const prevState = sub.state || {};
     const results = [];
@@ -110,10 +114,50 @@ for (const sub of subs) {
       skipped++;
     }
 
+    // followed roads: at most one road push per device per run, and none in a run that already sent a place alert (it fires next run instead)
+    const rstate = {};
+    let roadSent = false;
+    if (roadsFresh && roads.length) {
+      const rprev = sub.rstate || {};
+      const rres = roads.map((r) => {
+        const cur = currentRoad(roadSnap.features, r.name);
+        const key = roadKey(r.name);
+        const d = decideRoad(rprev[key], cur, { now, min: r.min, lastRoadSentAt: sub.lastRoadSentAt || 0 });
+        return { r, cur, key, d };
+      });
+      const cand = rres.filter((x) => x.d.notify).sort((a, b) => (b.cur.closed - a.cur.closed) || b.cur.depth - a.cur.depth)[0];
+      const send = cand && !notified;
+      if (send) {
+        const msg = buildRoadMessage(cand.r.name, cand.cur);
+        if (dry) {
+          console.log(`[dry] ${sub.id}: would send road alert "${msg.title}" — ${msg.body}`);
+          roadSent = true;
+        } else {
+          try {
+            await messaging.send({ token: sub.token, data: msg, webpush: { headers: { Urgency: 'high', TTL: '7200' } } });
+            roadSent = true;
+            sent++;
+          } catch (e) {
+            if (isDeadToken(e)) {
+              await db.doc(`subs/${sub.id}`).delete();
+              removed++;
+              console.log(`removed dead subscription ${sub.id} (${e.code})`);
+              continue;
+            }
+            throw e;
+          }
+        }
+      }
+      for (const x of rres) {
+        const waiting = x.d.notify && !(send && x === cand); // wanted to notify but another push went first this run
+        rstate[x.key] = nextRoadState(rprev[x.key], x.cur, { notified: send && x === cand && roadSent, suppressed: !!x.d.suppressed || waiting, now, min: x.r.min });
+      }
+    }
+
     if (!dry) {
       const state = {};
       for (const r of results) state[r.key] = nextState(r.prev, r.cur, { notified: notified && best === r, suppressed: r.d.suppressed, now });
-      await db.doc(`subs/${sub.id}`).set({ state, ...(notified ? { lastSentAt: now } : {}) }, { merge: true });
+      await db.doc(`subs/${sub.id}`).set({ state, ...(Object.keys(rstate).length ? { rstate } : {}), ...(notified ? { lastSentAt: now } : {}), ...(roadSent ? { lastRoadSentAt: now } : {}) }, { merge: true });
     }
   } catch (e) {
     failed++;

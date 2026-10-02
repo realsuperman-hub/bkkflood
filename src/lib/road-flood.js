@@ -69,6 +69,16 @@ export function normalizeRoads(raw, now = Date.now()) {
   return out;
 }
 
+// every named road Floodboard monitors (also the dry ones), so a user can follow a road before it floods
+export function roadNames(raw) {
+  const set = new Set();
+  for (const f of raw?.features || []) {
+    const n = String(f?.properties?.name || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (n) set.add(n);
+  }
+  return [...set].sort((a, b) => a.localeCompare(b, 'th'));
+}
+
 const KX = 111320;
 // length of a MultiLineString in metres (equirectangular, fine at city scale)
 export function lengthM(coords) {

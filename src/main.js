@@ -2,10 +2,11 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './style.css';
 
-import { state, emit, onChange, savePlaces } from './state.js';
+import { state, emit, onChange, savePlaces, saveRoads } from './state.js';
 import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
 import { snapUrl as mcamSnapUrl, sameSpot, isCamId, placeLabel } from './lib/maholan-cams.js';
 import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
+import { MAX_ROADS, DEFAULT_MIN } from './lib/notify-roads.js';
 import { DEPTH_BANDS, CLOSED_COLOR, VERDICT_TH, VERDICT_COLOR, VEHICLES, ROADS_CREDIT, confLabel, depthWord, matchRoads, roadGroup, centroid as roadCentroid } from './lib/road-flood.js';
 import { initRoom, openRoom, refreshRoom } from './ui/room.js';
 import { initRouteLayers, openRoute, routeGo, routeSwap, routeShow, routeClose, clearRoute, routePicking, routePick } from './ui/route.js';
@@ -323,6 +324,12 @@ function refreshRoadFloodLayer() {
   if (!r?.features) return;
   map?.getSource('roadflood')?.setData({ type: 'FeatureCollection', features: r.features });
 }
+const following = (name) => state.myRoads.some((r) => r.name === name);
+const followRow = (name) => `<div class="row wrap">${following(name) ? `<span class="small">🔔 ติดตามถนนนี้อยู่ (ดู/ตั้งค่าที่หน้า “สถานการณ์”)</span>` : `<button class="btn btn-sm" data-act="road-follow" data-name="${esc(name)}">🔔 แจ้งเตือนถนนนี้</button>`}</div>`;
+// keep the server's copy in step with the roads/places saved here (silent when alerts are off)
+function syncAlerts(refreshStatus = false) {
+  syncPush(state.saved, state.myRoads).then(() => { if (refreshStatus) { state.push = pushStatus(); emit(); } }).catch(() => {});
+}
 const vehicleChips = (v) => VEHICLES.map((n, i) => `<span class="vd" style="--c:${VERDICT_COLOR[v[i]]}"><i></i>${n}: <b>${VERDICT_TH[v[i]]}</b></span>`).join('');
 const roadCredit = () => `<p class="muted tiny">ค่าประมาณที่รวมจากหลายแหล่ง (เซ็นเซอร์ กทม. Traffy ข่าว โซเชียล) ไม่ใช่ค่าวัดทางการ · ข้อมูลจาก <a href="${ROADS_CREDIT.url}" target="_blank" rel="noopener noreferrer">${ROADS_CREDIT.name}</a> (<a href="${ROADS_CREDIT.licenceUrl}" target="_blank" rel="noopener noreferrer">${ROADS_CREDIT.licence}</a>) ปรับรูปแบบให้กะทัดรัด</p>`;
 // one segment of a road (the coloured line you tapped)
@@ -332,7 +339,7 @@ function floodRoadPopup(p, lngLat) {
   openPopup(lngLat, `<div class="pp"><div class="pp-title">${esc(p.n || 'ถนน/ซอย (ไม่ระบุชื่อ)')}</div>
     <p class="small">${+p.a ? '<span class="tag warn">ปิดการจราจร</span> ' : +p.s ? '<span class="tag warn">รถเล็กผ่านไม่ได้</span> ' : ''}${+p.d > 0 ? `ระดับน้ำประมาณ <b>${+p.d} ซม.</b>${word ? ` (${word})` : ''}` : 'ไม่มีค่าความลึก'}</p>
     <div class="vds">${vehicleChips(v)}</div>
-    <p class="muted tiny">ความเชื่อมั่น <b>${confLabel(+p.c)}</b> · ข้อมูลอัปเดต ${ago(+p.u)}</p>${roadCredit()}</div>`);
+    <p class="muted tiny">ความเชื่อมั่น <b>${confLabel(+p.c)}</b> · ข้อมูลอัปเดต ${ago(+p.u)}</p>${p.n ? followRow(p.n) : ''}${roadCredit()}</div>`);
 }
 // a whole road (opened from the list)
 function floodRoadGroupPopup(name) {
@@ -342,7 +349,7 @@ function floodRoadGroupPopup(name) {
   openPopup([c.lng, c.lat], `<div class="pp"><div class="pp-title">${esc(g.name)}</div>
     <p class="small">ลึกสุดราว <b>${g.maxD} ซม.</b>${depthWord(g.maxD) ? ` (${depthWord(g.maxD)})` : ''} · ${g.segs} ช่วง ราว ${(g.meters / 1000).toFixed(1)} กม.${g.closedAll ? ` · ปิดการจราจร ${g.closedAll} ช่วง` : ''}</p>
     <div class="vds">${vehicleChips(g.v)}</div>
-    <p class="muted tiny">สถานะที่แย่ที่สุดของถนนสายนี้ · แตะเส้นสีบนแผนที่เพื่อดูแต่ละช่วง · ความเชื่อมั่น ${confLabel(g.conf)} · อัปเดต ${ago(g.upd)}</p>${roadCredit()}</div>`);
+    <p class="muted tiny">สถานะที่แย่ที่สุดของถนนสายนี้ · แตะเส้นสีบนแผนที่เพื่อดูแต่ละช่วง · ความเชื่อมั่น ${confLabel(g.conf)} · อัปเดต ${ago(g.upd)}</p>${followRow(g.name)}${roadCredit()}</div>`);
 }
 function refreshMcamLayer() {
   const m = state.mcams;
@@ -817,7 +824,7 @@ const actions = {
       await enablePush(state.saved, (stage) => {
         state.push = { ...state.push, busy: true, stage };
         emit();
-      });
+      }, state.myRoads);
       toast('เปิดแจ้งเตือนแล้ว');
       state.push = { ...pushStatus(), verified: await verifyPush() };
     } catch (e) {
@@ -914,6 +921,32 @@ const actions = {
   'route-show': () => routeShow(),
   'route-close': () => routeClose(),
   'route-clear': () => clearRoute(),
+  'road-follow': ({ name }) => {
+    if (!name || following(name)) return;
+    if (state.myRoads.length >= MAX_ROADS) return toast(`ติดตามได้สูงสุด ${MAX_ROADS} สาย — ลบสายเก่าที่หน้า “สถานการณ์” ก่อน`);
+    state.myRoads.push({ name, min: DEFAULT_MIN });
+    saveRoads();
+    state.roadFind = { q: '', results: [] };
+    toast(`ติดตาม “${name}” แล้ว — เตือนเมื่อน้ำท่วมถึง ${DEFAULT_MIN} ซม. · ตั้งค่าและเปิดแจ้งเตือนที่หน้า “สถานการณ์”`, 7000);
+    popup?.remove();
+    emit();
+    syncAlerts(true);
+  },
+  'road-unfollow': ({ name }) => {
+    state.myRoads = state.myRoads.filter((r) => r.name !== name);
+    saveRoads();
+    emit();
+    syncAlerts(true);
+  },
+  'road-find': () => {
+    const q = String(document.querySelector('#road-q')?.value || '').trim();
+    const names = state.roadFlood?.names || [];
+    const loose = (x) => String(x).toLowerCase().replace(/[\s.\-]+/g, '');
+    const nq = loose(q);
+    state.roadFind = { q, results: nq.length >= 2 ? names.filter((n) => loose(n).includes(nq) && !following(n)).slice(0, 8) : [] };
+    if (nq.length < 2) toast('พิมพ์ชื่อถนนอย่างน้อย 2 ตัวอักษร');
+    emit();
+  },
   'road-open': ({ name }) => {
     const g = roadGroup(state.roadFlood?.features || [], name);
     if (!g) return;
@@ -1030,14 +1063,14 @@ const actions = {
     savePlaces();
     toast(`บันทึก "${label}" แล้ว — ไปแท็บ "สถานการณ์" เพื่อเปิดแจ้งเตือน`, 7000);
     refreshSaved();
-    syncPush(state.saved).catch(() => {});
+    syncAlerts();
   },
   'del-place': ({ id }) => {
     state.saved = state.saved.filter((p) => p.id !== id);
     delete state.savedEval[id];
     savePlaces();
     emit();
-    syncPush(state.saved).then(() => { state.push = pushStatus(); emit(); }).catch(() => {});
+    syncAlerts(true);
   },
   'copy-link': async () => {
     const f = state.selected;
@@ -1081,6 +1114,18 @@ function openCameras() {
 }
 if (camViewerEnabled()) $('#btn-room').hidden = false; // shown as soon as either view is available
 
+document.addEventListener('change', (e) => {
+  const sel = e.target.closest?.('[data-road-min]');
+  if (!sel) return;
+  const r = state.myRoads.find((x) => x.name === sel.dataset.roadMin);
+  if (!r) return;
+  r.min = +sel.value;
+  saveRoads();
+  syncAlerts();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target?.id === 'road-q') { e.preventDefault(); actions['road-find'](); }
+});
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
   if (!el || el.disabled) return;
@@ -1397,7 +1442,19 @@ async function main() {
     verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
     loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
-    const reloadRoads = () => loadRoadFlood().then((r) => { state.roadFlood = r; $('#ly-roadflood').closest('label').hidden = false; refreshRoadFloodLayer(); emit(); }).catch(() => {});
+    let roadLinkHandled = false;
+    const reloadRoads = () => loadRoadFlood().then((r) => {
+      state.roadFlood = r;
+      $('#ly-roadflood').closest('label').hidden = false;
+      refreshRoadFloodLayer();
+      emit();
+      const want = !roadLinkHandled && new URLSearchParams(location.search).get('road'); // opened from a road alert
+      if (want) {
+        roadLinkHandled = true;
+        if (roadGroup(r.features, want)) actions['road-open']({ name: want });
+        else toast(`ตอนนี้ไม่พบน้ำท่วมบน “${want}” ตามข้อมูลล่าสุด`);
+      }
+    }).catch(() => {});
     reloadRoads();
     setInterval(reloadRoads, 5 * 60 * 1000);
     loadMaholanCams().then((m) => { state.mcams = m; $('#ly-mcams').closest('label').hidden = false; $('#btn-room').hidden = false; refreshMcamLayer(); refreshRoom(); emit(); }).catch(() => {});

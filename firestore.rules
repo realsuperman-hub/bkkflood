@@ -8,8 +8,8 @@ service cloud.firestore {
       let d = request.resource.data;
       return d.keys().hasOnly(['lat','lng','kind','geom','depth','passable','note','thumb','photoCount','uid',
                                'createdAt','lastConfirmedAt','expiresAt','stillCount','goneCount','wrongCount'])
-        && d.lat is number && d.lat >= 13.3 && d.lat <= 14.4
-        && d.lng is number && d.lng >= 99.9 && d.lng <= 101.1
+        && d.lat is number && d.lat >= 12.5 && d.lat <= 14.4
+        && d.lng is number && d.lng >= 99.9 && d.lng <= 101.8
         && validShape(d)
         && d.depth in ['wet','ankle','knee','waist','above']
         && d.passable in ['all','high','none']
@@ -28,9 +28,9 @@ service cloud.firestore {
     function validShape(d) {
       return !('kind' in d) || d.kind == 'point' && !('geom' in d)
         || d.kind == 'line' && d.geom is list && d.geom.size() >= 4 && d.geom.size() <= 80 && d.geom.size() % 2 == 0
-           && d.geom[0] is number && d.geom[0] >= 13.3 && d.geom[0] <= 14.4 && d.geom[1] is number && d.geom[1] >= 99.9 && d.geom[1] <= 101.1
+           && d.geom[0] is number && d.geom[0] >= 12.5 && d.geom[0] <= 14.4 && d.geom[1] is number && d.geom[1] >= 99.9 && d.geom[1] <= 101.8
         || d.kind == 'area' && d.geom is list && d.geom.size() >= 6 && d.geom.size() <= 80 && d.geom.size() % 2 == 0
-           && d.geom[0] is number && d.geom[0] >= 13.3 && d.geom[0] <= 14.4 && d.geom[1] is number && d.geom[1] >= 99.9 && d.geom[1] <= 101.1;
+           && d.geom[0] is number && d.geom[0] >= 12.5 && d.geom[0] <= 14.4 && d.geom[1] is number && d.geom[1] >= 99.9 && d.geom[1] <= 101.8;
     }
 
     // At most one new report per user per minute; the same batch must stamp users/{uid}.
@@ -87,20 +87,37 @@ service cloud.firestore {
       }
     }
 
-    // Push subscriptions: one doc per anonymous user. Clients may only touch the four fields below;
-    // `state` and `lastSentAt` are written by the notifier (Admin SDK bypasses these rules).
+    // Push subscriptions: one doc per anonymous user. Clients may only touch the five fields below;
+    // `state`, `rstate`, `lastSentAt` and `lastRoadSentAt` are written by the notifier (Admin SDK bypasses these rules).
+    // `roads` = the roads the user follows: up to 5 of { name, min } (min = depth threshold in cm).
+    function validRoad(r) {
+      return r is map && r.keys().hasOnly(['name', 'min'])
+        && r.name is string && r.name.size() >= 1 && r.name.size() <= 80
+        && r.min is int && r.min >= 5 && r.min <= 150;
+    }
+    function roadsOk(d) {
+      return !('roads' in d)
+        || (d.roads is list && d.roads.size() <= 5
+            && (d.roads.size() < 1 || validRoad(d.roads[0]))
+            && (d.roads.size() < 2 || validRoad(d.roads[1]))
+            && (d.roads.size() < 3 || validRoad(d.roads[2]))
+            && (d.roads.size() < 4 || validRoad(d.roads[3]))
+            && (d.roads.size() < 5 || validRoad(d.roads[4])));
+    }
     function validSub(d) {
       return d.token is string && d.token.size() > 20 && d.token.size() < 400
         && d.enabled is bool
-        && d.places is list && d.places.size() >= 1 && d.places.size() <= 4
+        && d.places is list && d.places.size() <= 4
+        && roadsOk(d)
+        && d.places.size() + ('roads' in d ? d.roads.size() : 0) >= 1
         && d.updatedAt == request.time;
     }
     match /subs/{uid} {
       allow read, delete: if signedIn() && uid == request.auth.uid;
       allow create: if signedIn() && uid == request.auth.uid && validSub(request.resource.data)
-        && request.resource.data.keys().hasOnly(['token','places','enabled','updatedAt']);
+        && request.resource.data.keys().hasOnly(['token','places','roads','enabled','updatedAt']);
       allow update: if signedIn() && uid == request.auth.uid && validSub(request.resource.data)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['token','places','enabled','updatedAt']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['token','places','roads','enabled','updatedAt']);
     }
 
     match /users/{uid} {

@@ -207,9 +207,9 @@ async function createFirebaseStore() {
     async signIn() {
       return ensureUid();
     },
-    async saveSub({ token, places }) {
+    async saveSub({ token, places, roads }) {
       const uid = await ensureUid();
-      await fs.setDoc(fs.doc(db, 'subs', uid), { token, places, enabled: true, updatedAt: fs.serverTimestamp() }, { merge: true });
+      await fs.setDoc(fs.doc(db, 'subs', uid), { token, places, ...(roads ? { roads } : {}), enabled: true, updatedAt: fs.serverTimestamp() }, { merge: true });
     },
     async removeSub() {
       const uid = await ensureUid();

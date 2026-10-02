@@ -45,6 +45,15 @@ export function pushStatus() {
   return { ...support, permission, enabled: support.ok && permission === 'granted' && ls.get(FLAG) === '1' };
 }
 
+const ROADS_FLAG = 'bkkflood.roadsSynced'; // '1' once road alerts were written to the server (so an emptied list is cleared there too)
+const roadsPayload = (roads) => (roads || []).slice(0, 5).map((r) => ({ name: String(r.name).slice(0, 80), min: Math.round(r.min) }));
+// the `roads` field is only sent when there is something to say (or something to clear): devices that never follow a road behave exactly as before
+const roadsField = (roads) => {
+  const p = roadsPayload(roads);
+  if (p.length) { ls.set(ROADS_FLAG, '1'); return { roads: p }; }
+  if (ls.get(ROADS_FLAG) === '1') { ls.set(ROADS_FLAG, null); return { roads: [] }; }
+  return {};
+};
 const placesPayload = (places) => places.slice(0, 4).map((p) => ({ lat: +p.lat.toFixed(5), lng: +p.lng.toFixed(5), label: String(p.label).slice(0, 20) }));
 
 async function getToken() {
@@ -79,8 +88,8 @@ async function step(name, fn, ms, onStage) {
 
 export const STAGE_PERMISSION = 'ขออนุญาตแจ้งเตือน';
 
-export async function enablePush(places, onStage) {
-  if (!places.length) throw new Error('บันทึกจุดของคุณ (บ้าน/ที่จอดรถ) ก่อน แล้วค่อยเปิดแจ้งเตือน');
+export async function enablePush(places, onStage, roads = []) {
+  if (!places.length && !roads.length) throw new Error('บันทึกจุดของคุณ (บ้าน/ที่จอดรถ) ก่อน แล้วค่อยเปิดแจ้งเตือน');
   const support = pushSupport();
   if (!support.ok) throw new Error('อุปกรณ์/เบราว์เซอร์นี้ยังเปิดแจ้งเตือนไม่ได้');
   const perm = await step(STAGE_PERMISSION, () => Notification.requestPermission(), 120000, onStage);
@@ -89,18 +98,18 @@ export async function enablePush(places, onStage) {
   const token = await step('ขอรหัสอุปกรณ์จากบริการแจ้งเตือนของเบราว์เซอร์ (FCM)', () => getToken(), 30000, onStage);
   if (!token) throw new Error('ขอรหัสอุปกรณ์ไม่สำเร็จ ลองใหม่อีกครั้ง');
   await step('เข้าสู่ระบบแบบไม่ระบุตัวตน', () => state.store.signIn(), 25000, onStage);
-  await step('บันทึกที่เซิร์ฟเวอร์', () => state.store.saveSub({ token, places: placesPayload(places) }), 25000, onStage);
+  await step('บันทึกที่เซิร์ฟเวอร์', () => state.store.saveSub({ token, places: placesPayload(places), ...roadsField(roads) }), 25000, onStage);
   ls.set(FLAG, '1');
   ls.set(TOKEN, token);
 }
 
 // Keep the server's copy of the places in step with the ones saved on the device.
-export async function syncPush(places) {
+export async function syncPush(places, roads = []) {
   if (!pushStatus().enabled) return;
   const token = ls.get(TOKEN);
   if (!token) return;
-  if (!places.length) return disablePush();
-  await state.store.saveSub({ token, places: placesPayload(places) });
+  if (!places.length && !roads.length) return disablePush();
+  await state.store.saveSub({ token, places: placesPayload(places), ...roadsField(roads) });
 }
 
 export async function disablePush() {

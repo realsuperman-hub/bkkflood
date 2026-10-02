@@ -1,5 +1,14 @@
 // Tiny shared state + change notification (no framework).
 const SAVED_KEY = 'bkkflood.places';
+const ROADS_KEY = 'bkkflood.roads';
+const loadRoads = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(ROADS_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((r) => r && typeof r.name === 'string' && Number.isFinite(r.min)).slice(0, 5) : [];
+  } catch {
+    return [];
+  }
+};
 const loadSaved = () => {
   try {
     const v = JSON.parse(localStorage.getItem(SAVED_KEY) || '[]');
@@ -37,6 +46,8 @@ export const state = {
   selected: null, // { lat, lng }
   forecast: null, // evaluate() result for selected, or { loading } / { error }
   saved: loadSaved(), // [{ id, label, lat, lng }]
+  myRoads: loadRoads(), // roads I follow for flood alerts: [{ name, min }] (min = depth in cm)
+  roadFind: { q: '', results: [] }, // search box in the "ถนนที่ฉันใช้" card
   savedEval: {}, // id -> evaluate() result
   overview: null, // evaluate() result for Bangkok centre
   tab: 'overview',
@@ -46,6 +57,14 @@ export const state = {
   district: '', // district filter in the flood-points tab
   floodLimit: 40,
 };
+
+export function saveRoads() {
+  try {
+    localStorage.setItem(ROADS_KEY, JSON.stringify(state.myRoads));
+  } catch {
+    /* storage unavailable */
+  }
+}
 
 export function savePlaces() {
   try {
