@@ -88,6 +88,10 @@ jobs:
         run: |
           [ -s data-static/maholan-cams.json ] && cp data-static/maholan-cams.json public/data/maholan-cams.json || true
           [ -s data-static/maholan-ai.json ] && cp data-static/maholan-ai.json public/data/maholan-ai.json || true
+      - name: Road flood depth (Floodboard open data, CC BY 4.0; keeps the live copy if their export is unreachable)
+        continue-on-error: true
+        run: |
+          node scripts/fetch-roads.mjs || curl -sf https://bkkflood.web.app/data/road-flood.json -o public/data/road-flood.json || true
       - name: Accuracy report (every 6 h; other runs reuse the live one)
         continue-on-error: true
         run: |

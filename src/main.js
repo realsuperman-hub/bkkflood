@@ -6,10 +6,11 @@ import { state, emit, onChange, savePlaces } from './state.js';
 import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
 import { snapUrl as mcamSnapUrl, sameSpot, isCamId, placeLabel } from './lib/maholan-cams.js';
 import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
+import { DEPTH_BANDS, CLOSED_COLOR, VERDICT_TH, VERDICT_COLOR, VEHICLES, ROADS_CREDIT, confLabel, depthWord, matchRoads, roadGroup, centroid as roadCentroid } from './lib/road-flood.js';
 import { initRoom, openRoom, refreshRoom } from './ui/room.js';
 import { isDhrPage } from './lib/dhr-cams.js';
 import { LEGEND, EV_COLOR, stripHtml, compactHtml, dialogHtml } from './lib/legend.js';
-import { loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -151,6 +152,17 @@ function initLayers() {
   map.addSource('traffic-roads', { type: 'geojson', data: emptyFC });
   map.addLayer({ id: 'traffic-roads-casing', type: 'line', source: 'traffic-roads', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 5, 15, 13] } });
   map.addLayer({ id: 'traffic-roads', type: 'line', source: 'traffic-roads', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['get', 'color'], 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 3, 15, 8] } });
+  // estimated flood depth on roads (Floodboard open data): white casing + a line coloured by depth; faint when the estimate is not confident
+  map.addSource('roadflood', { type: 'geojson', data: emptyFC });
+  map.addLayer({ id: 'roadflood-casing', type: 'line', source: 'roadflood', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-opacity': 0.85, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 4, 13, 7, 16, 14] } });
+  map.addLayer({
+    id: 'roadflood', type: 'line', source: 'roadflood', layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': ['case', ['==', ['get', 'a'], 1], '#12222e', ['step', ['get', 'd'], '#e6b800', 15, '#f28c28', 30, '#d7263d', 50, '#8b1d4a']],
+      'line-opacity': ['interpolate', ['linear'], ['get', 'c'], 0, 0.5, 100, 1],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 9, 2.5, 13, 5, 16, 11],
+    },
+  });
   map.addSource('repeat', { type: 'geojson', data: emptyFC });
   map.addLayer({
     id: 'repeat', type: 'circle', source: 'repeat', layout: { visibility: 'none' },
@@ -303,6 +315,32 @@ function windyPopup(c) {
     <div class="row wrap"><button class="btn btn-sm btn-primary" data-act="windy-open" data-id="${esc(c.id)}">ดูภาพย้อนหลัง 24 ชม.</button>
     ${c.detail ? `<a class="btn btn-sm" href="${esc(c.detail)}" target="_blank" rel="noopener noreferrer">เปิดที่ Windy ↗</a>` : ''}</div>
     <p class="muted tiny">Webcams provided by <a href="https://www.windy.com" target="_blank" rel="noopener noreferrer">Windy.com</a> — <a href="${WINDY_CREDIT_URL}" target="_blank" rel="noopener noreferrer">add a webcam</a></p></div>`);
+}
+function refreshRoadFloodLayer() {
+  const r = state.roadFlood;
+  if (!r?.features) return;
+  map?.getSource('roadflood')?.setData({ type: 'FeatureCollection', features: r.features });
+}
+const vehicleChips = (v) => VEHICLES.map((n, i) => `<span class="vd" style="--c:${VERDICT_COLOR[v[i]]}"><i></i>${n}: <b>${VERDICT_TH[v[i]]}</b></span>`).join('');
+const roadCredit = () => `<p class="muted tiny">ค่าประมาณที่รวมจากหลายแหล่ง (เซ็นเซอร์ กทม. Traffy ข่าว โซเชียล) ไม่ใช่ค่าวัดทางการ · ข้อมูลจาก <a href="${ROADS_CREDIT.url}" target="_blank" rel="noopener noreferrer">${ROADS_CREDIT.name}</a> (<a href="${ROADS_CREDIT.licenceUrl}" target="_blank" rel="noopener noreferrer">${ROADS_CREDIT.licence}</a>) ปรับรูปแบบให้กะทัดรัด</p>`;
+// one segment of a road (the coloured line you tapped)
+function floodRoadPopup(p, lngLat) {
+  const v = typeof p.v === 'string' ? JSON.parse(p.v) : p.v;
+  const word = depthWord(+p.d);
+  openPopup(lngLat, `<div class="pp"><div class="pp-title">${esc(p.n || 'ถนน/ซอย (ไม่ระบุชื่อ)')}</div>
+    <p class="small">${+p.a ? '<span class="tag warn">ปิดการจราจร</span> ' : +p.s ? '<span class="tag warn">รถเล็กผ่านไม่ได้</span> ' : ''}${+p.d > 0 ? `ระดับน้ำประมาณ <b>${+p.d} ซม.</b>${word ? ` (${word})` : ''}` : 'ไม่มีค่าความลึก'}</p>
+    <div class="vds">${vehicleChips(v)}</div>
+    <p class="muted tiny">ความเชื่อมั่น <b>${confLabel(+p.c)}</b> · ข้อมูลอัปเดต ${ago(+p.u)}</p>${roadCredit()}</div>`);
+}
+// a whole road (opened from the list)
+function floodRoadGroupPopup(name) {
+  const g = roadGroup(state.roadFlood?.features || [], name);
+  if (!g) return;
+  const c = roadCentroid(g.coords);
+  openPopup([c.lng, c.lat], `<div class="pp"><div class="pp-title">${esc(g.name)}</div>
+    <p class="small">ลึกสุดราว <b>${g.maxD} ซม.</b>${depthWord(g.maxD) ? ` (${depthWord(g.maxD)})` : ''} · ${g.segs} ช่วง ราว ${(g.meters / 1000).toFixed(1)} กม.${g.closedAll ? ` · ปิดการจราจร ${g.closedAll} ช่วง` : ''}</p>
+    <div class="vds">${vehicleChips(g.v)}</div>
+    <p class="muted tiny">สถานะที่แย่ที่สุดของถนนสายนี้ · แตะเส้นสีบนแผนที่เพื่อดูแต่ละช่วง · ความเชื่อมั่น ${confLabel(g.conf)} · อัปเดต ${ago(g.upd)}</p>${roadCredit()}</div>`);
 }
 function refreshMcamLayer() {
   const m = state.mcams;
@@ -731,7 +769,7 @@ let searchSeq = 0;
 async function runSearch(q) {
   if (!validQuery(q)) return toast('พิมพ์ชื่อถนน ซอย เขต หรือสถานที่ อย่างน้อย 2 ตัวอักษร');
   const seq = ++searchSeq;
-  state.search = { q, status: 'loading', floods: [], stations: [], reports: [], places: [], traffic: { events: [], dds: [], cameras: [] } };
+  state.search = { q, status: 'loading', floods: [], stations: [], reports: [], places: [], roads: [], traffic: { events: [], dds: [], cameras: [] } };
   state.tab = 'reports';
   state.district = '';
   $('#panel').dataset.open = 'true';
@@ -739,7 +777,7 @@ async function runSearch(q) {
 
   // local results are instant; places (network) are added when they arrive
   const floods = matchFloods(state.floods, q);
-  state.search = { q, status: 'loading', floods, stations: matchStations(state.stations, q), reports: matchReports(allReports.filter((r) => isActive(r)), q), places: [], traffic: matchTraffic(state.traffic, q) };
+  state.search = { q, status: 'loading', floods, stations: matchStations(state.stations, q), reports: matchReports(allReports.filter((r) => isActive(r)), q), places: [], roads: matchRoads(state.roadFlood?.features || [], q), traffic: matchTraffic(state.traffic, q) };
   emit();
   if (floods.length) fitTo(floods.slice(0, 60).map((f) => [f.lng, f.lat]));
 
@@ -867,6 +905,15 @@ const actions = {
   },
   'point-forecast': ({ lat, lng }) => selectPoint(+lat, +lng),
   'legend-open': () => openLegend(),
+  'road-open': ({ name }) => {
+    const g = roadGroup(state.roadFlood?.features || [], name);
+    if (!g) return;
+    $('#panel').dataset.open = 'false';
+    const pts = g.coords.flat();
+    const b = pts.reduce((a, c) => [[Math.min(a[0][0], c[0]), Math.min(a[0][1], c[1])], [Math.max(a[1][0], c[0]), Math.max(a[1][1], c[1])]], [[180, 90], [-180, -90]]);
+    map.fitBounds(b, { padding: 70, maxZoom: 16, duration: 700 });
+    floodRoadGroupPopup(name);
+  },
   'mcam-open': ({ id }) => {
     const c = state.mcams?.cams?.find((x) => x.id === id);
     if (!c) return;
@@ -1073,6 +1120,7 @@ $('#ly-traffic').addEventListener('change', (e) => {
 $('#layers-pop').addEventListener('change', renderLegend);
 initRoom({ showOnMap: (id) => actions['mcam-open']({ id }), toast, openLongdo: camViewerEnabled() ? openLongdoHere : null });
 $('#btn-room').addEventListener('click', openCameras);
+$('#ly-roadflood').addEventListener('change', (e) => ['roadflood-casing', 'roadflood'].forEach((l) => map.setLayoutProperty(l, 'visibility', e.target.checked ? 'visible' : 'none')));
 $('#ly-mcams').addEventListener('change', (e) => map.setLayoutProperty('mcams', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-windy').addEventListener('change', (e) => map.setLayoutProperty('windy', 'visibility', e.target.checked ? 'visible' : 'none'));
 $('#ly-sat').addEventListener('change', (e) => map.setLayoutProperty('sat-flood', 'visibility', e.target.checked ? 'visible' : 'none'));
@@ -1257,8 +1305,14 @@ async function main() {
 
   map.on('click', (e) => {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
-    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    // thin road lines are hard to hit exactly: if nothing else is under the finger, look in a small box for a flooded road
+    const roadHit = !hit && map.getLayoutProperty('roadflood', 'visibility') !== 'none'
+      ? map.queryRenderedFeatures([[e.point.x - 9, e.point.y - 9], [e.point.x + 9, e.point.y + 9]], { layers: ['roadflood'] })[0]
+      : null;
+    if (roadHit) return floodRoadPopup(roadHit.properties, e.lngLat);
     if (hit) {
+      if (hit.layer.id === 'roadflood') return floodRoadPopup(hit.properties, e.lngLat);
       if (['reports', 'report-lines', 'report-areas'].includes(hit.layer.id)) {
         const r = state.reports.find((x) => x.id === hit.properties.id);
         if (r) reportPopup(r);
@@ -1294,7 +1348,7 @@ async function main() {
     }
     selectPoint(e.lngLat.lat, e.lngLat.lng);
   });
-  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams'].forEach((l) => {
+  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood'].forEach((l) => {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   });
@@ -1333,6 +1387,9 @@ async function main() {
     verifyPush().then((v) => { if (v !== null) { state.push = { ...state.push, verified: v }; emit(); } });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
     loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
+    const reloadRoads = () => loadRoadFlood().then((r) => { state.roadFlood = r; $('#ly-roadflood').closest('label').hidden = false; refreshRoadFloodLayer(); emit(); }).catch(() => {});
+    reloadRoads();
+    setInterval(reloadRoads, 5 * 60 * 1000);
     loadMaholanCams().then((m) => { state.mcams = m; $('#ly-mcams').closest('label').hidden = false; $('#btn-room').hidden = false; refreshMcamLayer(); refreshRoom(); emit(); }).catch(() => {});
     const reloadAi = () => loadMaholanAi().then((a) => { state.mcamAi = a; refreshMcamLayer(); refreshRoom(); }).catch(() => {});
     reloadAi();
@@ -1365,6 +1422,7 @@ async function main() {
   refreshSatLayer();
   refreshWindyLayer();
   refreshMcamLayer();
+  refreshRoadFloodLayer();
   refreshSelectedLayer();
 }
 

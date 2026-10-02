@@ -482,3 +482,16 @@ a.btn.btn-primary { color: #fff; }
   .fab-cam { width: 48px; padding: 0; justify-content: center; }
   .fab-cam .fab-txt { display: none; }
 }
+
+/* vehicle verdict chips (road flood) */
+.vd { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; margin: 2px 8px 0 0; white-space: nowrap; }
+.vd i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); display: inline-block; }
+.vds { margin: 4px 0; }
+.row-item small { display: block; }
+
+/* "ตอนนี้" summary card */
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.kpi { border-left: 4px solid var(--c); background: #f4f7fa; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; min-width: 0; }
+.kpi b { font-size: 24px; line-height: 1.1; color: var(--c); }
+.kpi span { font-size: 12.5px; font-weight: 600; }
+.kpi small { font-size: 11px; color: var(--muted); }

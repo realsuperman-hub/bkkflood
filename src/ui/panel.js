@@ -11,6 +11,7 @@ import { mcmDayToCms, damStatus, outflowTrend } from '../lib/dams.js';
 import { camViewerEnabled } from '../lib/longdo-cams.js';
 import { BMA_LINKS, EVENT_LABEL, SPEED_LEVEL } from '../lib/bma-traffic.js';
 import { placeLabel } from '../lib/maholan-cams.js';
+import { DEPTH_BANDS, VERDICT_TH, VERDICT_COLOR, ROADS_CREDIT, confLabel, depthWord, summarizeRoads, nearRoads, bandOf } from '../lib/road-flood.js';
 import { distKm } from '../lib/geo.js';
 import { validQuery } from '../lib/search.js';
 import { platform } from '../lib/push.js';
@@ -436,6 +437,92 @@ function tierLine() {
     <span class="muted tiny">"ยังไม่ยืนยัน" ไม่ได้แปลว่าไม่จริง แค่ยังไม่มีแหล่งอื่นบริเวณนั้น</span></p>`;
 }
 
+// ───────── flood depth on roads (Floodboard open data, estimate) ─────────
+let rfMemo = { src: null, val: null };
+const roadSummary = () => {
+  const f = state.roadFlood?.features;
+  if (!f) return null;
+  if (rfMemo.src !== state.roadFlood) rfMemo = { src: state.roadFlood, val: summarizeRoads(f) };
+  return rfMemo.val;
+};
+const vdTag = (n, v) => `<span class="vd" style="--c:${VERDICT_COLOR[v]}"><i></i>${n}: <b>${VERDICT_TH[v]}</b></span>`;
+const roadCreditLine = () => `<p class="muted tiny">ค่าประมาณที่รวมจากหลายแหล่ง (เซ็นเซอร์ถนน กทม. Traffy ข่าว โซเชียล) ไม่ใช่ค่าวัดทางการ และเป็นของ กทม. เท่านั้น · ข้อมูลจาก <a href="${ROADS_CREDIT.url}" target="_blank" rel="noopener noreferrer">${ROADS_CREDIT.name}</a> (<a href="${ROADS_CREDIT.licenceUrl}" target="_blank" rel="noopener noreferrer">${ROADS_CREDIT.licence}</a>) กรองและปรับรูปแบบให้กะทัดรัด</p>`;
+const roadRow = (g, extra = '') => `<button class="row-item" data-act="road-open" data-name="${esc(g.name)}">
+  <span class="grow"><b>${esc(g.name)}${g.closedAll ? ' <span class="tag warn">ปิด</span>' : ''}</b>
+    <small>ลึกสุด ≈ ${g.maxD} ซม.${depthWord(g.maxD) ? ` (${depthWord(g.maxD)})` : ''} · ${g.segs} ช่วง ~${(g.meters / 1000).toFixed(1)} กม.${extra}</small>
+    <small>${vdTag('มอเตอร์ไซค์', g.v[0])} ${vdTag('รถเก๋ง', g.v[1])} ${vdTag('กระบะ', g.v[2])}</small>
+    <small class="muted">ความเชื่อมั่น ${confLabel(g.conf)} · อัปเดต ${ago(g.upd)}</small></span>
+  <span class="val" style="color:${(bandOf(g.maxD) || { color: '#12222e' }).color}">≈${g.maxD}<small> ซม.</small></span></button>`;
+
+// The first card of the overview: one sentence + four numbers + where to look first (hot districts and roads), in the spirit of a control-room summary
+function nowSummaryCard() {
+  const floods = state.floods || [];
+  const heavy = floods.filter((f) => f.lvl === 3);
+  const nDist = new Set(heavy.map((f) => f.district).filter(Boolean)).size;
+  const sm = roadSummary();
+  const st = (state.stations || []).filter((s) => !s.upstream && !s.stale);
+  const over = st.filter((s) => s.level === 5).length;
+  const rain = (state.rainObs || []).filter((g) => !g.stale && (g.r24 ?? 0) >= 35).length;
+  if (!floods.length && !sm && !st.length) return '';
+  const parts = [];
+  if (heavy.length) parts.push(`ท่วมหนัก <b>${heavy.length}</b> จุด${nDist ? ` ใน ${nDist} เขต` : ''}`);
+  if (sm?.segments) parts.push(`ถนนมีน้ำ <b>${sm.roads}</b> สาย (ลึกสุดราว ${sm.maxD} ซม.)`);
+  if (over) parts.push(`สถานีวัดน้ำล้นตลิ่ง <b>${over}/${st.length}</b>`);
+  const hotD = floods.length ? districtStats().slice(0, 3) : [];
+  const hotR = sm?.top?.slice(0, 3) || [];
+  const kpi = (n, label, sub, c) => `<div class="kpi" style="--c:${c}"><b>${n}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ''}</div>`;
+  return `<section class="card now"><h3>ตอนนี้</h3>
+    <p class="alert-line">${parts.length ? parts.join(' · ') : 'ยังไม่พบสัญญาณน้ำท่วมเด่นจากข้อมูลที่มี'}</p>
+    <div class="kpis">
+      ${kpi(heavy.length, 'จุดท่วมหนัก', nDist ? `ใน ${nDist} เขต` : '', SEVERITY[3].color)}
+      ${kpi(sm ? sm.roads : '—', 'ถนนมีน้ำ', sm?.segments ? `ลึกสุด ≈ ${sm.maxD} ซม.${sm.closedKm ? ` · ปิด ${sm.closedKm} กม.` : ''}` : '', '#f28c28')}
+      ${kpi(`${over}/${st.length}`, 'สถานีล้นตลิ่ง', 'ระดับน้ำใน กทม. + ปริมณฑล', '#2f80c8')}
+      ${kpi(rain, 'สถานีฝนหนัก', '≥ 35 มม./24 ชม.', '#4aa3df')}
+    </div>
+    ${hotD.length || hotR.length ? `<div class="why">ควรดูที่ไหนก่อน</div><div class="list">
+      ${hotD.map((s) => `<button class="row-item" data-act="goto-district" data-d="${esc(s.d === 'ไม่ระบุเขต' ? '' : s.d)}"><span class="grow"><b>📍 ${esc(s.d === 'ไม่ระบุเขต' ? s.d : `เขต${s.d}`)}</b><small>จุดท่วม: หนัก ${s.h} · ปานกลาง ${s.m} · เล็กน้อย ${s.l}</small></span><span class="val">${s.n}</span></button>`).join('')}
+      ${hotR.map((g) => `<button class="row-item" data-act="road-open" data-name="${esc(g.name)}"><span class="grow"><b>🛣 ${esc(g.name)}</b><small>น้ำลึกสุด ≈ ${g.maxD} ซม.${g.closedAll ? ' · ปิดการจราจร' : ''} · รถเก๋ง: ${VERDICT_TH[g.v[1]]}</small></span><span class="val" style="color:${(bandOf(g.maxD) || { color: '#12222e' }).color}">≈${g.maxD}<small> ซม.</small></span></button>`).join('')}
+    </div>` : ''}
+    <p class="muted tiny">ข้อมูลไม่เป็นทางการ รวมจากหลายแหล่ง อาจคลาดเคลื่อนหรือล่าช้า — ไม่ใช่การเตือนภัย</p></section>`;
+}
+
+function roadsOverviewCard() {
+  const sm = roadSummary();
+  if (!sm) return '';
+  const age = Date.now() - (state.roadFlood.generatedAt || 0);
+  const stale = age > 3 * 3600e3;
+  if (!sm.segments) {
+    return `<section class="card"><h3>ระดับน้ำบนถนน กทม. (ประมาณ)</h3><p class="small">ตอนนี้ไม่พบถนนที่ประเมินว่ามีน้ำท่วม — <b>ไม่ได้แปลว่าแห้งทุกจุด</b> ข้อมูลครอบคลุมเฉพาะที่มีเซ็นเซอร์ รายงาน หรือข่าว</p>${roadCreditLine()}</section>`;
+  }
+  const bands = [...DEPTH_BANDS].reverse().map((b, i, arr) => {
+    const hi = i + 1 < arr.length ? arr[i + 1].min : Infinity;
+    return { b, n: state.roadFlood.features.filter((f) => f.properties.d >= b.min && f.properties.d < hi).length };
+  }).filter((x) => x.n);
+  const named = sm.top.slice(0, 8);
+  const more = sm.top.slice(8, 28);
+  return `<section class="card${sm.deep >= 20 ? ' alert' : ''}"><h3>ระดับน้ำบนถนน กทม. ตอนนี้ (ประมาณ)</h3>
+    <p class="alert-line">ถนนมีน้ำ <b>${sm.roads.toLocaleString('th-TH')}</b> สายที่ระบุชื่อ รวมราว <b>${sm.km.toLocaleString('th-TH')}</b> กม. · ลึกสุดราว <b>${sm.maxD} ซม.</b>${sm.closedKm ? ` · ปิดการจราจร <b>${sm.closedKm}</b> กม.` : ''}</p>
+    <div class="chips">${bands.map((x) => `<span class="chip" style="--c:${x.b.color}"><span class="chip-dot"></span>${x.b.label} · ${x.n} ช่วง</span>`).join('')}</div>
+    ${stale ? `<p class="note">ข้อมูลชุดนี้อายุ ${ago(state.roadFlood.generatedAt)} — อาจไม่ตรงปัจจุบัน</p>` : ''}
+    <div class="why">ถนนที่ควรเลี่ยงก่อน (เรียงตามความลึก ความยาว และความเชื่อมั่น)</div>
+    <div class="list">${named.map((g) => roadRow(g)).join('')}</div>
+    ${more.length ? `<details class="fold"><summary>ดูอีก ${more.length} สาย</summary><div class="list">${more.map((g) => roadRow(g)).join('')}</div></details>` : ''}
+    <p class="muted tiny">รถแต่ละแบบ: ผ่านได้ / ระวัง / เสี่ยง / ผ่านไม่ได้ เป็นการประเมินจากความลึกโดยประมาณ — ห้ามขับผ่านน้ำไหลเชี่ยว และดูสภาพจริงก่อนตัดสินใจ</p>
+    ${roadCreditLine()}</section>`;
+}
+
+// the selected point: named roads with water within 400 m
+function roadsNearCard(f) {
+  const rf = state.roadFlood?.features;
+  if (!rf) return '';
+  const near = nearRoads(rf, f.lat, f.lng, 400).slice(0, 5);
+  if (!near.length) {
+    return `<section class="card"><h3>ถนนรอบจุดนี้ (ภายใน 400 ม.)</h3><p class="small">ไม่พบถนนที่ประเมินว่ามีน้ำท่วมรอบจุดนี้ — <b>ไม่ได้แปลว่าไม่ท่วม</b> ข้อมูลครอบคลุมเฉพาะ กทม. และเฉพาะที่มีรายงาน/เซ็นเซอร์</p>${roadCreditLine()}</section>`;
+  }
+  return `<section class="card"><h3>ถนนรอบจุดนี้ที่มีน้ำ (ภายใน 400 ม.)</h3>
+    <div class="list">${near.map((g) => roadRow(g, ` · ห่าง ~${g.m} ม.`)).join('')}</div>${roadCreditLine()}</section>`;
+}
+
 function floodsOverviewCard() {
   if (!state.floods.length) return state.floodsError ? `<section class="card">${floodsSourceNote()}</section>` : skeleton('กำลังโหลดจุดน้ำท่วมจาก กทม.…');
   const top = districtStats().slice(0, 6);
@@ -550,7 +637,7 @@ export function overviewTab() {
         <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
     : '';
 
-  return `${floodsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${nowSummaryCard()}${floodsOverviewCard()}${roadsOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {
@@ -610,6 +697,7 @@ export function forecastTab() {
     ${camRow}
     ${saveCard}
     ${nearCard}
+    ${roadsNearCard(f)}
     ${repeatHistoryCard(f)}
     ${camerasNearCard(f)}
     ${rainNearCard(f)}
@@ -644,6 +732,9 @@ function searchCard() {
   if (s.places.length) {
     parts.push(`<div class="why">สถานที่ที่พบบนแผนที่ (แตะเพื่อดูพยากรณ์และจุดท่วมรอบๆ)</div><div class="list">${s.places.map((p) => `
       <button class="row-item" data-act="goto-place" data-lat="${p.lat}" data-lng="${p.lng}"><span class="grow"><b>${esc(p.name)}</b></span><span class="val">ไป ›</span></button>`).join('')}</div>`);
+  }
+  if (s.roads?.length) {
+    parts.push(`<div class="why">ถนนที่มีน้ำท่วม (ประมาณ) — ${s.roads.length} สาย</div><div class="list">${s.roads.map((g) => roadRow(g)).join('')}</div>${roadCreditLine()}`);
   }
   const tr = s.traffic;
   if (tr?.events.length) {
@@ -742,6 +833,7 @@ export function helpTab() {
     <li><b>รายงานน้ำท่วมถนนสายหลัก:</b> สำนักการระบายน้ำ กรุงเทพมหานคร</li>
     <li><b>ระดับน้ำ และฝนตรวจวัดจริง:</b> ThaiWater (สถาบันสารสนเทศทรัพยากรน้ำ) · กรมชลประทาน และหน่วยงานเครือข่ายสถานีวัดฝน</li>
     <li><b>พยากรณ์ฝน น้ำทะเลหนุน น้ำเหนือ:</b> Open-Meteo (ECMWF, NOAA GFS, DWD ICON, GloFAS)</li>
+    <li><b>ระดับน้ำบนถนน (ประมาณ):</b> <a href="https://floodboard.org" target="_blank" rel="noopener noreferrer">Floodboard</a> (ข้อมูลเปิด CC BY 4.0) ซึ่งรวมเซ็นเซอร์ กทม. Traffy ข่าว โซเชียล</li>
     <li><b>เรดาร์ฝน:</b> RainViewer · <b>แผนที่:</b> © OpenStreetMap contributors</li></ul>
     <p class="muted tiny">รูปที่ส่งเข้ามาจะถูกลบพิกัด/ข้อมูลกล้อง (EXIF) ก่อนอัปโหลด ไม่เก็บเบอร์โทร รายงานจะหายจากแผนที่ใน 4 ชม. หากไม่มีผู้ยืนยัน แต่ข้อมูลอาจยังถูกเก็บในระบบจนกว่าผู้จัดทำจะลบ</p></section>
   <section class="card"><h3>ส่งต่อให้เพื่อนบ้าน</h3>

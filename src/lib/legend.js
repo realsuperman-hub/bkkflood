@@ -5,12 +5,21 @@ import { DEPTHS } from './store.js';
 import { SEVERITY } from './traffy.js';
 import { SPEED_LEVEL } from './bma-traffic.js';
 import { esc } from './util.js';
+import { DEPTH_BANDS, CLOSED_COLOR } from './road-flood.js';
 
 export const EV_COLOR = { flood: '#0b6fa8', accident: '#f28c28', fire: '#d7263d', closed: '#12222e', other: '#5b6876' };
 
 const dot = (color, label) => ({ shape: 'dot', color, label });
 
 export const LEGEND = [
+  {
+    id: 'roadflood', ly: 'ly-roadflood', title: 'ระดับน้ำบนถนน (ประมาณ)',
+    items: [
+      ...DEPTH_BANDS.slice().reverse().map((b) => ({ shape: 'ln', color: b.color, label: b.label })),
+      { shape: 'ln', color: CLOSED_COLOR, label: 'ปิดการจราจร' },
+    ],
+    note: 'ค่าประมาณจาก Floodboard (CC BY 4.0) ที่รวมเซ็นเซอร์ กทม. Traffy ข่าว โซเชียล · เส้นจางลง = ความเชื่อมั่นต่ำ · กดเส้นเพื่อดูว่ารถแต่ละแบบผ่านได้ไหม',
+  },
   {
     id: 'floods', ly: 'ly-floods', title: 'จุดน้ำท่วมที่ประชาชนแจ้ง กทม.',
     items: [3, 2, 1].map((l) => ({ shape: 'tri', color: SEVERITY[l].color, label: SEVERITY[l].label })),

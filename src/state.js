@@ -21,6 +21,7 @@ export const state = {
   rainObsSrc: '',
   traffic: { events: [], eventsAt: null, roads: [], roadsFresh: null, roadsTotal: null, roadsAt: null, cameras: [], dds: null, longdo: null },
   windyCams: null, // Windy.com webcams (timelapse players)
+  roadFlood: null, // estimated flood depth per road segment (Floodboard open data, CC BY 4.0)
   mcams: null, // still-image cameras collected by cctv.maholan.net (catalogue)
   mcamAi: null, // that source's AI flood flags (file with generatedAt + flags)
   ytLive: null, // live YouTube camera-like streams in Thailand (unverified)

@@ -100,6 +100,8 @@ export const loadYtLive = () => snapshot('youtube-live');
 export const loadWindyCams = () => snapshot('windy-cams');
 // Still-image cameras from cctv.maholan.net (catalogue only; built by scripts/fetch-maholan.mjs); optional
 export const loadMaholanCams = () => snapshot('maholan-cams');
+// Estimated flood depth on Bangkok roads from Floodboard's open data (scripts/fetch-roads.mjs); optional
+export const loadRoadFlood = () => snapshot('road-flood');
 // The AI flood flags that source's own model puts on a few of those cameras (scripts/sync-maholan-ai.mjs); optional
 export const loadMaholanAi = () => snapshot('maholan-ai');
 // Radar-satellite flood extent from GISTDA (built on a Thai network by scripts/sync-gistda.mjs); optional
