@@ -11,6 +11,10 @@ on:
         description: 'Ignore the 1-hour reuse of the YouTube list (uses ~300 quota units)'
         type: boolean
         default: false
+      analyze_accuracy:
+        description: 'Print the deep accuracy analysis (scripts/analyze-accuracy.mjs) to the log'
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -102,6 +106,10 @@ jobs:
           else
             curl -sf https://bkkflood.web.app/data/accuracy.json -o public/data/accuracy.json || true
           fi
+      - name: Accuracy deep-dive (only when asked: workflow_dispatch with analyze_accuracy)
+        if: github.event_name == 'workflow_dispatch' && inputs.analyze_accuracy
+        continue-on-error: true
+        run: node scripts/analyze-accuracy.mjs
       - run: npm run build
       - name: Deploy to Firebase Hosting
         run: npx --yes firebase-tools@latest deploy --only hosting --project bkkflood-d54cc

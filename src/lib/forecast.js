@@ -1,12 +1,12 @@
 // Open-Meteo adapters (free, no key, CORS-enabled). Non-commercial use.
 // Rain: three global models are requested so we can show how much they agree.
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
-const MARINE = 'https://marine-api.open-meteo.com/v1/marine';
+export const MARINE = 'https://marine-api.open-meteo.com/v1/marine';
 const FLOOD = 'https://flood-api.open-meteo.com/v1/flood';
 const MODELS = ['ecmwf_ifs025', 'gfs_seamless', 'icon_seamless'];
 
 // Reference points for basin-scale signals (not the user's own location)
-const GULF_POINT = { lat: 13.4, lng: 100.5 }; // Upper Gulf of Thailand off the Chao Phraya mouth
+export const GULF_POINT = { lat: 13.4, lng: 100.5 }; // Upper Gulf of Thailand off the Chao Phraya mouth
 const CHAINAT_POINT = { lat: 15.16, lng: 100.18 }; // Chao Phraya Dam
 
 const memo = new Map();

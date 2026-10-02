@@ -45,7 +45,7 @@ export function labelSamples(records, complaints, grid, now = Date.now()) {
         if (c.t > rec.t) event = true;
         else before = true; // already flooded in the 24 h before the forecast
       }
-      out.push({ t: rec.t, level, score, fcScore, obsScore, event, before });
+      out.push({ i, t: rec.t, level, score, fcScore, obsScore, event, before });
     }
   }
   return out;
