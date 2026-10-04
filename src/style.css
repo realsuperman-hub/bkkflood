@@ -563,3 +563,12 @@ a.btn.btn-primary { color: #fff; }
 .st-dot { width: 11px; height: 11px; border-radius: 50%; margin-top: 5px; flex: none; }
 .st-row small { display: block; font-size: 12px; color: var(--muted); }
 .st-word { font-size: 12px; font-weight: 700; margin-left: 4px; }
+
+/* credit: avatar logo with a two-colour ring (the logo's orange + cyan) and the e-mail as a glowing pill; a dark card in light and dark theme alike */
+.card.credit { display: flex; align-items: center; gap: 14px; background: linear-gradient(135deg, #0f1b27 0%, #13273a 100%); border-color: #1d3a52; color: #e8f1f8; padding: 14px 16px; }
+.credit-avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; padding: 3px; background: conic-gradient(from 210deg, #f05a22, #4fd0f7, #f05a22); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 6px 18px rgba(79, 208, 247, 0.28); object-fit: cover; }
+.credit-body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.credit-label { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #8fb2c9; }
+.credit-mail { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; max-width: 100%; padding: 6px 12px; border-radius: 999px; background: rgba(79, 208, 247, 0.12); border: 1px solid rgba(79, 208, 247, 0.45); color: #7fdcff; font: 600 13px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-decoration: none; transition: background 0.15s, box-shadow 0.15s; }
+.credit-mail span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.credit-mail:hover, .credit-mail:focus-visible { background: rgba(79, 208, 247, 0.22); box-shadow: 0 0 14px rgba(79, 208, 247, 0.45); outline: none; }

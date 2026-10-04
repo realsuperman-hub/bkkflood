@@ -943,8 +943,10 @@ export function helpTab() {
   <section class="card"><h3>ส่งต่อให้เพื่อนบ้าน</h3>
     <p class="small">ยิ่งมีคนใช้และแจ้งมาก ข้อมูลยิ่งครบ — ช่วยกันส่งต่อลิงก์ให้คนในพื้นที่เสี่ยง</p>
     <div class="row wrap"><button class="btn btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn" data-act="share-site">แชร์…</button><button class="btn btn-ghost" data-act="copy-site">คัดลอกลิงก์</button></div></section>
-  <section class="card credit"><h3>ผู้จัดทำ</h3>
-    <p class="small">จัดทำโดย AJ: <a href="mailto:aggasit.j@gmail.com">aggasit.j@gmail.com</a></p></section>`;
+  <section class="card credit">
+    <img class="credit-avatar" src="/avatar-aj.png" alt="โลโก้ผู้จัดทำ" width="64" height="64" />
+    <div class="credit-body"><span class="credit-label">จัดทำโดย</span>
+      <a class="credit-mail" href="mailto:aggasit.j@gmail.com"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11Zm1.8.4 7.2 5.4 7.2-5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>aggasit.j@gmail.com</span></a></div></section>`;
 }
 
 export const TAB_RENDER = { overview: overviewTab, forecast: forecastTab, reports: reportsTab, help: helpTab };
