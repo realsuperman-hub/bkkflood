@@ -100,6 +100,10 @@ jobs:
         continue-on-error: true
         run: |
           node scripts/fetch-popnix.mjs || curl -sf https://bkkflood.web.app/data/popnix.json -o public/data/popnix.json || true
+      - name: Wind and sea-current fields for the animated map layers (Open-Meteo; reuses the live copy while it is under 50 min old)
+        continue-on-error: true
+        run: |
+          node scripts/fetch-wind.mjs || curl -sf https://bkkflood.web.app/data/wind.json -o public/data/wind.json || true
       - name: Accuracy report (every 6 h; other runs reuse the live one)
         continue-on-error: true
         run: |

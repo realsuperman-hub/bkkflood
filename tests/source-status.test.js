@@ -18,6 +18,7 @@ const fresh = () => ({
   dams: { date: '2026-10-02' }, satFlood: { lastPass: '2026-09-29' }, news: { generatedAt: ago(H) },
   mcams: { generatedAt: ago(5 * H) }, mcamAi: { generatedAt: ago(30 * MIN) },
   popnix: { generatedAt: ago(10 * MIN), roads: [{ t: ago(8 * MIN) }], upstream: {} },
+  wind: { generatedAt: ago(40 * MIN) },
 });
 const by = (list) => Object.fromEntries(list.map((x) => [x.id, x.level]));
 
@@ -113,4 +114,15 @@ test('POPNIX sensors: stale snapshot, quiet sensors behind a fresh copy, and a f
   assert.equal(by(sourceStatuses(s, NOW)).popnix, SLOW);
   s.popnix = { generatedAt: ago(4 * H), roads: [{ t: ago(5 * MIN) }], upstream: {} };
   assert.equal(by(sourceStatuses(s, NOW)).popnix, OLD);
+});
+
+test('wind/sea field: fresh within 3 h, slow after, old after 8 h, missing when absent', () => {
+  const s = fresh();
+  assert.equal(by(sourceStatuses(s, NOW)).wind, OK);
+  s.wind = { generatedAt: ago(4 * H) };
+  assert.equal(by(sourceStatuses(s, NOW)).wind, SLOW);
+  s.wind = { generatedAt: ago(9 * H) };
+  assert.equal(by(sourceStatuses(s, NOW)).wind, OLD);
+  delete s.wind;
+  assert.equal(by(sourceStatuses(s, NOW)).wind, MISSING);
 });

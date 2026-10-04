@@ -19,6 +19,7 @@ const loadSaved = () => {
 };
 
 export const state = {
+  wind: null, // wind + sea-current vector fields for the animated layers (Open-Meteo)
   popnix: null, // measured road-depth sensors + canal gauges (POPNIX Flood open API)
   store: null,
   map: null,

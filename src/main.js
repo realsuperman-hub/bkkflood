@@ -7,6 +7,8 @@ import { isWindyPlayer, WINDY_CREDIT_URL } from './lib/windy-cams.js';
 import { snapUrl as mcamSnapUrl, sameSpot, isCamId, placeLabel } from './lib/maholan-cams.js';
 import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
 import { MAX_ROADS, DEFAULT_MIN } from './lib/notify-roads.js';
+import { FlowLayer } from './ui/flow-layer.js';
+import { sample, speedOf, fromDeg, compassTh, windWord, WIND_COLORS, SEA_COLORS } from './lib/windfield.js';
 import { POPNIX_CREDIT, ROAD_LEVEL, CANAL_LEVEL, roadLevel, canalLevel, depthText } from './lib/popnix.js';
 import { DEPTH_BANDS, CLOSED_COLOR, VERDICT_TH, VERDICT_COLOR, VEHICLES, ROADS_CREDIT, confLabel, depthWord, matchRoads, roadGroup, centroid as roadCentroid } from './lib/road-flood.js';
 import { initRoom, openRoom, refreshRoom } from './ui/room.js';
@@ -15,7 +17,7 @@ import { OK, SLOW, OLD, MISSING, LOADING } from './lib/source-status.js';
 import { initRouteLayers, openRoute, clearRoute, routePicking, routePick, routeHit } from './ui/route.js';
 import { isDhrPage } from './lib/dhr-cams.js';
 import { LEGEND, EV_COLOR, stripHtml, compactHtml, dialogHtml } from './lib/legend.js';
-import { loadPopnix, loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { loadWind, loadPopnix, loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -337,6 +339,34 @@ function refreshRoadFloodLayer() {
   const r = state.roadFlood;
   if (!r?.features) return;
   map?.getSource('roadflood')?.setData({ type: 'FeatureCollection', features: r.features });
+}
+// ───── animated wind / sea-current layers + the readout chip (values at the middle of the map; forecast-model numbers, not gauge readings) ─────
+let flowWind = null;
+let flowSea = null;
+function updateFlowReadout() {
+  const box = $('#flow-readout');
+  const w = $('#ly-wind').checked;
+  const s = $('#ly-sea').checked;
+  if (!box || !map || !state.wind || !(w || s)) { if (box) box.hidden = true; return; }
+  const c = map.getCenter();
+  const lines = [];
+  if (w) {
+    const uv = sample(state.wind.wind, c.lat, c.lng);
+    lines.push(uv ? `💨 ลมจากทิศ<b>${compassTh(fromDeg(uv))}</b> <b>${speedOf(uv).toFixed(1)}</b> ม./วิ (${windWord(speedOf(uv))})` : '💨 กลางจอนอกพื้นที่ข้อมูลลม');
+  }
+  if (s) {
+    const uv = sample(state.wind.sea, c.lat, c.lng);
+    lines.push(uv ? `🌊 น้ำทะเลไหลไปทาง<b>${compassTh((fromDeg(uv) + 180) % 360)}</b> <b>${(speedOf(uv) * 3.6).toFixed(1)}</b> กม./ชม.` : '🌊 กลางจอไม่ใช่ทะเล — ไม่มีข้อมูลกระแสน้ำทะเลตรงนี้');
+  }
+  box.innerHTML = `${lines.join('<br>')}<small>ค่าที่กลางจอจากแบบจำลอง (Open-Meteo) ไม่ใช่เครื่องวัด · อัปเดต ${ago(state.wind.generatedAt)}</small>`;
+  box.hidden = false;
+}
+function initFlowLayers() {
+  flowWind = new FlowLayer(map, { getField: () => state.wind?.wind, colors: WIND_COLORS, speedUnit: 1, pxPerMs: 0.5, density: 1.8, maxAge: 100 });
+  flowSea = new FlowLayer(map, { getField: () => state.wind?.sea, colors: SEA_COLORS, speedUnit: 3.6, pxPerMs: 3.2, density: 0.8, maxAge: 110 });
+  $('#ly-wind').addEventListener('change', (e) => { flowWind.setVisible(e.target.checked); updateFlowReadout(); });
+  $('#ly-sea').addEventListener('change', (e) => { flowSea.setVisible(e.target.checked); updateFlowReadout(); });
+  map.on('moveend', updateFlowReadout);
 }
 function refreshPopnixLayers() {
   const p = state.popnix;
@@ -1576,6 +1606,16 @@ async function main() {
     }).catch(() => {});
     reloadPopnix();
     setInterval(reloadPopnix, 5 * 60 * 1000);
+    const reloadWind = () => loadWind().then((w) => {
+      if (!w?.wind?.u?.length) return;
+      state.wind = w;
+      $('#ly-wind').closest('label').hidden = false;
+      $('#ly-sea').closest('label').hidden = false;
+      updateFlowReadout();
+      emit();
+    }).catch(() => {});
+    reloadWind();
+    setInterval(reloadWind, 30 * 60 * 1000);
     loadMaholanCams().then((m) => { state.mcams = m; $('#ly-mcams').closest('label').hidden = false; $('#btn-room').hidden = false; refreshMcamLayer(); refreshRoom(); emit(); }).catch(() => {});
     const reloadAi = () => loadMaholanAi().then((a) => { state.mcamAi = a; refreshMcamLayer(); refreshRoom(); }).catch(() => {});
     reloadAi();
@@ -1610,6 +1650,7 @@ async function main() {
   refreshMcamLayer();
   refreshRoadFloodLayer();
   refreshPopnixLayers();
+  initFlowLayers();
   refreshSelectedLayer();
 }
 

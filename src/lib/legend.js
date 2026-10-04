@@ -7,6 +7,7 @@ import { SPEED_LEVEL } from './bma-traffic.js';
 import { esc } from './util.js';
 import { DEPTH_BANDS, CLOSED_COLOR } from './road-flood.js';
 import { ROAD_LEVEL, CANAL_LEVEL } from './popnix.js';
+import { WIND_COLORS, SEA_COLORS } from './windfield.js';
 
 export const EV_COLOR = { flood: '#0b6fa8', accident: '#f28c28', fire: '#d7263d', closed: '#12222e', other: '#5b6876' };
 
@@ -20,6 +21,16 @@ export const LEGEND = [
       { shape: 'ln', color: CLOSED_COLOR, label: 'ปิดการจราจร' },
     ],
     note: 'ค่าประมาณจาก Floodboard (CC BY 4.0) ที่รวมเซ็นเซอร์ กทม. Traffy ข่าว โซเชียล · เส้นจางลง = ความเชื่อมั่นต่ำ · กดเส้นเพื่อดูว่ารถแต่ละแบบผ่านได้ไหม',
+  },
+  {
+    id: 'wind', ly: 'ly-wind', title: 'กระแสลม (เคลื่อนไหว)',
+    items: [['ลมอ่อน (ต่ำกว่า 2 ม./วิ)', 0], ['ลมปานกลาง (2–5)', 1], ['ลมค่อนข้างแรง (5–8)', 2], ['ลมแรง (8 ขึ้นไป)', 3]].map(([label, i]) => ({ shape: 'ln', color: WIND_COLORS[i][1], label })),
+    note: 'เส้นที่ไหลคือทิศที่ลมพัดไป ความเร็วของการเคลื่อนไหวบนจอเป็นภาพประกอบ ไม่ใช่ความเร็วจริง · ค่าจากแบบจำลองพยากรณ์ (Open-Meteo) ที่ระดับ 10 ม. ไม่ใช่เครื่องวัดในพื้นที่',
+  },
+  {
+    id: 'sea', ly: 'ly-sea', title: 'กระแสน้ำทะเล อ่าวไทยตอนบน (เคลื่อนไหว)',
+    items: [['ไหลช้ามาก', 0], ['ไหลช้า', 1], ['ไหลปานกลาง', 2], ['ไหลเร็ว', 3]].map(([label, i]) => ({ shape: 'ln', color: SEA_COLORS[i][1], label })),
+    note: 'ทิศที่น้ำทะเลไหลไป (ขึ้น-ลงตามน้ำขึ้นน้ำลง) มีเฉพาะในทะเล ความเร็วบนจอเป็นภาพประกอบ · ค่าจากแบบจำลอง Open-Meteo Marine',
   },
   {
     id: 'sensors', ly: 'ly-sensors', title: 'เซ็นเซอร์น้ำท่วมถนน กทม. (วัดจริง)',

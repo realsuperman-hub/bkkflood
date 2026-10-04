@@ -572,3 +572,11 @@ a.btn.btn-primary { color: #fff; }
 .credit-mail { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; max-width: 100%; padding: 6px 12px; border-radius: 999px; background: rgba(79, 208, 247, 0.12); border: 1px solid rgba(79, 208, 247, 0.45); color: #7fdcff; font: 600 13px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-decoration: none; transition: background 0.15s, box-shadow 0.15s; }
 .credit-mail span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .credit-mail:hover, .credit-mail:focus-visible { background: rgba(79, 208, 247, 0.22); box-shadow: 0 0 14px rgba(79, 208, 247, 0.45); outline: none; }
+
+/* animated wind / sea-current particles + the readout chip for the middle of the map */
+.flow-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+.flow-readout { position: absolute; z-index: 6; top: calc(112px + env(safe-area-inset-top, 0px)); left: 12px; max-width: min(360px, calc(100% - 76px)); background: rgba(255, 255, 255, 0.94); border-radius: 12px; box-shadow: var(--shadow); padding: 6px 11px; font-size: 12.5px; line-height: 1.45; }
+.flow-readout b { font-weight: 700; }
+.flow-readout small { display: block; color: var(--muted); font-size: 11px; }
+.banner:not([hidden]) + .flow-readout { top: calc(172px + env(safe-area-inset-top, 0px)); }
+@media (min-width: 900px) { .flow-readout { left: calc(var(--panel-w) + 12px); top: 70px; } .banner:not([hidden]) + .flow-readout { top: 130px; } }
