@@ -575,8 +575,16 @@ a.btn.btn-primary { color: #fff; }
 
 /* animated wind / sea-current particles + the readout chip for the middle of the map */
 .flow-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
-.flow-readout { position: absolute; z-index: 6; top: calc(112px + env(safe-area-inset-top, 0px)); left: 12px; max-width: min(360px, calc(100% - 76px)); background: rgba(255, 255, 255, 0.94); border-radius: 12px; box-shadow: var(--shadow); padding: 6px 11px; font-size: 12.5px; line-height: 1.45; }
+.map-hud { position: absolute; z-index: 6; top: calc(112px + env(safe-area-inset-top, 0px)); left: 12px; width: min(360px, calc(100% - 76px)); display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+.map-hud > * { pointer-events: auto; }
+.flow-readout { background: rgba(255, 255, 255, 0.94); border-radius: 12px; box-shadow: var(--shadow); padding: 6px 11px; font-size: 12.5px; line-height: 1.45; }
+.flow-readout[hidden] { display: none; }
 .flow-readout b { font-weight: 700; }
 .flow-readout small { display: block; color: var(--muted); font-size: 11px; }
-.banner:not([hidden]) + .flow-readout { top: calc(172px + env(safe-area-inset-top, 0px)); }
-@media (min-width: 900px) { .flow-readout { left: calc(var(--panel-w) + 12px); top: 70px; } .banner:not([hidden]) + .flow-readout { top: 130px; } }
+.banner:not([hidden]) + .map-hud { top: calc(172px + env(safe-area-inset-top, 0px)); }
+@media (min-width: 900px) { .map-hud { left: calc(var(--panel-w) + 12px); top: 70px; } .banner:not([hidden]) + .map-hud { top: 130px; } }
+.tide-head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.tide-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+.tide-row input[type=range] { flex: 1; min-width: 0; accent-color: #1f6fb8; }
+.tide-scale { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.tide-grad { flex: 1; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgb(20,60,160), rgb(70,150,220), rgb(215,235,245), rgb(250,190,80), rgb(200,40,50)); }

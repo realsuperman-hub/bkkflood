@@ -104,6 +104,10 @@ jobs:
         continue-on-error: true
         run: |
           node scripts/fetch-wind.mjs || curl -sf https://bkkflood.web.app/data/wind.json -o public/data/wind.json || true
+      - name: Hourly sea level over the Gulf of Thailand (Open-Meteo Marine; reuses the live copy while it is under 170 min old)
+        continue-on-error: true
+        run: |
+          node scripts/fetch-tide.mjs || curl -sf https://bkkflood.web.app/data/tide.json -o public/data/tide.json || true
       - name: Accuracy report (every 6 h; other runs reuse the live one)
         continue-on-error: true
         run: |

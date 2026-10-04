@@ -106,6 +106,8 @@ export const loadRoadFlood = () => snapshot('road-flood');
 export const loadPopnix = () => snapshot('popnix');
 // Wind field + upper-Gulf sea-current field for the animated layers (Open-Meteo → scripts/fetch-wind.mjs); optional
 export const loadWind = () => snapshot('wind');
+// Hourly sea level over the Gulf of Thailand, yesterday + 3 days (Open-Meteo Marine → scripts/fetch-tide.mjs); optional
+export const loadTide = () => snapshot('tide');
 // The AI flood flags that source's own model puts on a few of those cameras (scripts/sync-maholan-ai.mjs); optional
 export const loadMaholanAi = () => snapshot('maholan-ai');
 // Radar-satellite flood extent from GISTDA (built on a Thai network by scripts/sync-gistda.mjs); optional

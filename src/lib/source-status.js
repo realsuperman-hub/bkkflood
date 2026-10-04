@@ -69,6 +69,7 @@ export function sourceStatuses(s, now = Date.now(), { loading = false } = {}) {
     }
     add('popnix', 'extra', 'เซ็นเซอร์ถนนและระดับน้ำคลอง กทม.', 'เลเยอร์เซ็นเซอร์ท่วมถนน · ระดับน้ำคลอง · การ์ดในหน้าแรก', r, note);
   }
+  add('tide', 'extra', 'ระดับน้ำทะเลรายชั่วโมง', 'เลเยอร์ระดับน้ำทะเล (อ่าวไทย)', miss(!s.tide) || judge(s.tide?.generatedAt, 5 * H, 12 * H, now), 'Open-Meteo Marine · ดึงใหม่ทุก ~3 ชั่วโมง');
   add('wind', 'extra', 'ลมและกระแสน้ำทะเล', 'เลเยอร์กระแสลม · กระแสน้ำทะเล (เคลื่อนไหว)', miss(!s.wind) || judge(s.wind?.generatedAt, 3 * H, 8 * H, now), 'Open-Meteo · ดึงใหม่ทุกชั่วโมง');
   {
     const o = s.overview;

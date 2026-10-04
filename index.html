@@ -51,6 +51,8 @@
 
     <div id="layers-pop" class="layers-pop" hidden>
       <label hidden><input type="checkbox" id="ly-roadflood" checked /> ระดับน้ำบนถนน (ประมาณ)</label>
+      <label hidden><input type="checkbox" id="ly-rainfx" /> ฝนตก (เคลื่อนไหว ตามปริมาณฝนที่วัดได้)</label>
+      <label hidden><input type="checkbox" id="ly-tide" /> ระดับน้ำทะเลรายชั่วโมง (อ่าวไทย)</label>
       <label hidden><input type="checkbox" id="ly-wind" /> กระแสลม (เคลื่อนไหว)</label>
       <label hidden><input type="checkbox" id="ly-sea" /> กระแสน้ำทะเล อ่าวไทยตอนบน (เคลื่อนไหว)</label>
       <label hidden><input type="checkbox" id="ly-sensors" checked /> เซ็นเซอร์น้ำท่วมถนน กทม. (วัดจริง)</label>
@@ -76,7 +78,17 @@
     </div>
 
     <div id="banner" class="banner" hidden></div>
-    <div id="flow-readout" class="flow-readout" role="status" hidden></div>
+    <div id="map-hud" class="map-hud">
+      <div id="flow-readout" class="flow-readout" role="status" hidden></div>
+      <div id="rain-note" class="flow-readout" role="status" hidden></div>
+      <div id="tide-bar" class="flow-readout tide-bar" hidden>
+        <div class="tide-head"><b>🌊 ระดับน้ำทะเล อ่าวไทย (รายชั่วโมง)</b><span id="tide-time" class="muted"></span></div>
+        <div class="tide-row"><button type="button" id="tide-play" class="btn btn-sm" aria-label="เล่นหรือหยุดการไล่ดูรายชั่วโมง">▶</button><input id="tide-range" type="range" min="0" max="0" step="1" value="0" aria-label="เลือกชั่วโมงที่ต้องการดู" /><button type="button" id="tide-now" class="btn btn-sm">ตอนนี้</button></div>
+        <div class="tide-scale"><span>−1.5</span><i class="tide-grad" aria-hidden="true"></i><span>+1.5 ม.</span></div>
+        <div id="tide-sum" class="small"></div>
+        <small>ค่าจากแบบจำลอง (Open-Meteo Marine) จุดห่างกันราว 50 กม. ใกล้ชายฝั่งอาจคลาดเคลื่อน ไม่ใช่ค่าเครื่องวัด</small>
+      </div>
+    </div>
 
     <aside id="panel" class="panel" data-open="false" aria-label="ข้อมูลและพยากรณ์">
       <button id="grabber" class="grabber" aria-label="ขยายหรือย่อแผงข้อมูล"><span></span></button>

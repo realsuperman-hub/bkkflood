@@ -18,7 +18,7 @@ const fresh = () => ({
   dams: { date: '2026-10-02' }, satFlood: { lastPass: '2026-09-29' }, news: { generatedAt: ago(H) },
   mcams: { generatedAt: ago(5 * H) }, mcamAi: { generatedAt: ago(30 * MIN) },
   popnix: { generatedAt: ago(10 * MIN), roads: [{ t: ago(8 * MIN) }], upstream: {} },
-  wind: { generatedAt: ago(40 * MIN) },
+  wind: { generatedAt: ago(40 * MIN) }, tide: { generatedAt: ago(2 * H) },
 });
 const by = (list) => Object.fromEntries(list.map((x) => [x.id, x.level]));
 
@@ -125,4 +125,13 @@ test('wind/sea field: fresh within 3 h, slow after, old after 8 h, missing when 
   assert.equal(by(sourceStatuses(s, NOW)).wind, OLD);
   delete s.wind;
   assert.equal(by(sourceStatuses(s, NOW)).wind, MISSING);
+});
+
+test('hourly sea level: slow after 5 h, old after 12 h', () => {
+  const s = fresh();
+  assert.equal(by(sourceStatuses(s, NOW)).tide, OK);
+  s.tide = { generatedAt: ago(6 * H) };
+  assert.equal(by(sourceStatuses(s, NOW)).tide, SLOW);
+  s.tide = { generatedAt: ago(13 * H) };
+  assert.equal(by(sourceStatuses(s, NOW)).tide, OLD);
 });

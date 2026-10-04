@@ -8,6 +8,8 @@ import { esc } from './util.js';
 import { DEPTH_BANDS, CLOSED_COLOR } from './road-flood.js';
 import { ROAD_LEVEL, CANAL_LEVEL } from './popnix.js';
 import { WIND_COLORS, SEA_COLORS } from './windfield.js';
+import { RAIN_BANDS } from './rainfield.js';
+import { tideColor } from './tidefield.js';
 
 export const EV_COLOR = { flood: '#0b6fa8', accident: '#f28c28', fire: '#d7263d', closed: '#12222e', other: '#5b6876' };
 
@@ -21,6 +23,16 @@ export const LEGEND = [
       { shape: 'ln', color: CLOSED_COLOR, label: 'ปิดการจราจร' },
     ],
     note: 'ค่าประมาณจาก Floodboard (CC BY 4.0) ที่รวมเซ็นเซอร์ กทม. Traffy ข่าว โซเชียล · เส้นจางลง = ความเชื่อมั่นต่ำ · กดเส้นเพื่อดูว่ารถแต่ละแบบผ่านได้ไหม',
+  },
+  {
+    id: 'rainfx', ly: 'ly-rainfx', title: 'ฝนตก (เคลื่อนไหว)',
+    items: RAIN_BANDS.map((b) => dot(b.color, `${b.label} — เม็ดฝน${b.min >= 10 ? 'หนาแน่น' : b.min >= 2.5 ? 'ปานกลาง' : 'บาง'}`)),
+    note: 'ความหนาแน่นของเม็ดฝนตามปริมาณฝนใน 1 ชม. ล่าสุดที่สถานีวัดฝนรายงาน แสดงเฉพาะบริเวณห่างสถานีไม่เกิน 20 กม. · ไม่มีเม็ดฝนไม่ได้แปลว่าฝนไม่ตก อาจไม่มีสถานีใกล้',
+  },
+  {
+    id: 'tide', ly: 'ly-tide', title: 'ระดับน้ำทะเลรายชั่วโมง (อ่าวไทย)',
+    items: [[-1.2, 'น้ำลงต่ำ'], [0, 'ระดับทะเลปานกลาง'], [0.8, 'น้ำสูง'], [1.5, 'น้ำขึ้นสูงมาก']].map(([m, label]) => dot(tideColor(m), `${label} (${m > 0 ? '+' : ''}${m} ม.)`)),
+    note: 'ค่าจากแบบจำลอง (Open-Meteo Marine) เป็นระดับเหนือทะเลปานกลาง รวมน้ำขึ้นน้ำลงและลมหนุน เลื่อนแถบเวลาเพื่อดูแต่ละชั่วโมง',
   },
   {
     id: 'wind', ly: 'ly-wind', title: 'กระแสลม (เคลื่อนไหว)',

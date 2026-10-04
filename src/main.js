@@ -8,6 +8,9 @@ import { snapUrl as mcamSnapUrl, sameSpot, isCamId, placeLabel } from './lib/mah
 import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
 import { MAX_ROADS, DEFAULT_MIN } from './lib/notify-roads.js';
 import { FlowLayer } from './ui/flow-layer.js';
+import { RainLayer } from './ui/rain-layer.js';
+import { buildRainField, rainSummary } from './lib/rainfield.js';
+import { tideColor, hourIndex, levelAt, nearestPoint, highTides, HOUR } from './lib/tidefield.js';
 import { sample, speedOf, fromDeg, compassTh, windWord, WIND_COLORS, SEA_COLORS } from './lib/windfield.js';
 import { POPNIX_CREDIT, ROAD_LEVEL, CANAL_LEVEL, roadLevel, canalLevel, depthText } from './lib/popnix.js';
 import { DEPTH_BANDS, CLOSED_COLOR, VERDICT_TH, VERDICT_COLOR, VEHICLES, ROADS_CREDIT, confLabel, depthWord, matchRoads, roadGroup, centroid as roadCentroid } from './lib/road-flood.js';
@@ -17,7 +20,7 @@ import { OK, SLOW, OLD, MISSING, LOADING } from './lib/source-status.js';
 import { initRouteLayers, openRoute, clearRoute, routePicking, routePick, routeHit } from './ui/route.js';
 import { isDhrPage } from './lib/dhr-cams.js';
 import { LEGEND, EV_COLOR, stripHtml, compactHtml, dialogHtml } from './lib/legend.js';
-import { loadWind, loadPopnix, loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { loadTide, loadWind, loadPopnix, loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -171,6 +174,12 @@ function initLayers() {
     },
   });
   // measured sensors (POPNIX Flood open API): road/tunnel depth sensors, and canal gauges (off by default)
+  // hourly sea level over the Gulf (Open-Meteo Marine): soft coloured blobs, recoloured when the time slider moves
+  map.addSource('tide', { type: 'geojson', data: emptyFC });
+  map.addLayer({
+    id: 'tide', type: 'circle', source: 'tide', layout: { visibility: 'none' },
+    paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 9, 7, 28, 9, 90, 11, 250], 'circle-color': ['get', 'color'], 'circle-opacity': 0.62, 'circle-blur': 0.6, 'circle-stroke-width': 0 },
+  });
   map.addSource('canals', { type: 'geojson', data: emptyFC });
   map.addLayer({
     id: 'canals', type: 'circle', source: 'canals', minzoom: 10, layout: { visibility: 'none' },
@@ -361,7 +370,84 @@ function updateFlowReadout() {
   box.innerHTML = `${lines.join('<br>')}<small>ค่าที่กลางจอจากแบบจำลอง (Open-Meteo) ไม่ใช่เครื่องวัด · อัปเดต ${ago(state.wind.generatedAt)}</small>`;
   box.hidden = false;
 }
+// ───── animated rain (density follows the measured rain) ─────
+let rainFx = null;
+function refreshRainFx() {
+  state.rainField = state.rainObs?.length ? buildRainField(state.rainObs, { south: BOUNDS.south, west: BOUNDS.west, north: BOUNDS.north, east: BOUNDS.east }) : null;
+  updateRainNote();
+  if (rainFx?.on) rainFx.restart();
+}
+function updateRainNote() {
+  const box = $('#rain-note');
+  if (!box) return;
+  if (!$('#ly-rainfx').checked || !state.rainObs?.length) { box.hidden = true; return; }
+  const s = rainSummary(state.rainObs);
+  box.innerHTML = `🌧 ${s.wet ? `ฝนตกอยู่ที่ <b>${s.wet}</b> จาก ${s.fresh} สถานีที่ส่งค่าล่าสุด${s.top ? ` · หนักสุด <b>${s.top.r1}</b> มม. ใน 1 ชม. ที่ ${esc(s.top.name || s.top.prov || 'สถานีวัดฝน')}` : ''}` : `ไม่มีสถานีใดรายงานฝนใน 1 ชม. ล่าสุด (จาก ${s.fresh} สถานี)`}<small>เม็ดฝนหนาแน่นตามปริมาณฝนที่วัดได้ · แสดงเฉพาะบริเวณใกล้สถานี (≤ 20 กม.)</small>`;
+  box.hidden = false;
+}
+
+// ───── hourly sea level over the Gulf: time slider + play ─────
+let tideTimer = null;
+const tideRef = () => nearestPoint(state.tide, 13.4, 100.5);
+const tideHour = () => +$('#tide-range').value;
+function setTideHour(i) {
+  const t = state.tide;
+  if (!t || !map) return;
+  $('#tide-range').value = i;
+  const when = new Date(t.t0 + i * HOUR);
+  const label = when.toLocaleString('th-TH', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' });
+  const isNow = i === hourIndex(t);
+  $('#tide-time').textContent = `${label} น.${isNow ? ' (ตอนนี้)' : i < hourIndex(t) ? ' (ย้อนหลัง)' : ' (พยากรณ์)'}`;
+  $('#tide-range').setAttribute('aria-valuetext', label);
+  map.getSource('tide')?.setData({
+    type: 'FeatureCollection',
+    features: t.pts.map((p, n) => {
+      const m = levelAt(p, i);
+      return { type: 'Feature', geometry: { type: 'Point', coordinates: [p.ln, p.la] }, properties: { id: n, color: m === null ? 'rgba(0,0,0,0)' : tideColor(m) } };
+    }),
+  });
+  const ref = tideRef();
+  const now = ref ? levelAt(ref, i) : null;
+  const next = ref ? highTides(t, ref, i + 1)[0] : null;
+  $('#tide-sum').innerHTML = ref && now !== null
+    ? `ปากอ่าว (ใกล้ ${ref.la}°N ${ref.ln}°E): <b>${now >= 0 ? '+' : ''}${now.toFixed(2)} ม.</b>${next ? ` · น้ำขึ้นสูงสุดถัดไป <b>${new Date(next.t).toLocaleString('th-TH', { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })} น.</b> (+${next.m.toFixed(2)} ม.)` : ''}`
+    : 'ไม่มีข้อมูลที่ปากอ่าวในชั่วโมงนี้';
+}
+function stopTidePlay() {
+  clearInterval(tideTimer);
+  tideTimer = null;
+  $('#tide-play').textContent = '▶';
+}
+function initTideBar() {
+  $('#ly-tide').addEventListener('change', (e) => {
+    const on = e.target.checked;
+    map.setLayoutProperty('tide', 'visibility', on ? 'visible' : 'none');
+    $('#tide-bar').hidden = !on;
+    if (on) setTideHour(hourIndex(state.tide));
+    else stopTidePlay();
+  });
+  $('#tide-range').addEventListener('input', () => { stopTidePlay(); setTideHour(tideHour()); });
+  $('#tide-now').addEventListener('click', () => { stopTidePlay(); setTideHour(hourIndex(state.tide)); });
+  $('#tide-play').addEventListener('click', () => {
+    if (tideTimer) return stopTidePlay();
+    $('#tide-play').textContent = '⏸';
+    tideTimer = setInterval(() => setTideHour(tideHour() + 1 >= state.tide.hours ? 0 : tideHour() + 1), 650);
+  });
+}
+function tidePopup(p) {
+  const i = tideHour();
+  const m = levelAt(p, i);
+  const hi = highTides(state.tide, p, i).slice(0, 3);
+  openPopup([p.ln, p.la], `<div class="pp"><div class="pp-title">ระดับน้ำทะเล (แบบจำลอง)</div><div class="muted small">จุดที่ ${p.la}°N ${p.ln}°E</div>
+    <p class="small">ชั่วโมงที่เลือก: <b>${m === null ? 'ไม่มีค่า' : `${m >= 0 ? '+' : ''}${m.toFixed(2)} ม.`}</b> เหนือระดับทะเลปานกลาง</p>
+    ${hi.length ? `<p class="small">น้ำขึ้นสูงถัดไป: ${hi.map((h) => `${new Date(h.t).toLocaleString('th-TH', { weekday: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Bangkok' })} น. (+${h.m.toFixed(2)})`).join(' · ')}</p>` : ''}
+    <p class="muted tiny">ข้อมูล: Open-Meteo Marine (CC BY 4.0) · ค่าจากแบบจำลอง ไม่ใช่เครื่องวัด</p></div>`);
+}
+
 function initFlowLayers() {
+  rainFx = new RainLayer(map, () => state.rainField);
+  $('#ly-rainfx').addEventListener('change', (e) => { rainFx.setVisible(e.target.checked); updateRainNote(); });
+  initTideBar();
   flowWind = new FlowLayer(map, { getField: () => state.wind?.wind, colors: WIND_COLORS, speedUnit: 1, pxPerMs: 0.5, density: 1.8, maxAge: 100 });
   flowSea = new FlowLayer(map, { getField: () => state.wind?.sea, colors: SEA_COLORS, speedUnit: 3.6, pxPerMs: 3.2, density: 0.8, maxAge: 110 });
   $('#ly-wind').addEventListener('change', (e) => { flowWind.setVisible(e.target.checked); updateFlowReadout(); });
@@ -1402,6 +1488,8 @@ async function reloadRainObs() {
     state.rainObsError = e.message || String(e);
   }
   refreshRainLayer();
+  refreshRainFx();
+  if (state.rainObs?.length) $('#ly-rainfx').closest('label').hidden = false;
   refreshFloodsLayer(); // the evidence around each reported spot changed
   emit();
 }
@@ -1489,7 +1577,7 @@ async function main() {
     if (pickMode) return addVertex(e.lngLat.lat, e.lngLat.lng);
     if (routePicking()) return routePick(e.lngLat.lat, e.lngLat.lng);
     if (routeHit(e.point)) return;
-    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood', 'sensors', 'canals'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
+    const hit = map.queryRenderedFeatures(e.point, { layers: ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood', 'sensors', 'canals', 'tide'].filter((l) => map.getLayoutProperty(l, 'visibility') !== 'none') })[0];
     // thin road lines are hard to hit exactly: if nothing else is under the finger, look in a small box for a flooded road
     const roadHit = !hit && map.getLayoutProperty('roadflood', 'visibility') !== 'none'
       ? map.queryRenderedFeatures([[e.point.x - 9, e.point.y - 9], [e.point.x + 9, e.point.y + 9]], { layers: ['roadflood'] })[0]
@@ -1518,6 +1606,9 @@ async function main() {
       } else if (hit.layer.id === 'windy') {
         const c = state.windyCams?.cams?.find((x) => x.id === String(hit.properties.id));
         if (c) windyPopup(c);
+      } else if (hit.layer.id === 'tide') {
+        const p = state.tide?.pts[+hit.properties.id];
+        if (p) tidePopup(p);
       } else if (hit.layer.id === 'sensors') {
         const r = state.popnix?.roads.find((x) => x.c === String(hit.properties.id));
         if (r) sensorPopup(r);
@@ -1538,7 +1629,7 @@ async function main() {
     }
     selectPoint(e.lngLat.lat, e.lngLat.lng);
   });
-  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood', 'sensors', 'canals'].forEach((l) => {
+  ['reports', 'report-lines', 'report-areas', 'floods', 'traffic-events', 'cameras', 'rainobs', 'stations', 'traffic-roads', 'repeat', 'sat-flood', 'windy', 'mcams', 'roadflood', 'sensors', 'canals', 'tide'].forEach((l) => {
     map.on('mouseenter', l, () => (map.getCanvas().style.cursor = 'pointer'));
     map.on('mouseleave', l, () => (map.getCanvas().style.cursor = ''));
   });
@@ -1616,6 +1707,15 @@ async function main() {
     }).catch(() => {});
     reloadWind();
     setInterval(reloadWind, 30 * 60 * 1000);
+    const reloadTide = () => loadTide().then((t) => {
+      if (!t?.pts?.length || !t.hours) return;
+      state.tide = t;
+      $('#tide-range').max = t.hours - 1;
+      $('#ly-tide').closest('label').hidden = false;
+      if ($('#ly-tide').checked) setTideHour(Math.min(tideHour(), t.hours - 1));
+    }).catch(() => {});
+    reloadTide();
+    setInterval(reloadTide, 60 * 60 * 1000);
     loadMaholanCams().then((m) => { state.mcams = m; $('#ly-mcams').closest('label').hidden = false; $('#btn-room').hidden = false; refreshMcamLayer(); refreshRoom(); emit(); }).catch(() => {});
     const reloadAi = () => loadMaholanAi().then((a) => { state.mcamAi = a; refreshMcamLayer(); refreshRoom(); }).catch(() => {});
     reloadAi();
