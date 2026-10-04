@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { thaiTimeMs, normalizePopnixRoads, normalizePopnixCanals, roadCurrent, canalCurrent, canalLevel, roadLevel, nearby, summarize, POPNIX_STALE_MS } from '../src/lib/popnix.js';
+import { looseRoad, sameRoad, sensorsOnRoad, followableRoadNames, thaiTimeMs, normalizePopnixRoads, normalizePopnixCanals, roadCurrent, canalCurrent, canalLevel, roadLevel, nearby, summarize, POPNIX_STALE_MS } from '../src/lib/popnix.js';
 
 const NOW = Date.parse('2026-10-02T15:10:00Z'); // 22:10 Thai time
 const MIN = 60e3;
@@ -64,4 +64,20 @@ test('summarize counts only current readings', () => {
   assert.equal(s.canals.crit, 1);
   assert.equal(s.canals.warn, 1);
   assert.equal(s.canals.current, 2);
+});
+
+test('sensors keep the road they sit on, and road names compare loosely', () => {
+  const r = normalizePopnixRoads({ roads: [road({ road: ' ถนนวิภาวดี(ขาออก) ' })] });
+  assert.equal(r[0].r, 'ถนนวิภาวดี(ขาออก)');
+  assert.equal(looseRoad('ถนน วิภาวดี-รังสิต'), 'ถนนวิภาวดีรังสิต');
+  assert.equal(sameRoad('ถนนวิภาวดี(ขาออก)', 'ถนนวิภาวดีขาออก'), true);
+  assert.equal(sameRoad('', ''), false);
+  assert.deepEqual(sensorsOnRoad(r, 'ถนนวิภาวดีขาออก').length, 1);
+  assert.deepEqual(sensorsOnRoad(r, 'ถนนอื่น'), []);
+});
+
+test('followable roads = Floodboard names + sensor roads, one entry per road', () => {
+  const sensors = normalizePopnixRoads({ roads: [road({ road: 'ถนนหลวงแพ่ง' }), road({ code: 'B', road: 'ถนนบางนา-ตราด' }), road({ code: 'C', road: 'ถนนบางนา ตราด' })] });
+  const names = followableRoadNames(['ถนนหลวงแพ่ง', 'ซอยคู้บอน 10'], sensors);
+  assert.deepEqual(names, ['ถนนหลวงแพ่ง', 'ซอยคู้บอน 10', 'ถนนบางนา-ตราด']);
 });

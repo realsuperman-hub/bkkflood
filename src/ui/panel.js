@@ -11,11 +11,12 @@ import { mcmDayToCms, damStatus, outflowTrend } from '../lib/dams.js';
 import { camViewerEnabled } from '../lib/longdo-cams.js';
 import { BMA_LINKS, EVENT_LABEL, SPEED_LEVEL } from '../lib/bma-traffic.js';
 import { placeLabel } from '../lib/maholan-cams.js';
-import { THRESHOLDS, MAX_ROADS } from '../lib/notify-roads.js';
+import { THRESHOLDS, MAX_ROADS, currentRoad } from '../lib/notify-roads.js';
 import { sourceStatuses, overallStatus } from '../lib/source-status.js';
 import { DEPTH_BANDS, VERDICT_TH, VERDICT_COLOR, ROADS_CREDIT, confLabel, depthWord, summarizeRoads, nearRoads, roadGroup, bandOf } from '../lib/road-flood.js';
 import { distKm, inCore } from '../lib/geo.js';
 import { APP_VERSION, APP_BUILT } from '../lib/app-version.js';
+import { sensorsOnRoad } from '../lib/popnix.js';
 import { POPNIX_CREDIT, ROAD_LEVEL, CANAL_LEVEL, roadLevel, canalLevel, depthText, nearby, summarize } from '../lib/popnix.js';
 import { validQuery } from '../lib/search.js';
 import { platform } from '../lib/push.js';
@@ -469,14 +470,21 @@ function roadSyncLine() {
 
 // "ถนนที่ฉันใช้": follow up to 5 roads; each gets a depth threshold and a push alert when it is reached (needs alerts switched on)
 function myRoadsCard() {
-  if (!state.roadFlood?.features) return '';
+  if (!state.roadFlood?.features && !state.popnix) return '';
   const mine = state.myRoads;
-  const feats = state.roadFlood.features;
+  const feats = state.roadFlood?.features || [];
+  const sensors = state.popnix?.roads || null;
   const p = state.push;
   const pushOk = p && p.reason !== 'no-backend';
   const row = (r) => {
     const g = roadGroup(feats, r.name);
-    const now = g ? `${g.closedAll ? 'ปิดการจราจร · ' : ''}ตอนนี้ลึกราว <b>${g.maxD} ซม.</b>${g.maxD >= r.min || g.closedAll ? ' — <b>ถึงเกณฑ์แล้ว</b>' : ''}` : 'ตอนนี้ไม่พบน้ำท่วมบนถนนนี้';
+    const cur = currentRoad(feats, r.name, { sensors });
+    const onRoad = sensorsOnRoad(sensors, r.name);
+    const est = g ? `${g.closedAll ? 'ปิดการจราจร · ' : ''}ตอนนี้ลึกราว <b>${g.maxD} ซม.</b>${g.maxD >= r.min || g.closedAll ? ' — <b>ถึงเกณฑ์แล้ว</b>' : ''}` : 'ตอนนี้ไม่พบน้ำท่วมบนถนนนี้จากค่าประมาณ';
+    const sen = cur.sensor
+      ? `<br>เซ็นเซอร์ กทม. วัดได้ <b>${cur.sensor.text}</b>${cur.sensor.cm >= r.min ? ' — <b>ถึงเกณฑ์แล้ว</b>' : ''}`
+      : onRoad.length ? `<br>มีเซ็นเซอร์ ${onRoad.length} จุด · ${cur.sensorUnknown ? 'ตอนนี้ไม่มีค่าล่าสุด' : 'ไม่พบน้ำที่เซ็นเซอร์'}` : '';
+    const now = est + sen;
     return `<div class="row-item static"><span class="grow"><button class="linkish" data-act="road-open" data-name="${esc(r.name)}"><b>${esc(r.name)}</b></button><small>${now}</small>
       <small>เตือนเมื่อน้ำลึกถึง <select data-road-min="${esc(r.name)}" aria-label="เกณฑ์ความลึก ${esc(r.name)}">${THRESHOLDS.map((t) => `<option value="${t}"${t === r.min ? ' selected' : ''}>${t} ซม.</option>`).join('')}</select> หรือเมื่อปิดถนน</small></span>
       <button class="btn btn-sm btn-ghost" data-act="road-unfollow" data-name="${esc(r.name)}" aria-label="เลิกติดตาม ${esc(r.name)}">✕</button></div>`;
@@ -493,7 +501,7 @@ function myRoadsCard() {
   return `<section class="card"><h3>ถนนที่ฉันใช้</h3>
     ${mine.length ? `<div class="list">${mine.map(row).join('')}</div>` : '<p class="small">เลือกถนนที่คุณขับผ่านเป็นประจำ แล้วรับแจ้งเตือนเมื่อน้ำท่วมถึงระดับที่ตั้งไว้ (ค่าประมาณจาก Floodboard · เฉพาะ กทม.)</p>'}
     ${finder}${alertLine}
-    <p class="muted tiny">ระบบจะเก็บ <b>ชื่อถนนที่ติดตาม</b> พร้อมรหัสอุปกรณ์บนเซิร์ฟเวอร์ เพื่อส่งแจ้งเตือนเท่านั้น ไม่เก็บตัวตน ปิดเมื่อไรก็ได้ · เป็นค่าประมาณ ไม่ใช่การเตือนภัยทางการ · แตะที่เส้นถนนบนแผนที่แล้วกด “🔔 แจ้งเตือนถนนนี้” ก็ได้</p></section>`;
+    <p class="muted tiny">ระบบจะเก็บ <b>ชื่อถนนที่ติดตาม</b> พร้อมรหัสอุปกรณ์บนเซิร์ฟเวอร์ เพื่อส่งแจ้งเตือนเท่านั้น ไม่เก็บตัวตน ปิดเมื่อไรก็ได้ · เตือนจากค่าประมาณของ Floodboard และจากเซ็นเซอร์วัดน้ำบนถนนของ กทม. (ถ้าถนนนั้นมีเซ็นเซอร์ เซ็นเซอร์ต้องวัดได้เกินเกณฑ์ต่อเนื่องอย่างน้อย 10 นาที และบางตัววัดได้สูงสุด 20 ซม.) · ไม่ใช่การเตือนภัยทางการ · แตะที่เส้นถนนบนแผนที่แล้วกด “🔔 แจ้งเตือนถนนนี้” ก็ได้</p></section>`;
 }
 
 // one line at the top of the overview: are the sources up to date? (tap → the full list)

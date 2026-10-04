@@ -9,6 +9,7 @@ import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
 import { MAX_ROADS, DEFAULT_MIN } from './lib/notify-roads.js';
 import { FlowLayer } from './ui/flow-layer.js';
 import { checkForUpdate } from './lib/app-version.js';
+import { followableRoadNames, sensorsOnRoad } from './lib/popnix.js';
 import { RainLayer } from './ui/rain-layer.js';
 import { buildRainField, rainSummary } from './lib/rainfield.js';
 import { tideColor, hourIndex, levelAt, nearestPoint, highTides, HOUR } from './lib/tidefield.js';
@@ -1138,7 +1139,7 @@ const actions = {
   },
   'road-find': () => {
     const q = String(document.querySelector('#road-q')?.value || '').trim();
-    const names = state.roadFlood?.names || [];
+    const names = followableRoadNames(state.roadFlood?.names || [], state.popnix?.roads || []);
     const loose = (x) => String(x).toLowerCase().replace(/[\s.\-]+/g, '');
     const nq = loose(q);
     state.roadFind = { q, results: nq.length >= 2 ? names.filter((n) => loose(n).includes(nq) && !following(n)).slice(0, 8) : [] };
@@ -1164,7 +1165,15 @@ const actions = {
   },
   'road-open': ({ name }) => {
     const g = roadGroup(state.roadFlood?.features || [], name);
-    if (!g) return;
+    if (!g) {
+      // a road that has only a BMA depth sensor (no flooded segment in the estimate): show its first sensor
+      const s = sensorsOnRoad(state.popnix?.roads, name)[0];
+      if (!s) return;
+      $('#panel').dataset.open = 'false';
+      map.flyTo({ center: [s.ln, s.la], zoom: 16 });
+      sensorPopup(s);
+      return;
+    }
     $('#panel').dataset.open = 'false';
     const pts = g.coords.flat();
     const b = pts.reduce((a, c) => [[Math.min(a[0][0], c[0]), Math.min(a[0][1], c[1])], [Math.max(a[1][0], c[0]), Math.max(a[1][1], c[1])]], [[180, 90], [-180, -90]]);
@@ -1705,7 +1714,7 @@ async function main() {
       const want = !roadLinkHandled && new URLSearchParams(location.search).get('road'); // opened from a road alert
       if (want) {
         roadLinkHandled = true;
-        if (roadGroup(r.features, want)) actions['road-open']({ name: want });
+        if (roadGroup(r.features, want) || sensorsOnRoad(state.popnix?.roads, want).length) actions['road-open']({ name: want });
         else toast(`ตอนนี้ไม่พบน้ำท่วมบน “${want}” ตามข้อมูลล่าสุด`);
       }
     }).catch(() => {});

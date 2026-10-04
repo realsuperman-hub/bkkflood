@@ -29,8 +29,11 @@ const floods = (await readJson('public/data/floods.json').catch(() => ({ floods:
 const rainObs = (await readJson('public/data/rain.json').catch(() => ({ gauges: [] }))).gauges.map((g) => ({ ...g, stale: g.t === null || now - g.t > RAIN_STALE_MS }));
 const events = (await readJson('public/data/traffic-events.json').catch(() => ({ events: [] }))).events;
 const roadSnap = await readJson('public/data/road-flood.json').catch(() => null);
-const roadsFresh = !!roadSnap?.features && now - (roadSnap.generatedAt || 0) < SNAPSHOT_MAX_AGE_MS; // an old snapshot never triggers a road alert
-console.log(`data: ${stations.length} stations, ${floods.length} flood complaints, ${rainObs.length} rain gauges, ${roadSnap?.features?.length ?? 0} flooded road segments${roadsFresh ? '' : ' (road data missing/old: road alerts paused)'}`);
+const popSnap = await readJson('public/data/popnix.json').catch(() => null); // BMA road-depth sensors + canal gauges (POPNIX Flood)
+const estFresh = !!roadSnap?.features && now - (roadSnap.generatedAt || 0) < SNAPSHOT_MAX_AGE_MS; // an old snapshot never triggers a road alert
+const sensorsFresh = Array.isArray(popSnap?.roads) && now - (popSnap.generatedAt || 0) < SNAPSHOT_MAX_AGE_MS;
+const roadsFresh = estFresh || sensorsFresh;
+console.log(`data: ${stations.length} stations, ${floods.length} flood complaints, ${rainObs.length} rain gauges, ${roadSnap?.features?.length ?? 0} flooded road segments${estFresh ? '' : ' (estimate missing/old)'}, ${popSnap?.roads?.length ?? 0} depth sensors${sensorsFresh ? '' : ' (sensors missing/old)'}${roadsFresh ? '' : ' — road alerts paused'}`);
 
 let db = null;
 let messaging = null;
@@ -120,7 +123,7 @@ for (const sub of subs) {
     if (roadsFresh && roads.length) {
       const rprev = sub.rstate || {};
       const rres = roads.map((r) => {
-        const cur = currentRoad(roadSnap.features, r.name);
+        const cur = currentRoad(estFresh ? roadSnap.features : [], r.name, { sensors: sensorsFresh ? popSnap.roads : null, now });
         const key = roadKey(r.name);
         const d = decideRoad(rprev[key], cur, { now, min: r.min, lastRoadSentAt: sub.lastRoadSentAt || 0 });
         return { r, cur, key, d };
@@ -128,7 +131,7 @@ for (const sub of subs) {
       const cand = rres.filter((x) => x.d.notify).sort((a, b) => (b.cur.closed - a.cur.closed) || b.cur.depth - a.cur.depth)[0];
       const send = cand && !notified;
       if (send) {
-        const msg = buildRoadMessage(cand.r.name, cand.cur);
+        const msg = buildRoadMessage(cand.r.name, cand.cur, cand.r.min);
         if (dry) {
           console.log(`[dry] ${sub.id}: would send road alert "${msg.title}" — ${msg.body}`);
           roadSent = true;

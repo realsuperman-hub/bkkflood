@@ -28,7 +28,7 @@ test('currentRoad takes the deepest segment, any closure, and the worst verdicts
   assert.equal(c.depth, 45);
   assert.equal(c.closed, true);
   assert.deepEqual(c.v, [3, 3, 3, 3]);
-  assert.deepEqual(currentRoad([], 'ถนนก'), { depth: 0, closed: false, conf: 0, upd: 0, v: [0, 0, 0, 0] });
+  assert.deepEqual(currentRoad([], 'ถนนก'), { depth: 0, closed: false, conf: 0, upd: 0, v: [0, 0, 0, 0], sensor: null, sensorUnknown: false });
 });
 
 test('notify once when the threshold is reached, not again while it stays above', () => {
@@ -63,4 +63,60 @@ test('message names the road, the depth and the verdicts, and links back to it',
   assert.match(m.body, /รถเก๋ง: เสี่ยง/);
   assert.equal(m.url, `/?road=${encodeURIComponent('ถนนรามคำแหง')}`);
   assert.match(buildRoadMessage('ถนนก', cur({ closed: true })).title, /ปิดการจราจร/);
+});
+
+// ---- BMA depth sensors (POPNIX) on a followed road
+const sensor = (o = {}) => ({ c: 'S1', n: 'ถ.ตัวอย่าง (หน้าตลาด)', r: 'ถนนก', la: 13.7, ln: 100.6, cm: 20, lv: 'flood', k: 1, g: 1, t: now - 5 * 60e3, s: now - 30 * 60e3, ...o });
+
+test('a sensor that has been in flood for 10+ minutes counts as a measured depth, trusted without the estimate', () => {
+  const c = currentRoad([], 'ถนนก', { sensors: [sensor({ cm: 25 })], now });
+  assert.equal(c.depth, 25);
+  assert.equal(c.conf, 100);
+  assert.equal(c.sensor.cm, 25);
+  assert.deepEqual(c.v, [3, 2, 1, 1]); // 25 cm: motorbike blocked, sedan risky, pickup/truck caution
+  assert.equal(c.sensorUnknown, false);
+  assert.equal(decideRoad(undefined, c, { now, min: 20 }).notify, true);
+});
+
+test('sensor and estimate: the deeper and the worse verdict win', () => {
+  const c = currentRoad([seg('ถนนก', { d: 40, c: 90, v: [3, 3, 2, 1] })], 'ถนนก', { sensors: [sensor({ cm: 20 })], now });
+  assert.equal(c.depth, 40);
+  assert.deepEqual(c.v, [3, 3, 2, 1]);
+});
+
+test('a brand-new flood reading, a stale one, an offline one and a dry one never alert', () => {
+  const none = (s) => currentRoad([], 'ถนนก', { sensors: [s], now });
+  assert.equal(none(sensor({ s: now - 3 * 60e3 })).sensor, null); // only 3 min above flood level
+  assert.equal(none(sensor({ s: null })).sensor, null);
+  assert.equal(none(sensor({ t: now - 2 * 3600e3 })).sensor, null); // reading older than 45 min
+  assert.equal(none(sensor({ lv: 'off', cm: null })).sensor, null);
+  assert.equal(none(sensor({ lv: 'dry', cm: 2, s: null })).depth, 0);
+  assert.equal(decideRoad(undefined, none(sensor({ s: now - 3 * 60e3 })), { now, min: 20 }).notify, false);
+});
+
+test('sensors on other roads are ignored; road names are matched loosely (brackets, spaces)', () => {
+  assert.equal(currentRoad([], 'ถนนก', { sensors: [sensor({ r: 'ถนนข' })], now }).sensor, null);
+  const c = currentRoad([], 'ถนนวิภาวดีขาออก', { sensors: [sensor({ r: 'ถนนวิภาวดี(ขาออก)' })], now });
+  assert.equal(c.sensor.cm, 20);
+});
+
+test('a road whose sensors have all gone quiet is "unknown": an alert already on does not re-arm', () => {
+  const c = currentRoad([], 'ถนนก', { sensors: [sensor({ t: now - 2 * 3600e3 })], now });
+  assert.equal(c.sensorUnknown, true);
+  assert.equal(nextRoadState({ on: true, at: 1 }, c, { notified: false, suppressed: false, now, min: 20 }).on, true);
+  const dry = currentRoad([], 'ถนนก', { sensors: [sensor({ cm: 1, lv: 'dry', s: null })], now });
+  assert.equal(dry.sensorUnknown, false);
+  assert.equal(nextRoadState({ on: true, at: 1 }, dry, { notified: false, suppressed: false, now, min: 20 }).on, false);
+});
+
+test('the sensor message says what was measured, where, and credits the source; it falls back to the estimate message below the threshold', () => {
+  const c = currentRoad([], 'ถนนก', { sensors: [sensor({ cm: 20, g: 2 })], now });
+  const m = buildRoadMessage('ถนนก', c, 20);
+  assert.match(m.title, /เซ็นเซอร์ กทม\. วัดน้ำได้ อย่างน้อย 20 ซม\./);
+  assert.match(m.body, /หน้าตลาด/);
+  assert.match(m.body, /POPNIX/);
+  assert.match(m.body, /อาจลึกกว่า/);
+  assert.equal(m.url, '/?road=' + encodeURIComponent('ถนนก'));
+  const est = buildRoadMessage('ถนนก', c, 50); // threshold 50 > sensor 20: the generic message
+  assert.match(est.title, /น้ำท่วมราว/);
 });

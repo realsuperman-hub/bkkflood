@@ -26,6 +26,7 @@ export function normalizePopnixRoads(raw) {
     .map((r) => ({
       c: String(r.code),
       n: String(r.name || r.road || r.code),
+      r: String(r.road || '').replace(/\s+/g, ' ').trim(), // the road the sensor sits on (same wording style as Floodboard's road names)
       d: r.district || '',
       la: +r.lat,
       ln: +r.lng,
@@ -57,6 +58,24 @@ export function normalizePopnixCanals(raw) {
       on: s.online !== false,
       t: thaiTimeMs(s.measured_at),
     }));
+}
+
+// Road names are written a little differently by each source ("ถนนวิภาวดี(ขาออก)" / "ถนนวิภาวดีขาออก"): compare with spaces, dots, hyphens and brackets removed
+export const looseRoad = (s) => String(s || '').toLowerCase().replace(/[\s.\-ๆ()（）]+/g, '');
+export const sameRoad = (a, b) => !!looseRoad(a) && looseRoad(a) === looseRoad(b);
+// sensors that sit on a named road
+export const sensorsOnRoad = (sensors, name) => (sensors || []).filter((s) => s.r && sameRoad(s.r, name));
+// the roads a person can follow: Floodboard's monitored road names plus the roads that have a BMA depth sensor (one entry per road, Floodboard's spelling first)
+export function followableRoadNames(names, sensors) {
+  const seen = new Set();
+  const out = [];
+  for (const n of [...(names || []), ...(sensors || []).map((s) => s.r)]) {
+    const k = looseRoad(n);
+    if (!k || seen.has(k)) continue;
+    seen.add(k);
+    out.push(n);
+  }
+  return out;
 }
 
 // a sensor reading is current only if it has a value, is not marked off, and is not older than POPNIX_STALE_MS
