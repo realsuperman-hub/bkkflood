@@ -5,26 +5,47 @@ export const MIN_GAP_MS = 2 * 3600e3; // at most one push per device per 2 h (un
 // Set to true again once the score has been re-calibrated (see the accuracy report).
 export const RISK_ALERTS = false;
 
+// Heavy rain MEASURED by a gauge near a saved place (rain in the last hour, from the ThaiWater gauges). Observed, not forecast, so it is not paused with the score alerts.
+// It fires once when a fresh gauge within RAIN_RADIUS_KM reaches RAIN_ALERT_MM and re-arms when every such gauge is back under RAIN_REARM_MM.
+export const RAIN_ALERT_MM = 30;
+export const RAIN_REARM_MM = 10;
+export const RAIN_RADIUS_KM = 6;
+
+// the heaviest fresh gauge near a place → { r1, name, km } | null.  gauges: [{ lat, lng, r1, stale, name }]
+export function heaviestNearbyRain(gauges, lat, lng, distKm, radiusKm = RAIN_RADIUS_KM) {
+  let best = null;
+  for (const g of gauges) {
+    if (g.stale || g.r1 === null || g.r1 === undefined || !Number.isFinite(g.r1)) continue;
+    const km = distKm(lat, lng, g.lat, g.lng);
+    if (km <= radiusKm && (!best || g.r1 > best.r1)) best = { r1: g.r1, name: g.name || '', km };
+  }
+  return best;
+}
+
 // Safe as a Firestore map key (no dots): 13.7500,100.5000 -> p137500_1005000
 export const placeKey = (p) => `p${Math.round(p.lat * 1e4)}_${Math.round(p.lng * 1e4)}`;
 
-// prev: { level, heavy, at } | undefined      cur: { level, heavy }
-// Returns { notify: false } or { notify: true, kind: 'risk'|'observed', dangerJump }
+// prev: { level, heavy, rainOn, at } | undefined      cur: { level, heavy, rain }  (rain = heaviest fresh gauge nearby, mm in 1 h, 0 when none)
+// Returns { notify: false } or { notify: true, kind: 'risk'|'observed'|'rain', dangerJump }
 export function decide(prev, cur, { now, lastSentAt = 0, riskAlerts = RISK_ALERTS }) {
   const p = prev || { level: 0, heavy: 0 };
+  const rainUp = (cur.rain || 0) >= RAIN_ALERT_MM && !p.rainOn;
   const riskUp = riskAlerts && cur.level >= 2 && cur.level > p.level;
   const heavyUp = cur.heavy >= 1 && cur.heavy > p.heavy;
-  if (!riskUp && !heavyUp) return { notify: false };
+  if (!riskUp && !heavyUp && !rainUp) return { notify: false };
   const dangerJump = riskAlerts && cur.level === 3 && p.level < 3;
   if (now - lastSentAt < MIN_GAP_MS && !dangerJump) return { notify: false, suppressed: true };
-  return { notify: true, kind: riskUp ? 'risk' : 'observed', dangerJump };
+  return { notify: true, kind: riskUp ? 'risk' : heavyUp ? 'observed' : 'rain', dangerJump };
 }
 
 // State to store after a run. If a notification was suppressed we keep the old baseline so it can fire later.
 export function nextState(prev, cur, { notified, suppressed, now }) {
   const p = prev || { level: 0, heavy: 0, at: 0 };
-  if (suppressed) return { level: Math.min(p.level, cur.level), heavy: Math.min(p.heavy, cur.heavy), at: p.at || 0 };
-  return { level: cur.level, heavy: cur.heavy, at: notified ? now : p.at || 0 };
+  const rain = cur.rain || 0;
+  // rainOn: set once the rain has reached the alert level (alerted or not), cleared only when it is back under the re-arm level; a suppressed alert keeps it off so it can fire later
+  const rainOn = suppressed ? !!p.rainOn : rain >= RAIN_ALERT_MM ? true : rain < RAIN_REARM_MM ? false : !!p.rainOn;
+  if (suppressed) return { level: Math.min(p.level, cur.level), heavy: Math.min(p.heavy, cur.heavy), rainOn, at: p.at || 0 };
+  return { level: cur.level, heavy: cur.heavy, rainOn, at: notified ? now : p.at || 0 };
 }
 
 export function sanitizePlaces(places, inBounds) {
@@ -36,9 +57,17 @@ export function sanitizePlaces(places, inBounds) {
 }
 
 // Data-only FCM payload; the service worker turns it into a notification.
-export function buildMessage(place, ev, kind) {
+export function buildMessage(place, ev, kind, rainG = null) {
   const r = ev.risk;
   const url = `/?p=${(+place.lat).toFixed(5)},${(+place.lng).toFixed(5)}`;
+  if (kind === 'rain' && rainG) {
+    return {
+      title: `ฝนตกหนักใกล้${place.label}`,
+      body: `สถานีวัดฝน${rainG.name ? ` ${rainG.name}` : ''} วัดได้ ${rainG.r1} มม. ใน 1 ชม. ล่าสุด (ห่างจุดของคุณ ${rainG.km.toFixed(1)} กม.) — ค่าวัดจริงที่สถานีเดียว ฝนอาจต่างกันในแต่ละพื้นที่ · ที่มา ThaiWater`,
+      url,
+      tag: `rain-${placeKey(place)}`,
+    };
+  }
   if (kind === 'observed') {
     return {
       title: `น้ำท่วมหนักใกล้${place.label}`,

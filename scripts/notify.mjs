@@ -8,7 +8,8 @@ import { evaluatePoint } from '../src/lib/evaluate-core.js';
 import { inBounds } from '../src/lib/geo.js';
 import { STALE_MS } from '../src/lib/thaiwater.js';
 import { RAIN_STALE_MS } from '../src/lib/rain-obs.js';
-import { decide, nextState, sanitizePlaces, placeKey, buildMessage } from '../src/lib/notify-logic.js';
+import { distKm } from '../src/lib/geo.js';
+import { decide, nextState, sanitizePlaces, placeKey, buildMessage, heaviestNearbyRain } from '../src/lib/notify-logic.js';
 import { sanitizeRoads, roadKey, currentRoad, decideRoad, nextRoadState, buildRoadMessage, SNAPSHOT_MAX_AGE_MS } from '../src/lib/notify-roads.js';
 
 const arg = (n) => {
@@ -85,16 +86,19 @@ for (const sub of subs) {
     for (const p of places) {
       const ev = await evalPlace(p);
       const key = placeKey(p);
-      const cur = { level: ev.risk.level, heavy: ev.nearby.heavy };
+      const rainG = heaviestNearbyRain(rainObs, p.lat, p.lng, distKm);
+      const cur = { level: ev.risk.level, heavy: ev.nearby.heavy, rain: rainG?.r1 ?? 0, rainG };
       const d = decide(prevState[key], cur, { now, lastSentAt: sub.lastSentAt || 0 });
       const r = { key, d, cur, prev: prevState[key], place: p, ev };
       results.push(r);
-      if (d.notify && (!best || cur.level > best.cur.level || (cur.level === best.cur.level && cur.heavy > best.cur.heavy))) best = r;
+      const rank = (x) => [x.cur.level, x.cur.heavy, x.cur.rain];
+      const worse = (a, b) => { const A = rank(a), B = rank(b); for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) return A[i] > B[i]; return false; };
+      if (d.notify && (!best || worse(r, best))) best = r;
     }
 
     let notified = false;
     if (best) {
-      const msg = buildMessage(best.place, best.ev, best.d.kind);
+      const msg = buildMessage(best.place, best.ev, best.d.kind, best.cur.rainG);
       if (dry) {
         console.log(`[dry] ${sub.id}: would send "${msg.title}" — ${msg.body}`);
         notified = true;
@@ -159,7 +163,7 @@ for (const sub of subs) {
 
     if (!dry) {
       const state = {};
-      for (const r of results) state[r.key] = nextState(r.prev, r.cur, { notified: notified && best === r, suppressed: r.d.suppressed, now });
+      for (const r of results) state[r.key] = nextState(r.prev, r.cur, { notified: notified && best === r, suppressed: r.d.suppressed || (r.d.notify && best !== r), now });
       await db.doc(`subs/${sub.id}`).set({ state, ...(Object.keys(rstate).length ? { rstate } : {}), ...(notified ? { lastSentAt: now } : {}), ...(roadSent ? { lastRoadSentAt: now } : {}) }, { merge: true });
     }
   } catch (e) {
