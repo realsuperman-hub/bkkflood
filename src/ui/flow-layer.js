@@ -79,10 +79,12 @@ export class FlowLayer {
 
   start() {
     if (this.raf || !this.on || document.hidden) return;
-    const loop = () => {
+    this.last = performance.now();
+    const loop = (now) => {
       this.raf = requestAnimationFrame(loop);
-      if (++this.tick % 2) return; // ~30 fps is plenty and kinder to phones
-      this.step(true);
+      const f = Math.min(3, (now - this.last) / 16.7); // 1 = one 60 Hz frame: motion is time-based, so 60/120 Hz screens are fluid and a slow frame does not slow the flow
+      this.last = now;
+      this.step(true, f);
     };
     this.raf = requestAnimationFrame(loop);
   }
@@ -93,13 +95,13 @@ export class FlowLayer {
   }
 
   // one frame: fade the old trails, move every particle, draw the short segment it travelled
-  step(fade) {
+  step(fade, f = 1) {
     const field = this.o.getField();
     const { ctx, map } = this;
     if (!field) return;
     if (fade) {
       ctx.globalCompositeOperation = 'destination-out';
-      ctx.fillStyle = 'rgba(0,0,0,0.07)';
+      ctx.fillStyle = `rgba(0,0,0,${(0.04 * f).toFixed(3)})`;
       ctx.fillRect(0, 0, this.w, this.h);
       ctx.globalCompositeOperation = 'source-over';
     }
@@ -107,11 +109,12 @@ export class FlowLayer {
     const b = map.getBounds();
     for (const p of this.parts) {
       const uv = sample(field, p.lat, p.lng);
-      if (!uv || ++p.age > this.o.maxAge || p.lng < b.getWest() || p.lng > b.getEast() || p.lat < b.getSouth() || p.lat > b.getNorth()) {
+      p.age += f * 0.5;
+      if (!uv || p.age > this.o.maxAge || p.lng < b.getWest() || p.lng > b.getEast() || p.lat < b.getSouth() || p.lat > b.getNorth()) {
         this.spawn(p);
         continue;
       }
-      const k = this.o.pxPerMs * dpp;
+      const k = this.o.pxPerMs * dpp * f * 0.5; // pxPerMs was tuned for 30 fps steps; a 60 Hz frame moves half as far
       const cos = Math.cos((p.lat * Math.PI) / 180);
       const a = map.project([p.lng, p.lat]);
       p.lng += uv[0] * k;

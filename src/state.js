@@ -19,6 +19,7 @@ const loadSaved = () => {
 };
 
 export const state = {
+  update: null, // result of the last "is this the newest app version?" check
   tide: null, // hourly sea level over the Gulf (Open-Meteo Marine)
   rainField: null, // interpolated rain rate from the gauges, for the animated rain layer
   wind: null, // wind + sea-current vector fields for the animated layers (Open-Meteo)

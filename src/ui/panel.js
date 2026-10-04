@@ -15,6 +15,7 @@ import { THRESHOLDS, MAX_ROADS } from '../lib/notify-roads.js';
 import { sourceStatuses, overallStatus } from '../lib/source-status.js';
 import { DEPTH_BANDS, VERDICT_TH, VERDICT_COLOR, ROADS_CREDIT, confLabel, depthWord, summarizeRoads, nearRoads, roadGroup, bandOf } from '../lib/road-flood.js';
 import { distKm, inCore } from '../lib/geo.js';
+import { APP_VERSION, APP_BUILT } from '../lib/app-version.js';
 import { POPNIX_CREDIT, ROAD_LEVEL, CANAL_LEVEL, roadLevel, canalLevel, depthText, nearby, summarize } from '../lib/popnix.js';
 import { validQuery } from '../lib/search.js';
 import { platform } from '../lib/push.js';
@@ -946,7 +947,11 @@ export function helpTab() {
   <section class="card credit">
     <img class="credit-avatar" src="/avatar-aj.png" alt="โลโก้ผู้จัดทำ" width="64" height="64" />
     <div class="credit-body"><span class="credit-label">จัดทำโดย</span>
-      <a class="credit-mail" href="mailto:aggasit.j@gmail.com"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11Zm1.8.4 7.2 5.4 7.2-5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>aggasit.j@gmail.com</span></a></div></section>`;
+      <a class="credit-mail" href="mailto:aggasit.j@gmail.com"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h15A1.5 1.5 0 0 1 21 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5v-11Zm1.8.4 7.2 5.4 7.2-5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span>aggasit.j@gmail.com</span></a></div></section>
+  <section class="card"><h3>เวอร์ชันแอป</h3>
+    <p class="small">เวอร์ชัน <b>${esc(APP_VERSION)}</b>${APP_BUILT ? ` · สร้างเมื่อ ${esc(new Date(APP_BUILT).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Bangkok' }))} น.` : ''}${state.update?.outdated ? ' · <b>มีเวอร์ชันใหม่</b>' : state.update?.latest ? ' · เป็นเวอร์ชันล่าสุด' : ''}</p>
+    <div class="row wrap"><button class="btn btn-sm" data-act="check-update">ตรวจหาเวอร์ชันใหม่</button>${state.update?.outdated ? '<button class="btn btn-sm btn-primary" data-act="apply-update">อัปเดตเลย</button>' : ''}</div>
+    <p class="muted tiny">แอปที่เพิ่มไว้หน้าจอหลักของ iPhone อาจค้างอยู่เวอร์ชันเก่าหลายวัน แอปจะตรวจเวอร์ชันใหม่ให้เองเมื่อเปิดกลับมา และขึ้นแถบแจ้งด้านบนให้กดอัปเดต</p></section>`;
 }
 
 export const TAB_RENDER = { overview: overviewTab, forecast: forecastTab, reports: reportsTab, help: helpTab };

@@ -8,6 +8,7 @@ import { snapUrl as mcamSnapUrl, sameSpot, isCamId, placeLabel } from './lib/mah
 import { activeFlags, AI_LEVEL_TH } from './lib/maholan-ai.js';
 import { MAX_ROADS, DEFAULT_MIN } from './lib/notify-roads.js';
 import { FlowLayer } from './ui/flow-layer.js';
+import { checkForUpdate } from './lib/app-version.js';
 import { RainLayer } from './ui/rain-layer.js';
 import { buildRainField, rainSummary } from './lib/rainfield.js';
 import { tideColor, hourIndex, levelAt, nearestPoint, highTides, HOUR } from './lib/tidefield.js';
@@ -370,6 +371,24 @@ function updateFlowReadout() {
   box.innerHTML = `${lines.join('<br>')}<small>ค่าที่กลางจอจากแบบจำลอง (Open-Meteo) ไม่ใช่เครื่องวัด · อัปเดต ${ago(state.wind.generatedAt)}</small>`;
   box.hidden = false;
 }
+// ───── is this installed app the newest one? (an iPhone home-screen app can run old code for days) ─────
+let lastUpdateCheck = 0;
+async function checkUpdate(manual = false) {
+  if (!manual && Date.now() - lastUpdateCheck < 60e3) return null;
+  lastUpdateCheck = Date.now();
+  const r = await checkForUpdate();
+  state.update = r;
+  $('#update-bar').hidden = !r.outdated;
+  if (manual) toast(r.outdated ? 'พบเวอร์ชันใหม่ — กด “อัปเดตเลย” ด้านบน' : r.latest ? 'แอปเป็นเวอร์ชันล่าสุดแล้ว' : 'ตรวจเวอร์ชันไม่สำเร็จ ลองใหม่อีกครั้ง');
+  emit();
+  return r;
+}
+function applyUpdate() {
+  const go = () => location.reload();
+  if (!('serviceWorker' in navigator)) return go();
+  navigator.serviceWorker.getRegistration().then((reg) => reg?.update()).catch(() => {}).finally(go);
+}
+
 // ───── animated rain (density follows the measured rain) ─────
 let rainFx = null;
 function refreshRainFx() {
@@ -1126,6 +1145,8 @@ const actions = {
     if (nq.length < 2) toast('พิมพ์ชื่อถนนอย่างน้อย 2 ตัวอักษร');
     emit();
   },
+  'check-update': () => { checkUpdate(true); },
+  'apply-update': () => applyUpdate(),
   'sensor-open': ({ c }) => {
     const r = state.popnix?.roads.find((x) => x.c === c);
     if (!r) return;
@@ -1656,6 +1677,9 @@ async function main() {
   if ('serviceWorker' in navigator && (import.meta.env.PROD || location.search.includes('sw=1'))) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   }
+  setTimeout(checkUpdate, 8000);
+  setInterval(checkUpdate, 20 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
   const shared = new URLSearchParams(location.search).get('p');
   const sharedPt = shared && shared.match(/^(-?\d+(\.\d+)?),(-?\d+(\.\d+)?)$/);
 

@@ -325,13 +325,13 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
 /* ───────── phone bottom navigation (tab bar) ─────────
    Typography: Noto Sans Thai 11.5px labels (Thai needs >= 11px to keep the tone marks legible),
    600 weight idle / 700 active, no letter-spacing (it splits Thai clusters). One icon family: 24px grid, 2px round strokes. */
-:root { --nav-h: 66px; --nav-ink: #64717f; }
+:root { --nav-h: 62px; --nav-ink: #64717f; --nav-total: calc(var(--nav-h) + var(--safe-b) * 0.5); } /* only half of the iPhone home-indicator inset is added: the bar keeps its labels clear of it without a wide empty strip */
 .bottom-nav { display: none; }
 @media (max-width: 899px) {
   .bottom-nav {
     display: grid; grid-template-columns: repeat(5, 1fr); align-items: start;
     position: absolute; z-index: 9; left: 0; right: 0; bottom: 0;
-    height: calc(var(--nav-h) + var(--safe-b)); padding: 6px 4px var(--safe-b);
+    height: var(--nav-total); padding: 4px 4px calc(var(--safe-b) * 0.5);
     background: rgba(255, 255, 255, 0.97); border-top: 1px solid var(--line);
     box-shadow: 0 -6px 20px rgba(11, 61, 92, 0.10);
   }
@@ -358,23 +358,23 @@ legend { font-weight: 700; padding: 0; margin-bottom: 6px; }
   .nav-report { color: var(--danger); }
   .nav-report .nav-lb { font-weight: 700; }
   .nav-fab {
-    display: grid; place-items: center; width: 56px; height: 56px; margin-top: -32px; border-radius: 50%;
-    background: var(--danger); color: #fff; border: 4px solid #fff; box-sizing: content-box;
+    display: grid; place-items: center; width: 38px; height: 38px; margin-top: -2px; border-radius: 50%;
+    background: var(--danger); color: #fff; border: 3px solid #fff; box-sizing: content-box;
     box-shadow: 0 6px 16px rgba(215, 38, 61, 0.42); transition: transform 0.12s ease;
   }
-  .nav-fab .ni { width: 28px; height: 28px; stroke-width: 2.4; }
+  .nav-fab .ni { width: 22px; height: 22px; stroke-width: 2.4; }
   .nav-report:active .nav-fab { transform: scale(0.93); }
-  .nav-report .nav-lb { margin-top: -2px; }
+  .nav-report .nav-lb { margin-top: -4px; }
 
   /* the bar replaces the pill tabs, the floating report button and the sheet's own bottom padding */
   .tabs { display: none; }
   .fab-report { display: none; }
-  .panel { bottom: calc(var(--nav-h) + var(--safe-b)); padding-bottom: 0; max-height: calc(100% - 64px - var(--nav-h) - var(--safe-b)); transform: translateY(calc(100% - 96px)); }
+  .panel { bottom: var(--nav-total); padding-bottom: 0; max-height: calc(100% - 64px - var(--nav-total)); transform: translateY(calc(100% - 68px)); }
   .panel[data-open='true'] { transform: none; }
-  .fab-col { bottom: calc(var(--nav-h) + var(--safe-b) + 108px); }
-  .toast { bottom: calc(var(--nav-h) + var(--safe-b) + 116px); }
+  .fab-col { bottom: calc(var(--nav-total) + 80px); }
+  .toast { bottom: calc(var(--nav-total) + 88px); }
   .picking .bottom-nav { display: none; }
-  .tab-body { padding-bottom: 48px; } /* keep the last card clear of the raised report button */
+  .tab-body { padding-bottom: 24px; }
   .panel[data-open='true'] ~ .fab-col { display: none; } /* locate button would float over the open sheet */
 }
 @media (max-width: 899px) and (prefers-reduced-motion: reduce) {
@@ -449,7 +449,7 @@ a.btn.btn-primary { color: #fff; }
 .lg-btn.red { background: var(--danger); color: #fff; box-shadow: none; font-size: 18px; }
 .layers-pop { width: min(310px, calc(100vw - 24px)); }
 .layers-pop { z-index: 12; }
-@media (max-width: 899px) { .layers-pop { max-height: calc(100dvh - 60px - var(--nav-h) - var(--safe-b) - 20px); } }
+@media (max-width: 899px) { .layers-pop { max-height: calc(100dvh - 60px - var(--nav-total) - 20px); } }
 .lg-all.lg-top { margin: 0 0 10px; }
 
 /* compact layers menu: smaller type and tighter rows so the whole list + key is visible */
@@ -588,3 +588,9 @@ a.btn.btn-primary { color: #fff; }
 .tide-row input[type=range] { flex: 1; min-width: 0; accent-color: #1f6fb8; }
 .tide-scale { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
 .tide-grad { flex: 1; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgb(20,60,160), rgb(70,150,220), rgb(215,235,245), rgb(250,190,80), rgb(200,40,50)); }
+@media (max-width: 899px) { .tide-bar > small { display: none; } .flow-readout { padding: 5px 10px; } }
+
+/* "new version" bar: an installed phone app can run old code for days, so it says so and offers a one-tap reload */
+.update-bar { position: absolute; z-index: 30; left: 10px; right: 10px; top: calc(6px + env(safe-area-inset-top, 0px)); max-width: 520px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 14px; background: var(--brand); color: #fff; box-shadow: var(--shadow); font-size: 14px; }
+.update-bar[hidden] { display: none; }
+@media (min-width: 900px) { .update-bar { left: calc(var(--panel-w) + 12px); right: auto; width: 360px; } }
