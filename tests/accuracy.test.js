@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { sampleGrid, makeRecord, labelSamples, contingency, buildReport, HORIZON_MS } from '../src/lib/accuracy.js';
+import { sampleGrid, makeRecord, labelSamples, contingency, buildReport, HORIZON_MS, REPORT_MIN_V } from '../src/lib/accuracy.js';
 
 const grid = sampleGrid();
 const T = Date.parse('2026-09-20T00:00:00Z');
@@ -56,11 +56,25 @@ test('buildReport grades only grid points that have complaint activity nearby (t
   assert.deepEqual([r.coverage.gridPoints, r.coverage.coveredPoints, r.coverage.samplesBeforeMask], [grid.length, 1, 2]);
 });
 
-test('log format v3 carries the component mask; v2 records (stride 5) are still read', () => {
+test('log format v4 (same layout as v3) carries the component mask; v2 records (stride 5) are still read', () => {
   const v3 = makeRecord(T, [{ i: 3, level: 1, score: 3, fcScore: 1, obsScore: 2, comp: 0b101 }]);
-  assert.equal(v3.v, 3);
+  assert.equal(v3.v, 4);
   assert.deepEqual(v3.p, [3, 1, 3, 1, 2, 5]);
   const v2 = { t: T, v: 2, p: [3, 1, 3, 1, 2, 4, 2, 5, 3, 2] }; // two samples, stride 5
   const s = labelSamples([v2, v3], [], grid, now);
-  assert.deepEqual(s.map((x) => [x.i, x.comp, x.v]), [[3, 0, 2], [4, 0, 2], [3, 5, 3]]);
+  assert.deepEqual(s.map((x) => [x.i, x.comp, x.v]), [[3, 0, 2], [4, 0, 2], [3, 5, 4]]);
+});
+
+test('buildReport grades only records made with the current score rules, and counts the flood days behind the numbers', () => {
+  const old = { t: T, v: 3, p: [0, 2, 5, 3, 2, 0] };
+  const cur = makeRecord(T + 3600e3, [{ i: 0, level: 2, score: 5, fcScore: 3, obsScore: 2 }]);
+  assert.ok(cur.v >= REPORT_MIN_V && old.v < REPORT_MIN_V);
+  const at = (dt, lvl) => ({ t: T + dt, lat: grid[0][0], lng: grid[0][1], lvl });
+  // two medium/heavy complaints on the same Bangkok day, one on the next day, a light one (never a flood day), one elsewhere on the first day
+  const complaints = [at(2 * 3600e3, 3), at(3 * 3600e3, 2), at(20 * 3600e3, 2), at(4 * 3600e3, 1), { t: T + 2 * 3600e3, lat: grid[40][0], lng: grid[40][1], lvl: 3 }];
+  const r = buildReport([old, cur], complaints, grid, now);
+  assert.equal(r.runs, 1);
+  assert.equal(r.samples, 1);
+  assert.equal(r.rulesSince, cur.t);
+  assert.equal(r.floodDays, 2);
 });

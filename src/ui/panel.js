@@ -906,12 +906,17 @@ function accuracyCard() {
   const head = '<h3>ความแม่นยำของระบบเตือน (ทดลอง)</h3>';
   const foot = `<p class="muted tiny">วัดจากเรื่องแจ้งน้ำท่วมระดับปานกลาง/หนักที่ประชาชนแจ้ง กทม. (นับเฉพาะ ${a.coverage?.coveredPoints ?? '—'} จาก ${a.coverage?.gridPoints ?? '—'} จุดตัวอย่างที่มีการแจ้งน้ำท่วมอยู่ใกล้ — นอก กทม. ไม่มีข้อมูลแจ้งจึงไม่นับ) ภายใน 24 ชม. หลังการประเมิน ในรัศมี 2 กม. — เป็นตัวแทนที่ไม่สมบูรณ์ (พื้นที่คนน้อยมักแจ้งน้อย) · อัปเดต ${a.generatedAt ? fmtTime(a.generatedAt) : ''} น.</p>`;
   if (!a.ready) {
-    return `<section class="card">${head}<p class="small">กำลังเก็บข้อมูลเพื่อตรวจสอบ: มีผลประเมินครบ 24 ชม. แล้ว <b>${a.samples.toLocaleString('th-TH')}</b> ตัวอย่าง (${a.days} วัน, ${a.events} เหตุการณ์) — จะแสดงผลเมื่อมีอย่างน้อย ${a.need.minDays} วันและ ${a.need.minEvents} เหตุการณ์</p>${foot}</section>`;
+    return `<section class="card">${head}<p class="small">กำลังเก็บข้อมูลเพื่อตรวจสอบ: มีผลประเมินครบ 24 ชม. แล้ว <b>${a.samples.toLocaleString('th-TH')}</b> ตัวอย่าง (${a.days} วัน, ${a.events} เหตุการณ์) — จะแสดงผลเมื่อมีอย่างน้อย ${a.need.minDays} วันและ ${a.need.minEvents} เหตุการณ์</p>${a.rulesSince ? `<p class="muted small">เริ่มนับใหม่ตั้งแต่ ${thDate(new Date(a.rulesSince + 7 * 3600e3).toISOString())} เพราะปรับวิธีคิดคะแนน: น้ำเหนือและคลองล้นตลิ่งทั้งภูมิภาคไม่นับเป็นคะแนนแล้ว (ส่งผลกับทั้งเมืองพร้อมกัน จึงไม่ได้บอกว่าจุดไหนจะท่วม)</p>` : ''}${foot}</section>`;
   }
   const lv = a.byLevel.find((x) => x.th === 2) || a.byLevel[0];
   const p = a.persistence;
+  // the numbers can come from a single storm; say so until there are enough separate flood days (older reports have no floodDays → no line)
+  const fewStorms = typeof a.floodDays === 'number' && a.floodDays < (a.settledFloodDays ?? 5)
+    ? `<p class="small"><span class="tag warn">ยังสรุปไม่ได้</span> ผลนี้มาจากวันที่มีการแจ้งน้ำท่วมเพียง <b>${a.floodDays} วัน</b> — ยังน้อยเกินกว่าจะสรุปความแม่นยำได้ (ต้องการอย่างน้อย ${a.settledFloodDays ?? 5} วัน) ตัวเลขอาจเปลี่ยนมากเมื่อมีฝนหนักครั้งต่อไป</p>`
+    : '';
   return `<section class="card">${head}
-    <p class="small">ย้อนดู ${a.days} วัน (${a.samples.toLocaleString('th-TH')} ตัวอย่าง) ทุกครั้งที่ระบบเตือนระดับ <b>"เตรียมย้ายของ" ขึ้นไป</b>:</p>
+    <p class="small">ย้อนดู ${a.days} วัน (${a.samples.toLocaleString('th-TH')} ตัวอย่าง${typeof a.floodDays === 'number' ? `, มีการแจ้งน้ำท่วม ${a.floodDays} วัน` : ''}) ทุกครั้งที่ระบบเตือนระดับ <b>"เตรียมย้ายของ" ขึ้นไป</b>:</p>
+    ${fewStorms}
     <div class="stats"><div><b>${pct(lv.pod)}</b><small>ของเหตุน้ำท่วมจริง ที่ระบบเตือนไว้ก่อน</small></div><div><b>${pct(lv.far === null ? null : 1 - lv.far)}</b><small>ของการเตือน ที่มีเหตุท่วมตามมาจริง</small></div><div><b>${lv.warned.toLocaleString('th-TH')}</b><small>ครั้งที่เตือน</small></div><div><b>${pct(a.baseRate)}</b><small>สัดส่วนที่ท่วมโดยรวม</small></div></div>
     <p class="small">เทียบกับวิธีง่ายๆ "เมื่อวานที่นี่ท่วม วันนี้ก็ท่วม": จับเหตุได้ ${pct(p.pod)}, เตือนถูก ${pct(p.far === null ? null : 1 - p.far)} ${lv.pod !== null && p.pod !== null && lv.pod < p.pod ? '— <b>ในช่วงที่วัด ระบบเรายังไม่ดีกว่าวิธีง่ายๆ</b> ควรอ่านการเตือนควบคู่กับจุดที่มีคนแจ้งจริงบนแผนที่' : ''}</p>
     ${foot}</section>`;

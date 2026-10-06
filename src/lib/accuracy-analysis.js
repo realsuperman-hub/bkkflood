@@ -91,7 +91,9 @@ export function obsPoints(s, comp, keep = null, weights = OBS_PTS) {
   let pts = 0;
   for (const [name, p] of Object.entries(OBS_PTS)) {
     if (keep && !keep.includes(name)) continue;
-    if ((s.comp >> comp[name]) & 1) pts += weights[name] ?? p;
+    if (!((s.comp >> comp[name]) & 1)) continue;
+    if (weights === OBS_PTS && (s.v ?? 2) >= 4 && (name === 'regional' || name === 'upstream')) continue; // logged but not scored from v4
+    pts += weights[name] ?? p;
   }
   return pts;
 }

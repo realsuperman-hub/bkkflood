@@ -2,7 +2,7 @@
 // writes nothing. Needs GOOGLE_APPLICATION_CREDENTIALS (reads the logged forecasts in Firestore `evals/`) and the public Traffy + Open-Meteo endpoints.
 // Question it answers: does the risk score separate flooded places from dry ones, which part of it misleads, and would a different low-ground rule be better?
 import { traffyDayUrl, normalizeFloods } from '../src/lib/traffy.js';
-import { sampleGrid, labelSamples, contingency } from '../src/lib/accuracy.js';
+import { sampleGrid, labelSamples, contingency, KEEP_DAYS } from '../src/lib/accuracy.js';
 import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, coverageMask, componentLift, obsPoints } from '../src/lib/accuracy-analysis.js';
 import { COMP } from '../src/lib/risk.js';
 import { loadRain, MARINE, GULF_POINT } from '../src/lib/forecast.js';
@@ -13,7 +13,7 @@ const { getFirestore } = await import('firebase-admin/firestore');
 initializeApp({ credential: applicationDefault(), projectId: 'bkkflood-d54cc' });
 const db = getFirestore();
 
-const snap = await db.collection('evals').where('t', '>=', now - 9 * 86400e3).orderBy('t').get();
+const snap = await db.collection('evals').where('t', '>=', now - KEEP_DAYS * 86400e3).orderBy('t').get();
 const records = snap.docs.map((d) => d.data());
 
 const day = (ms) => new Date(ms + 7 * 3600e3).toISOString().slice(0, 10);

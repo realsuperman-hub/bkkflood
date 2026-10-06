@@ -76,12 +76,18 @@ test('summarizeTide flags high peaks', () => {
   assert.equal(t.high, true);
 });
 
-test('regional overbank canals add a system-wide point', () => {
+test('region-wide overbank canals and high upstream flow are information only: no points, a note, a logged bit', () => {
   const rain = { next24: 0, peakHour: 0, past48: 0, max24: 0, min24: 0 };
   const a = assess({ rain, regional: { over: 3, total: 20 } });
-  const b = assess({ rain, regional: { over: 12, total: 29 } });
+  const b = assess({ rain, regional: { over: 12, total: 29 }, upstream: { q: 2600 } });
   assert.equal(a.score, 0);
-  assert.equal(b.score, 1);
+  assert.equal(a.info.length, 0);
+  assert.equal(b.score, 0);
+  assert.equal(b.level, 0);
+  assert.equal(b.info.length, 2);
+  assert.ok(b.info.every((t) => /ไม่นับเป็นคะแนน/.test(t)));
+  assert.equal((b.comp >> COMP.regional) & 1, 1);
+  assert.equal((b.comp >> COMP.upstream) & 1, 1);
 });
 
 test('nearby complaints raise the score (observed flooding beats a dry forecast)', () => {

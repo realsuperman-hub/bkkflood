@@ -9,6 +9,11 @@ export const HORIZON_MS = 24 * 3600e3;
 export const RADIUS_KM = 2;
 export const MIN_EVENT_LVL = 2; // count "medium" and "heavy" complaints as a flood event
 export const READY = { minDays: 3, minEvents: 30 }; // below this the site says "still collecting"
+export const SETTLED_FLOOD_DAYS = 5; // fewer flood days than this → the numbers mostly describe one or two storms, and the site says so
+// The public report grades only records made with the CURRENT score rules (v4: regional/upstream no longer scored, 2026-10-06), so it never mixes rule sets.
+// Older versions stay readable for the deep-dive, which can replay them from the logged score parts.
+export const REPORT_MIN_V = 4;
+export const KEEP_DAYS = 45; // evals/ retention: long enough to hold several storms (10 days held one)
 
 // Fixed sample grid over Bangkok + vicinity (~6.5 km spacing). Order is part of the log format — do not reorder.
 export function sampleGrid() {
@@ -17,10 +22,10 @@ export function sampleGrid() {
   return pts;
 }
 
-// Compact log record. Firestore forbids nested arrays, so p is FLAT. v3 (from 2026-10-02) has stride 6: [index, level, score, fcScore, obsScore, comp, index, ...]
+// Compact log record. Firestore forbids nested arrays, so p is FLAT. v3 (from 2026-10-02) and v4 (from 2026-10-06: same layout, new score rules) have stride 6: [index, level, score, fcScore, obsScore, comp, index, ...]
 // where comp is the bit mask of the score parts that fired (risk.js COMP). v2 records (stride 5, no comp) are still read; from v3 on low ground is not scored.
 export const STRIDE = 6;
-export const makeRecord = (t, results) => ({ t, v: 3, p: results.flatMap((r) => [r.i, r.level, r.score, r.fcScore, r.obsScore, r.comp ?? 0]) });
+export const makeRecord = (t, results) => ({ t, v: 4, p: results.flatMap((r) => [r.i, r.level, r.score, r.fcScore, r.obsScore, r.comp ?? 0]) });
 const rows = (rec) => {
   const stride = (rec.v ?? 2) >= 3 ? 6 : 5;
   const out = [];
@@ -86,7 +91,23 @@ export function contingency(samples, predict) {
   };
 }
 
-export function buildReport(records, complaints, grid, now = Date.now()) {
+const bkkDay = (ms) => new Date(ms + 7 * 3600e3).toISOString().slice(0, 10);
+
+// Distinct Bangkok days with a medium/heavy complaint near a gradable point while the logs ran: how many separate floods the numbers rest on.
+export function floodDays(records, complaints, grid, mask) {
+  if (!records.length) return 0;
+  const from = records[0].t;
+  const to = records.at(-1).t + HORIZON_MS;
+  const days = new Set();
+  for (const c of complaints) {
+    if (c.lvl < MIN_EVENT_LVL || c.t <= from || c.t > to) continue;
+    if ([...mask].some((i) => near(grid[i], [c.lat, c.lng]))) days.add(bkkDay(c.t));
+  }
+  return days.size;
+}
+
+export function buildReport(allRecords, complaints, grid, now = Date.now()) {
+  const records = allRecords.filter((r) => (r.v ?? 2) >= REPORT_MIN_V);
   const all = labelSamples(records, complaints, grid, now);
   const mask = coverageMask(grid, complaints, 3);
   const samples = all.filter((s) => mask.has(s.i)); // only where complaints can be seen at all
@@ -103,6 +124,9 @@ export function buildReport(records, complaints, grid, now = Date.now()) {
     days,
     samples: samples.length,
     events,
+    floodDays: floodDays(records, complaints, grid, mask),
+    settledFloodDays: SETTLED_FLOOD_DAYS,
+    rulesSince: records[0]?.t ?? null,
     baseRate: samples.length ? +(events / samples.length).toFixed(3) : null,
     coverage: { gridPoints: grid.length, coveredPoints: mask.size, samplesBeforeMask: all.length },
     // the system's overall level (1 watch, 2 prepare, 3 danger)

@@ -2,7 +2,9 @@
 export const MIN_GAP_MS = 2 * 3600e3; // at most one push per device per 2 h (unless danger appears)
 // Alerts driven by the risk SCORE are paused (2026-10-02): the accuracy deep-dive found the "prepare/danger" levels had 0 hits in 451 graded samples where complaints
 // can be seen. Alerts about things that were actually observed (a heavy complaint near a saved place, a followed road reaching its depth) are unchanged.
-// Set to true again once the score has been re-calibrated (see the accuracy report).
+// 2026-10-06 (deep-dive #2): every graded flood still came from ONE storm (4–5 Oct), so cut-offs fitted now would describe that storm only. Regional/upstream
+// were made information-only (they lifted the whole city at once); the logs now keep 45 days. Turn this back on only after the public report shows
+// floodDays >= 5 under the current rules, with cut-offs chosen from those numbers.
 export const RISK_ALERTS = false;
 
 // Heavy rain MEASURED by a gauge near a saved place (rain in the last hour, from the ThaiWater gauges). Observed, not forecast, so it is not paused with the score alerts.

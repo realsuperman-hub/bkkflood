@@ -1,11 +1,11 @@
 // Logs what the risk model says for a fixed grid of points (see src/lib/accuracy.js) so it can be graded 24 h later.
 // Runs in the Actions job. Needs GOOGLE_APPLICATION_CREDENTIALS. Writes ONE small doc per run to Firestore `evals/`
-// (no client access by rules). Prunes docs older than 10 days.
+// (no client access by rules). Prunes docs older than KEEP_DAYS (45).
 import { readFile } from 'node:fs/promises';
 import { evaluatePoint } from '../src/lib/evaluate-core.js';
 import { STALE_MS } from '../src/lib/thaiwater.js';
 import { RAIN_STALE_MS } from '../src/lib/rain-obs.js';
-import { sampleGrid, makeRecord } from '../src/lib/accuracy.js';
+import { sampleGrid, makeRecord, KEEP_DAYS } from '../src/lib/accuracy.js';
 
 const now = Date.now();
 const readJson = async (f) => JSON.parse(await readFile(f, 'utf8'));
@@ -43,7 +43,7 @@ const rec = makeRecord(now, results);
 await db.doc(`evals/${new Date(now).toISOString().slice(0, 16).replace(/[-:T]/g, '')}`).set(rec);
 console.log(`logged ${results.length}/${grid.length} points (${cache.size} forecast cells)`);
 
-const old = await db.collection('evals').where('t', '<', now - 10 * 86400e3).limit(200).get();
+const old = await db.collection('evals').where('t', '<', now - KEEP_DAYS * 86400e3).limit(200).get();
 if (!old.empty) {
   const b = db.batch();
   old.docs.forEach((d) => b.delete(d.ref));

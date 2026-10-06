@@ -1,8 +1,8 @@
 // Grades logged forecasts against Traffy flood complaints and writes public/data/accuracy.json.
-// Runs every ~6 h in the Actions job (reads ≤ ~1,000 Firestore docs). Needs GOOGLE_APPLICATION_CREDENTIALS.
+// Runs every ~6 h in the Actions job (reads ≤ ~4,400 Firestore docs = 45 days of logs, ~18k reads/day of the free 50k). Needs GOOGLE_APPLICATION_CREDENTIALS.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { traffyDayUrl, normalizeFloods } from '../src/lib/traffy.js';
-import { sampleGrid, buildReport } from '../src/lib/accuracy.js';
+import { sampleGrid, buildReport, KEEP_DAYS } from '../src/lib/accuracy.js';
 
 const now = Date.now();
 const { initializeApp, applicationDefault } = await import('firebase-admin/app');
@@ -10,7 +10,7 @@ const { getFirestore } = await import('firebase-admin/firestore');
 initializeApp({ credential: applicationDefault(), projectId: 'bkkflood-d54cc' });
 const db = getFirestore();
 
-const snap = await db.collection('evals').where('t', '>=', now - 9 * 86400e3).orderBy('t').get();
+const snap = await db.collection('evals').where('t', '>=', now - KEEP_DAYS * 86400e3).orderBy('t').get();
 const records = snap.docs.map((d) => d.data());
 console.log(`forecast logs: ${records.length}`);
 

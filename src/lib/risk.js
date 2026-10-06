@@ -14,7 +14,7 @@ export const RISK = [
 export const COMP = {
   nearHeavy: 0, nearMedium: 1, nearLight: 2, official: 3, obsRain1hHeavy: 4, obsRain1h: 5, obsRain1hLight: 6, obsRain24h: 7,
   fcNext24: 8, fcPeakHour: 9, fcPast48: 10, tideHigh: 11, gaugeOver: 12, gaugeHigh: 13, gaugeRising: 14, regional: 15, upstream: 16,
-  lowGround: 17, // information only since 2026-10-02: logged, never scored
+  lowGround: 17, // information only since 2026-10-02: logged, never scored (regional + upstream likewise since 2026-10-06)
 };
 
 export function assess({ rain, tide, gauges = [], upstream, elevation, regional, nearby, obs, official }) {
@@ -69,11 +69,17 @@ export function assess({ rain, tide, gauges = [], upstream, elevation, regional,
     if (worst.level >= 4 && tr === 'rising') add(1, `ระดับน้ำที่สถานี${worst.name}กำลังเพิ่มขึ้น`, 'obs', 14);
   }
 
+  // Region-wide overbank canals and high upstream flow were +1 each until 2026-10-06. Both fire at almost every point at once (upstream 100 %, regional 87 % of
+  // graded samples in deep-dive #2), so they never said WHERE water would collect — they only lifted the whole city into "prepare". Shown as information, logged as bits.
   if (regional && regional.total >= 8 && regional.over / regional.total >= 0.25) {
-    add(1, `สถานีวัดน้ำ ${regional.over} จาก ${regional.total} แห่ง${regional.area || 'ใน กทม.+ปริมณฑล'}อยู่ระดับล้นตลิ่ง — คลองเต็มทั้งระบบ ระบายน้ำฝนได้ช้า`, 'obs', 15);
+    comp |= 1 << COMP.regional;
+    info.push(`สถานีวัดน้ำ ${regional.over} จาก ${regional.total} แห่ง${regional.area || 'ใน กทม.+ปริมณฑล'}อยู่ระดับล้นตลิ่ง — คลองเต็มทั้งระบบ ระบายน้ำฝนได้ช้า (ข้อมูลประกอบ ไม่นับเป็นคะแนน เพราะเป็นภาพรวมทั้งภูมิภาค ไม่ได้บอกว่าจุดไหนจะท่วม)`);
   }
 
-  if (upstream?.q >= 2400) add(1, `น้ำเหนือที่เขื่อนเจ้าพระยาไหลลงมา ${Math.round(upstream.q).toLocaleString('th-TH')} ลบ.ม./วินาที (ค่อนข้างสูง)`, 'obs', 16);
+  if (upstream?.q >= 2400) {
+    comp |= 1 << COMP.upstream;
+    info.push(`น้ำเหนือที่เขื่อนเจ้าพระยาไหลลงมา ${Math.round(upstream.q).toLocaleString('th-TH')} ลบ.ม./วินาที (ค่อนข้างสูง) — ข้อมูลประกอบ ไม่นับเป็นคะแนน เพราะส่งผลกับทั้งเมืองพร้อมกัน`);
+  }
 
   // Low ground (≤ 1.5 m) was +1 until 2026-10-02. The first accuracy deep-dive found it pointing the wrong way (complaint rate 1.5 % on low cells vs 7.0 % elsewhere;
   // removing it raised the AUC), so it is now shown as information only and logged as a component bit, so a better rule can be tested later.
