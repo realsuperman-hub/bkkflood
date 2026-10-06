@@ -51,7 +51,10 @@ jobs:
         run: |
           node scripts/fetch-traffic.mjs || echo "BMA traffic fetch failed (cameras.json comes from data-static/)"
           # cameras + dds cannot be fetched from GitHub's servers (blocked); a Thai-network task keeps data-static/ current
-          for f in cameras dds flood-history gistda-flood; do
+          # TMD weather warnings (official); if TMD refuses GitHub's servers, the Thai-network copy is used
+          node scripts/fetch-tmd.mjs || echo "TMD fetch failed (tmd-warnings.json comes from data-static/)"
+          # official tide table (a year ahead, Thai-network copy only) — the "high tide" signal in the risk score
+          for f in cameras dds flood-history gistda-flood tmd-warnings tide-table; do
             [ -s public/data/$f.json ] || cp "data-static/$f.json" "public/data/$f.json" 2>/dev/null || true
           done
           # flood headlines from Thai outlets' RSS (headline + link only); if every feed fails keep the live copy

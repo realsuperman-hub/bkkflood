@@ -10,9 +10,10 @@ export const RADIUS_KM = 2;
 export const MIN_EVENT_LVL = 2; // count "medium" and "heavy" complaints as a flood event
 export const READY = { minDays: 3, minEvents: 30 }; // below this the site says "still collecting"
 export const SETTLED_FLOOD_DAYS = 5; // fewer flood days than this → the numbers mostly describe one or two storms, and the site says so
-// The public report grades only records made with the CURRENT score rules (v4: regional/upstream no longer scored, 2026-10-06), so it never mixes rule sets.
+// The public report grades only records made with the CURRENT score rules, so it never mixes rule sets. v4 (2026-10-06): regional/upstream no longer scored;
+// v5 (2026-10-06, hours later): "high tide" from the official tide table instead of Open-Meteo.
 // Older versions stay readable for the deep-dive, which can replay them from the logged score parts.
-export const REPORT_MIN_V = 4;
+export const REPORT_MIN_V = 5;
 export const KEEP_DAYS = 45; // evals/ retention: long enough to hold several storms (10 days held one)
 
 // Fixed sample grid over Bangkok + vicinity (~6.5 km spacing). Order is part of the log format — do not reorder.
@@ -22,10 +23,10 @@ export function sampleGrid() {
   return pts;
 }
 
-// Compact log record. Firestore forbids nested arrays, so p is FLAT. v3 (from 2026-10-02) and v4 (from 2026-10-06: same layout, new score rules) have stride 6: [index, level, score, fcScore, obsScore, comp, index, ...]
+// Compact log record. Firestore forbids nested arrays, so p is FLAT. v3 (from 2026-10-02) and v4/v5 (from 2026-10-06: same layout, new score rules) have stride 6: [index, level, score, fcScore, obsScore, comp, index, ...]
 // where comp is the bit mask of the score parts that fired (risk.js COMP). v2 records (stride 5, no comp) are still read; from v3 on low ground is not scored.
 export const STRIDE = 6;
-export const makeRecord = (t, results) => ({ t, v: 4, p: results.flatMap((r) => [r.i, r.level, r.score, r.fcScore, r.obsScore, r.comp ?? 0]) });
+export const makeRecord = (t, results) => ({ t, v: 5, p: results.flatMap((r) => [r.i, r.level, r.score, r.fcScore, r.obsScore, r.comp ?? 0]) });
 const rows = (rec) => {
   const stride = (rec.v ?? 2) >= 3 ? 6 : 5;
   const out = [];

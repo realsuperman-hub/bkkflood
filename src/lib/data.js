@@ -108,6 +108,10 @@ export const loadPopnix = () => snapshot('popnix');
 export const loadWind = () => snapshot('wind');
 // Hourly sea level over the Gulf of Thailand, yesterday + 3 days (Open-Meteo Marine → scripts/fetch-tide.mjs); optional
 export const loadTide = () => snapshot('tide');
+// Official tide table at the Chao Phraya mouth (Navy Hydrographic Dept via HII, ~1 year ahead; Thai-network sync) — the risk score's "high tide"
+export const loadTideTable = () => snapshot('tide-table');
+// Official TMD weather warnings (scripts/fetch-tmd.mjs, Thai-network fallback); optional
+export const loadTmdWarnings = () => snapshot('tmd-warnings');
 // The AI flood flags that source's own model puts on a few of those cameras (scripts/sync-maholan-ai.mjs); optional
 export const loadMaholanAi = () => snapshot('maholan-ai');
 // Radar-satellite flood extent from GISTDA (built on a Thai network by scripts/sync-gistda.mjs); optional

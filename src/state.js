@@ -40,6 +40,7 @@ export const state = {
   mcamAi: null, // that source's AI flood flags (file with generatedAt + flags)
   ytLive: null, // live YouTube camera-like streams in Thailand (unverified)
   satFlood: null, // GISTDA radar-satellite flood extent (cells + province totals)
+  tmd: null, // official TMD weather warnings (tmd-warnings.json) or null
   news: null, // flood headlines from Thai outlets' RSS (headline + link only)
   floodHistory: null, // repeat-flood-spot grid (Traffy history) — see src/lib/flood-history.js
   dams: null, // key dams feeding the Chao Phraya (RID open API snapshot)

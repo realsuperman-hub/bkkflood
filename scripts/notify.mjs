@@ -28,6 +28,7 @@ const stations = (await readJson('public/data/stations.json').catch(() => ({ sta
 }));
 const floods = (await readJson('public/data/floods.json').catch(() => ({ floods: [] }))).floods.filter((f) => now - f.t < 24 * 3600e3);
 const rainObs = (await readJson('public/data/rain.json').catch(() => ({ gauges: [] }))).gauges.map((g) => ({ ...g, stale: g.t === null || now - g.t > RAIN_STALE_MS }));
+const tideTable = await readJson('public/data/tide-table.json').catch(() => null); // official tide table (data-static copy); null → tide reported missing
 const events = (await readJson('public/data/traffic-events.json').catch(() => ({ events: [] }))).events;
 const roadSnap = await readJson('public/data/road-flood.json').catch(() => null);
 const popSnap = await readJson('public/data/popnix.json').catch(() => null); // BMA road-depth sensors + canal gauges (POPNIX Flood)
@@ -59,7 +60,7 @@ function evalPlace(p) {
   if (!cache.has(k)) {
     // forecast models are ~10 km grids, so share one forecast call between nearby places
     const rainAt = [Math.round(p.lat * 10) / 10, Math.round(p.lng * 10) / 10];
-    cache.set(k, evaluatePoint(p.lat, p.lng, { stations, floods, rainObs, events, now, rainAt }));
+    cache.set(k, evaluatePoint(p.lat, p.lng, { stations, floods, rainObs, events, now, rainAt, tideTable }));
   }
   return cache.get(k);
 }

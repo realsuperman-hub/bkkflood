@@ -63,6 +63,23 @@ function satFloodCard() {
 
 // Latest flood headlines from Thai outlets' public RSS feeds: headline + link only (we never copy the story), newest first.
 // Stories about Bangkok / the metro provinces / the Chao Phraya upstream come first; political commentary is hidden by a rough keyword filter.
+// Official weather warnings from the Thai Meteorological Department. Shown as the official word and linked; never part of the score
+// (a warning covers whole regions, not places). Hidden when TMD has nothing current.
+function tmdCard() {
+  const t = state.tmd;
+  const w = t?.warnings || [];
+  if (!w.length) return '';
+  const row = (x) => `<div class="news-item">
+    <b>${x.bangkok ? '<span class="tag warn">กทม./ปริมณฑล</span> ' : ''}${esc(x.title)}</b>
+    <small>${x.issuedAt ? `ออกประกาศ ${esc(x.issuedAt)} น.` : x.date ? thDate(x.date) : ''}${x.category ? ` · ${esc(x.category)}` : ''}</small>
+    ${x.summary ? `<p class="small">${esc(x.summary)}</p>` : ''}
+    ${x.body ? `<details><summary class="small">อ่านประกาศ</summary><p class="small" style="white-space:pre-line">${esc(x.body)}</p></details>` : ''}
+    <a class="btn btn-sm" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">ประกาศฉบับเต็มที่กรมอุตุฯ ↗</a></div>`;
+  return `<section class="card"><h3>ประกาศเตือนภัยจากกรมอุตุนิยมวิทยา</h3>
+    ${w.map(row).join('')}
+    <p class="muted tiny">ประกาศทางการจากเว็บไซต์กรมอุตุนิยมวิทยา (tmd.go.th) แสดงตามต้นฉบับ ไม่นำมาคิดเป็นคะแนนความเสี่ยงของเว็บนี้ เพราะครอบคลุมทั้งภาค ไม่ได้ระบุจุด · ป้าย "กทม./ปริมณฑล" = ประกาศเอ่ยถึงกรุงเทพฯ หรือปริมณฑล · สายด่วนกรมอุตุฯ 1182${t.generatedAt ? ` · อัปเดต ${fmtTime(t.generatedAt)} น.` : ''}</p></section>`;
+}
+
 function newsCard() {
   const n = state.news;
   if (!n?.items?.length) return '';
@@ -146,27 +163,27 @@ function tideChart(tide) {
     <circle cx="${x(pk)}" cy="${y(v[pk])}" r="4" fill="#d7263d"/></svg>`;
 }
 
-// Highest modelled sea level of each coming day; the days the model puts among the month's highest are painted red
+// Highest predicted tide of each coming day (official tide table); the days among the year's highest 15 % are painted red
 function tideDays(tide) {
   const d = tide.days || [];
   if (d.length < 2) return '';
   const W = 480;
   const H = 96;
   const lo = 0;
-  const hi = Math.max(2.2, ...d.map((x) => x.peak)) + 0.1;
+  const hi = Math.max(1.6, ...d.map((x) => x.peak)) + 0.1;
   const bw = W / d.length;
   const y = (v) => 6 + (1 - (v - lo) / (hi - lo)) * (H - 30);
   const bars = d.map((x, i) => `<rect x="${(i * bw + 4).toFixed(1)}" y="${y(x.peak).toFixed(1)}" width="${(bw - 8).toFixed(1)}" height="${(H - 24 - y(x.peak)).toFixed(1)}" rx="3" fill="${x.high ? '#d7263d' : '#0b6fa8'}" opacity="${x.high ? 1 : 0.55}"/>
     <text x="${(i * bw + bw / 2).toFixed(1)}" y="${H - 8}" font-size="12" text-anchor="middle" fill="#5b6876">${+x.date.slice(8, 10)}</text>
-    <text x="${(i * bw + bw / 2).toFixed(1)}" y="${(y(x.peak) - 3).toFixed(1)}" font-size="11" text-anchor="middle" fill="#14202b">${x.peak.toFixed(1)}</text>`).join('');
+    <text x="${(i * bw + bw / 2).toFixed(1)}" y="${(y(x.peak) - 3).toFixed(1)}" font-size="11" text-anchor="middle" fill="#14202b">${x.peak.toFixed(2)}</text>`).join('');
   const highs = d.filter((x) => x.high);
   const line = highs.length
-    ? `วันที่โมเดลให้น้ำหนุนสูง (สีแดง): <b>${highs.map((x) => thDate(x.date).slice(0, -3)).join(', ')}</b>`
+    ? `วันที่น้ำหนุนสูง (สีแดง): <b>${highs.map((x) => thDate(x.date).slice(0, -3)).join(', ')}</b>`
     : 'ช่วงนี้ไม่มีวันที่หนุนสูงเด่นกว่าปกติ';
   return `<div class="why" style="margin-top:8px">ระดับน้ำทะเลสูงสุดรายวัน (ม. เหนือระดับน้ำทะเลปานกลาง)</div>
     <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="ระดับน้ำทะเลสูงสุดรายวัน">${bars}</svg>
     <p class="small">${line}</p>
-    <p class="muted tiny">เกณฑ์ "สูง" = อยู่ใน 20% สูงสุดของช่วง 14 วันที่ผ่านมา + พยากรณ์ (≥ ${tide.dayThreshold} ม.)</p>`;
+    <p class="muted tiny">เกณฑ์ "สูง" = น้ำขึ้นสูงสุดของวันอยู่ใน 15% สูงสุดของทั้งปีในตารางน้ำ (≥ ${tide.dayThreshold} ม.)</p>`;
 }
 
 // The reservoirs upstream of the Chao Phraya: how full they are and whether they are holding water back or releasing it.
@@ -742,10 +759,10 @@ export function overviewTab() {
         <p class="small">48 ชม. ข้างหน้า สูงสุด <b>${ov.tide.peak} ม.</b> เหนือระดับน้ำทะเลปานกลาง ช่วง ${fmtDayHour(ov.tide.peakTime)} น.
         ${ov.tide.high ? '<span class="tag warn">หนุนสูง</span>' : '<span class="tag">ปกติ</span>'}</p>${tideChart(ov.tide)}
         ${tideDays(ov.tide)}
-        <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตัวเลขจากโมเดล Open-Meteo Marine ที่ปากอ่าวเจ้าพระยา (ค่าประมาณ ไม่ใช่ตารางน้ำขึ้นน้ำลงทางการของกองทัพเรือ)</p></section>`
+        <p class="muted tiny">น้ำหนุนสูงทำให้คลองระบายออกอ่าวไทยช้า ยิ่งอันตรายเมื่อฝนตกพร้อมกัน · ตารางน้ำทำนายทางการ สถานี${ov.tide.station || 'สันดอนเจ้าพระยา'} (ปากแม่น้ำเจ้าพระยา) จากกรมอุทกศาสตร์ กองทัพเรือ ผ่าน สสน. — เป็นน้ำขึ้นลงตามดาราศาสตร์ ไม่รวมผลจากลมมรสุมหรือน้ำเหนือ ระดับจริงอาจสูงกว่านี้</p></section>`
     : '';
 
-  return `${statusLine()}${nowSummaryCard()}${routeEntryCard()}${myRoadsCard()}${floodsOverviewCard()}${roadsOverviewCard()}${popnixOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
+  return `${statusLine()}${nowSummaryCard()}${tmdCard()}${routeEntryCard()}${myRoadsCard()}${floodsOverviewCard()}${roadsOverviewCard()}${popnixOverviewCard()}${rainObsOverviewCard()}${trafficOverviewCard()}${newsCard()}${ytLiveCard()}${riskCard(ov, 'จุดอ้างอิงใจกลางกรุงเทพฯ (แตะแผนที่เพื่อดูจุดอื่น)')}${mine}${pushCard()}${gaugeCard}${upCard}${damCard}${damsCard('east')}${bpkCard()}${satCard}${tideCard}${ddsOverviewCard()}<section class="card hint"><div class="row wrap" style="margin:0"><span class="small grow">ช่วยส่งต่อให้คนในพื้นที่เสี่ยง</span><button class="btn btn-sm btn-primary" data-act="line-site">ส่งทางไลน์</button><button class="btn btn-sm" data-act="share-site">แชร์…</button></div></section>`;
 }
 
 export function forecastTab() {
@@ -906,7 +923,7 @@ function accuracyCard() {
   const head = '<h3>ความแม่นยำของระบบเตือน (ทดลอง)</h3>';
   const foot = `<p class="muted tiny">วัดจากเรื่องแจ้งน้ำท่วมระดับปานกลาง/หนักที่ประชาชนแจ้ง กทม. (นับเฉพาะ ${a.coverage?.coveredPoints ?? '—'} จาก ${a.coverage?.gridPoints ?? '—'} จุดตัวอย่างที่มีการแจ้งน้ำท่วมอยู่ใกล้ — นอก กทม. ไม่มีข้อมูลแจ้งจึงไม่นับ) ภายใน 24 ชม. หลังการประเมิน ในรัศมี 2 กม. — เป็นตัวแทนที่ไม่สมบูรณ์ (พื้นที่คนน้อยมักแจ้งน้อย) · อัปเดต ${a.generatedAt ? fmtTime(a.generatedAt) : ''} น.</p>`;
   if (!a.ready) {
-    return `<section class="card">${head}<p class="small">กำลังเก็บข้อมูลเพื่อตรวจสอบ: มีผลประเมินครบ 24 ชม. แล้ว <b>${a.samples.toLocaleString('th-TH')}</b> ตัวอย่าง (${a.days} วัน, ${a.events} เหตุการณ์) — จะแสดงผลเมื่อมีอย่างน้อย ${a.need.minDays} วันและ ${a.need.minEvents} เหตุการณ์</p>${a.rulesSince ? `<p class="muted small">เริ่มนับใหม่ตั้งแต่ ${thDate(new Date(a.rulesSince + 7 * 3600e3).toISOString())} เพราะปรับวิธีคิดคะแนน: น้ำเหนือและคลองล้นตลิ่งทั้งภูมิภาคไม่นับเป็นคะแนนแล้ว (ส่งผลกับทั้งเมืองพร้อมกัน จึงไม่ได้บอกว่าจุดไหนจะท่วม)</p>` : ''}${foot}</section>`;
+    return `<section class="card">${head}<p class="small">กำลังเก็บข้อมูลเพื่อตรวจสอบ: มีผลประเมินครบ 24 ชม. แล้ว <b>${a.samples.toLocaleString('th-TH')}</b> ตัวอย่าง (${a.days} วัน, ${a.events} เหตุการณ์) — จะแสดงผลเมื่อมีอย่างน้อย ${a.need.minDays} วันและ ${a.need.minEvents} เหตุการณ์</p>${a.rulesSince ? `<p class="muted small">เริ่มนับใหม่ตั้งแต่ ${thDate(new Date(a.rulesSince + 7 * 3600e3).toISOString())} เพราะปรับวิธีคิดคะแนน: น้ำเหนือและคลองล้นตลิ่งทั้งภูมิภาคไม่นับเป็นคะแนนแล้ว (ส่งผลกับทั้งเมืองพร้อมกัน จึงไม่ได้บอกว่าจุดไหนจะท่วม) และน้ำทะเลหนุนใช้ตารางน้ำทางการของกรมอุทกศาสตร์แทนโมเดล</p>` : ''}${foot}</section>`;
   }
   const lv = a.byLevel.find((x) => x.th === 2) || a.byLevel[0];
   const p = a.persistence;

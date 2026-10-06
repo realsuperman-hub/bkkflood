@@ -70,11 +70,12 @@ export function sourceStatuses(s, now = Date.now(), { loading = false } = {}) {
     add('popnix', 'extra', 'เซ็นเซอร์ถนนและระดับน้ำคลอง กทม.', 'เลเยอร์เซ็นเซอร์ท่วมถนน · ระดับน้ำคลอง · การ์ดในหน้าแรก', r, note);
   }
   add('tide', 'extra', 'ระดับน้ำทะเลรายชั่วโมง', 'เลเยอร์ระดับน้ำทะเล (อ่าวไทย)', miss(!s.tide) || judge(s.tide?.generatedAt, 5 * H, 12 * H, now), 'Open-Meteo Marine · ดึงใหม่ทุก ~3 ชั่วโมง');
+  add('tmd', 'extra', 'ประกาศเตือนภัยกรมอุตุฯ', 'การ์ดประกาศเตือนภัยในหน้าแรก', miss(!s.tmd) || judge(s.tmd?.generatedAt, 2 * H, 12 * H, now), 'tmd.go.th · ดึงใหม่ทุก ~15 นาที (การ์ดซ่อนเมื่อไม่มีประกาศล่าสุด)');
   add('wind', 'extra', 'ลมและกระแสน้ำทะเล', 'เลเยอร์กระแสลม · กระแสน้ำทะเล (เคลื่อนไหว)', miss(!s.wind) || judge(s.wind?.generatedAt, 3 * H, 8 * H, now), 'Open-Meteo · ดึงใหม่ทุกชั่วโมง');
   {
     const o = s.overview;
     const r = !o ? { level: loading ? LOADING : MISSING, at: null } : o.rain && o.tide ? { level: OK, at: o.at } : o.rain || o.tide ? { level: SLOW, at: o.at } : { level: OLD, at: o.at };
-    add('forecast', 'core', 'พยากรณ์ฝนและน้ำทะเลหนุน', 'Open-Meteo · พยากรณ์ 48 ชม. · คะแนนความเสี่ยง', r, o && !(o.rain && o.tide) ? `ไม่ได้ข้อมูล${o.rain ? 'น้ำทะเลหนุน' : o.tide ? 'ฝน' : 'ฝนและน้ำทะเลหนุน'}` : '');
+    add('forecast', 'core', 'พยากรณ์ฝนและน้ำทะเลหนุน', 'ฝน: Open-Meteo · น้ำหนุน: ตารางน้ำกรมอุทกศาสตร์ · คะแนนความเสี่ยง', r, o && !(o.rain && o.tide) ? `ไม่ได้ข้อมูล${o.rain ? 'น้ำทะเลหนุน' : o.tide ? 'ฝน' : 'ฝนและน้ำทะเลหนุน'}` : '');
   }
 
   // ── extra: useful context

@@ -107,63 +107,6 @@ export function summarizeRain(d, now = Date.now()) {
   };
 }
 
-export function loadTide() {
-  return cached('tide', 30 * 60 * 1000, async () => {
-    const url =
-      `${MARINE}?latitude=${GULF_POINT.lat}&longitude=${GULF_POINT.lng}` +
-      `&hourly=sea_level_height_msl&past_days=14&forecast_days=10&timezone=Asia%2FBangkok`;
-    return summarizeTide(await getJson(url));
-  });
-}
-
-export function summarizeTide(d, now = Date.now()) {
-  const times = d.hourly.time;
-  const vals = d.hourly.sea_level_height_msl;
-  let i0 = times.indexOf(bangkokNowKey(now));
-  if (i0 < 0) i0 = 0;
-  const next = vals.slice(i0, i0 + 48);
-  const clean = vals.filter((v) => v !== null);
-  const sorted = [...clean].sort((a, b) => a - b);
-  const p85 = sorted[Math.floor(sorted.length * 0.85)] ?? Infinity;
-  let peakIdx = 0;
-  next.forEach((v, i) => {
-    if ((v ?? -9) > (next[peakIdx] ?? -9)) peakIdx = i;
-  });
-  const peak = next[peakIdx];
-  return {
-    peak: r1(peak),
-    peakTime: times[i0 + peakIdx],
-    // "high" = among the top 15% of the surrounding period (the last 14 days + the forecast)
-    high: peak >= p85 && peak >= 1.3,
-    hours: times.slice(i0, i0 + 48).map((t, k) => ({ t, v: next[k] })),
-    ...dailyPeaks(times, vals, times[i0].slice(0, 10)),
-  };
-}
-
-// Highest modelled sea level of each day. The Upper Gulf's tide is mostly one high a day, whose height swings through the
-// month, so we judge each coming day against the daily peaks of the past 14 days + the forecast (top 20%, and ≥ 1.3 m) instead
-// of trusting a lunar-calendar rule of thumb. Days with fewer than 18 valid hours (the model's forecast tail) are dropped.
-export function dailyPeaks(times, vals, today) {
-  const byDay = new Map();
-  times.forEach((t, i) => {
-    if (vals[i] === null || vals[i] === undefined) return;
-    const day = t.slice(0, 10);
-    const e = byDay.get(day) || { n: 0, peak: -Infinity, peakTime: null };
-    e.n += 1;
-    if (vals[i] > e.peak) {
-      e.peak = vals[i];
-      e.peakTime = t;
-    }
-    byDay.set(day, e);
-  });
-  const all = [...byDay.entries()].filter(([, e]) => e.n >= 18).map(([date, e]) => ({ date, peak: r1(e.peak), peakTime: e.peakTime }));
-  const sorted = all.map((d) => d.peak).sort((a, b) => a - b);
-  const thr = Math.max(1.3, sorted[Math.floor(sorted.length * 0.8)] ?? Infinity);
-  const days = all.filter((d) => d.date >= today).map((d) => ({ ...d, high: d.peak >= thr }));
-  const top = days.reduce((m, d) => (!m || d.peak > m.peak ? d : m), null);
-  return { days, dayThreshold: r1(thr), topDay: top };
-}
-
 // Upstream trend only. GloFAS absolute discharge is ~2x the gauge readings at Chainat
 // (model bias), so we never show its magnitude — just % change over the next days.
 export function loadUpstreamTrend() {

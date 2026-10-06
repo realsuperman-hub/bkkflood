@@ -1,17 +1,19 @@
 // Point evaluation with NO browser state, shared by the web app (evaluate.js) and the server-side notifier (scripts/notify.mjs).
 import { nearestStations, distKm, inCore } from './geo.js';
-import { loadRain, loadTide, loadUpstreamTrend } from './forecast.js';
+import { loadRain, loadUpstreamTrend } from './forecast.js';
+import { summarizeTideTable } from './tide-table.js';
 import { assess } from './risk.js';
 import { nearestRain, observedAround } from './rain-obs.js';
 
 const val = (r) => (r.status === 'fulfilled' ? r.value : null);
 
-// ctx: { stations, floods, now?, rainAt? }  — rainAt=[lat,lng] lets the notifier share forecast calls between nearby places.
-export async function evaluatePoint(lat, lng, { stations, floods, rainObs = [], events = [], now = Date.now(), rainAt } = {}) {
+// ctx: { stations, floods, now?, rainAt?, tideTable? }  — rainAt=[lat,lng] lets the notifier share forecast calls between nearby places;
+// tideTable is the official tide table (data/tide-table.json) — the caller loads it, so this file stays free of browser/Node file access.
+export async function evaluatePoint(lat, lng, { stations, floods, rainObs = [], events = [], now = Date.now(), rainAt, tideTable = null } = {}) {
   const [rlat, rlng] = rainAt || [lat, lng];
-  const [rainR, tideR, upR] = await Promise.allSettled([loadRain(rlat, rlng), loadTide(), loadUpstreamTrend()]);
+  const [rainR, upR] = await Promise.allSettled([loadRain(rlat, rlng), loadUpstreamTrend()]);
   const rain = val(rainR);
-  const tide = val(tideR);
+  const tide = summarizeTideTable(tideTable, now);
   const upstreamTrend = val(upR);
   const gauges = nearestStations(stations, lat, lng);
   const c13 = stations.find((s) => s.code === 'C.13');
@@ -36,7 +38,7 @@ export async function evaluatePoint(lat, lng, { stations, floods, rainObs = [], 
 
   const errors = [];
   if (!rain) errors.push('พยากรณ์ฝน (Open-Meteo)');
-  if (!tide) errors.push('น้ำทะเลหนุน (Open-Meteo)');
+  if (!tide) errors.push('น้ำทะเลหนุน (ตารางน้ำ กรมอุทกศาสตร์)');
   if (!stations.length) errors.push('สถานีวัดน้ำ (ThaiWater)');
 
   const risk = assess({ rain, tide, gauges, upstream, elevation: rain?.elevation, regional, nearby, obs, official });

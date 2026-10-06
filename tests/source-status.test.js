@@ -18,7 +18,7 @@ const fresh = () => ({
   dams: { date: '2026-10-02' }, satFlood: { lastPass: '2026-09-29' }, news: { generatedAt: ago(H) },
   mcams: { generatedAt: ago(5 * H) }, mcamAi: { generatedAt: ago(30 * MIN) },
   popnix: { generatedAt: ago(10 * MIN), roads: [{ t: ago(8 * MIN) }], upstream: {} },
-  wind: { generatedAt: ago(40 * MIN) }, tide: { generatedAt: ago(2 * H) },
+  wind: { generatedAt: ago(40 * MIN) }, tide: { generatedAt: ago(2 * H) }, tmd: { generatedAt: ago(30 * MIN) },
 });
 const by = (list) => Object.fromEntries(list.map((x) => [x.id, x.level]));
 

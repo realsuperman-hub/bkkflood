@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assess, COMP } from '../src/lib/risk.js';
 import { normalizeStations, trendOf } from '../src/lib/thaiwater.js';
-import { summarizeRain, summarizeTide, dailyPeaks, antecedentIndex } from '../src/lib/forecast.js';
+import { summarizeRain, antecedentIndex } from '../src/lib/forecast.js';
 
 const gauge = (o) => ({ name: 'คลองทดสอบ', km: 1.2, level: 3, over: -0.5, trend: 0, stale: false, ...o });
 
@@ -68,14 +68,6 @@ test('summarizeRain uses median of models and windows from "now"', () => {
   void now;
 });
 
-test('summarizeTide flags high peaks', () => {
-  const times = Array.from({ length: 168 }, (_, i) => new Date(Date.UTC(2026, 8, 29, 0) + i * 3600e3).toISOString().slice(0, 13) + ':00');
-  const vals = times.map((_, i) => (i === 6 ? 1.93 : Math.sin(i) * 0.8));
-  const t = summarizeTide({ hourly: { time: times, sea_level_height_msl: vals } }, Date.parse('2026-09-28T17:00:00Z'));
-  assert.equal(t.peak, 1.9);
-  assert.equal(t.high, true);
-});
-
 test('region-wide overbank canals and high upstream flow are information only: no points, a note, a logged bit', () => {
   const rain = { next24: 0, peakHour: 0, past48: 0, max24: 0, min24: 0 };
   const a = assess({ rain, regional: { over: 3, total: 20 } });
@@ -132,25 +124,6 @@ test('normalizeStations keeps the whole Chao Phraya chain; only non-metro chain 
   assert.equal(s.CPY008.upstream, true);
   assert.equal(s.CPY015.upstream, false); // Bangkok gauge stays a metro gauge …
   assert.equal(s.CPY015.chain, true); // … but is still shown on the river route
-});
-
-test('dailyPeaks picks each day\'s highest hour, drops thin days, and flags the top 20% (≥ 1.3 m)', () => {
-  const times = [];
-  const vals = [];
-  for (let d = 0; d < 12; d++) {
-    for (let h = 0; h < 24; h++) {
-      const day = new Date(Date.UTC(2026, 8, 20 + d)).toISOString().slice(0, 10);
-      times.push(`${day}T${String(h).padStart(2, '0')}:00`);
-      // day 10 is the highest (2.1 m); the last day only has 6 valid hours (forecast tail)
-      vals.push(d === 11 && h >= 6 ? null : h === 12 ? (d === 10 ? 2.1 : 1.5 + d * 0.01) : 0);
-    }
-  }
-  const r = dailyPeaks(times, vals, '2026-09-22');
-  assert.equal(r.days.at(-1).date, '2026-09-30'); // 2026-10-01 has < 18 valid hours → dropped
-  assert.equal(r.topDay.date, '2026-09-30');
-  assert.equal(r.topDay.peak, 2.1);
-  assert.equal(r.days.find((x) => x.date === '2026-09-30').high, true);
-  assert.equal(r.days.find((x) => x.date === '2026-09-22').high, false);
 });
 
 test('antecedentIndex weights recent days more and settles near R/(1-K) in steady rain', () => {

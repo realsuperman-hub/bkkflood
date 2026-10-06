@@ -12,6 +12,7 @@ const readJson = async (f) => JSON.parse(await readFile(f, 'utf8'));
 const stations = (await readJson('public/data/stations.json')).stations.map((s) => ({ ...s, stale: s.t === null || now - s.t > STALE_MS }));
 const floods = (await readJson('public/data/floods.json')).floods.filter((f) => now - f.t < 24 * 3600e3);
 const rainObs = (await readJson('public/data/rain.json').catch(() => ({ gauges: [] }))).gauges.map((g) => ({ ...g, stale: g.t === null || now - g.t > RAIN_STALE_MS }));
+const tideTable = await readJson('public/data/tide-table.json').catch(() => null); // official tide table (data-static copy); null → tide reported missing
 
 const events = (await readJson('public/data/traffic-events.json').catch(() => ({ events: [] }))).events;
 const grid = sampleGrid();
@@ -21,8 +22,8 @@ for (let i = 0; i < grid.length; i++) {
   const [lat, lng] = grid[i];
   const rainAt = [Math.round(lat * 10) / 10, Math.round(lng * 10) / 10]; // share forecast calls between neighbours
   try {
-    const ev = await evaluatePoint(lat, lng, { stations, floods, rainObs, events, now, rainAt });
-    if (ev.errors.includes('พยากรณ์ฝน (Open-Meteo)')) continue; // never log a run that is missing its forecast — it would poison the grading
+    const ev = await evaluatePoint(lat, lng, { stations, floods, rainObs, events, now, rainAt, tideTable });
+    if (ev.errors.includes('พยากรณ์ฝน (Open-Meteo)') || !ev.tide) continue; // never log a run missing its forecast or tide — it would poison the grading
     results.push({ i, level: ev.risk.level, score: ev.risk.score, fcScore: ev.risk.fcScore, obsScore: ev.risk.score - ev.risk.fcScore, comp: ev.risk.comp });
   } catch (e) {
     console.error(`point ${i}: ${e.message}`);

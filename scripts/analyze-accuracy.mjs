@@ -41,7 +41,8 @@ for (const [la, ln] of grid) {
 }
 const elevAt = (i) => elevOfCell.get(`${Math.round(grid[i][0] * 10) / 10},${Math.round(grid[i][1] * 10) / 10}`);
 
-// the tide "high" flag at each run time, rebuilt from the sea-level series (same rule as summarizeTide: peak of the next 48 h ≥ 85th percentile and ≥ 1.3 m)
+// the OLD (Open-Meteo, before log v5) tide "high" flag at each run time, rebuilt from the sea-level series (peak of the next 48 h ≥ 85th percentile and ≥ 1.3 m);
+// from v5 the score uses the official tide table (src/lib/tide-table.js) and the tideHigh bit in comp is the truth
 const marine = await (await fetch(`${MARINE}?latitude=${GULF_POINT.lat}&longitude=${GULF_POINT.lng}&hourly=sea_level_height_msl&past_days=14&forecast_days=10&timezone=Asia%2FBangkok`, { signal: AbortSignal.timeout(60000) })).json();
 const times = marine.hourly.time;
 const vals = marine.hourly.sea_level_height_msl;

@@ -22,7 +22,7 @@ import { OK, SLOW, OLD, MISSING, LOADING } from './lib/source-status.js';
 import { initRouteLayers, openRoute, clearRoute, routePicking, routePick, routeHit } from './ui/route.js';
 import { isDhrPage } from './lib/dhr-cams.js';
 import { LEGEND, EV_COLOR, stripHtml, compactHtml, dialogHtml } from './lib/legend.js';
-import { loadTide, loadWind, loadPopnix, loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
+import { loadTmdWarnings, loadTide, loadWind, loadPopnix, loadRoadFlood, loadMaholanAi, loadMaholanCams, loadWindyCams, loadYtLive, loadSatFlood, loadNews, loadFloodHistory, loadStations, loadFloods, loadRainObs, loadAccuracy, loadTraffic, loadLongdoIndex } from './lib/data.js';
 import { SPEED_LEVEL, EVENT_LABEL, BMA_LINKS } from './lib/bma-traffic.js';
 import { intensity1h, intensity24h } from './lib/rain-obs.js';
 import { SEVERITY } from './lib/traffy.js';
@@ -1704,6 +1704,10 @@ async function main() {
     });
     loadAccuracy().then((a) => { state.accuracy = a; emit(); }).catch(() => {});
     loadNews().then((n) => { state.news = n; emit(); }).catch(() => {});
+    // TMD issues warnings twice a day (05:00/17:00); the snapshot is refreshed every workflow run
+    const reloadTmd = () => loadTmdWarnings().then((t) => { state.tmd = t; emit(); }).catch(() => {});
+    reloadTmd();
+    setInterval(reloadTmd, 30 * 60 * 1000);
     let roadLinkHandled = false;
     const reloadRoads = () => loadRoadFlood().then((r) => {
       state.roadFlood = r;

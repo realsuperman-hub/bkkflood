@@ -9,6 +9,9 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { BMA_PAGE, parseCameras } from '../src/lib/bma-traffic.js';
 import { DDS_URL, parseDdsReport } from '../src/lib/dds.js';
 import { DAM_API, normalizeDams } from '../src/lib/dams.js';
+import { loadWarnings } from '../src/lib/tmd.js';
+import { TIDE_TABLE_URL, TIDE_STATION, parseTideTable } from '../src/lib/tide-table.js';
+import { httpsText } from './https-text.mjs';
 
 const REPO = 'realsuperman-hub/bkkflood';
 const GH = process.env.GH_EXE || 'gh';
@@ -51,6 +54,20 @@ try {
   jobs.push(['dams', { generatedAt: Date.now(), source: 'กรมชลประทาน (ศูนย์ปฏิบัติการน้ำอัจฉริยะ) — API อ่างเก็บน้ำขนาดใหญ่', ...normalizeDams(latest, await day(bkk(off))) }]);
 } catch (e) {
   console.error('dams:', e.message);
+}
+
+// TMD warnings: the workflow fetches them itself; this copy is the fallback if TMD refuses GitHub's servers
+try {
+  const tmd = await loadWarnings((url) => httpsText(url));
+  jobs.push(['tmd-warnings', tmd]);
+} catch (e) {
+  console.error('tmd-warnings:', e.message);
+}
+// Official tide table (about a year ahead), so a copy refreshed whenever this PC is on is always good enough
+try {
+  jobs.push(['tide-table', { generatedAt: Date.now(), source: 'กรมอุทกศาสตร์ กองทัพเรือ (ตารางน้ำทำนาย ผ่าน สสน./HII)', station: TIDE_STATION, ...parseTideTable(await page(TIDE_TABLE_URL)) }]);
+} catch (e) {
+  console.error('tide-table:', e.message);
 }
 
 for (const [name, obj] of jobs) {
