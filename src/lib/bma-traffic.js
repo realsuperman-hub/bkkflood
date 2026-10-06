@@ -1,14 +1,14 @@
 // BMA (กทม.) traffic data — cameras list, live traffic events, and road-speed segments.
-// Source: https://cpudapp.bangkok.go.th/bmatraffic/ and its public ArcGIS service (plain HTTP → must be fetched server-side).
+// Source: http://www.bmatraffic.com/ (was cpudapp.bangkok.go.th/bmatraffic/ until 1 Oct 2026, now 404; no https on the new host) and its public ArcGIS service (plain HTTP → must be fetched server-side).
 // DOM-free (used by scripts/fetch-traffic.mjs).
 //
 // SECURITY: the ArcGIS camera layer exposes device admin credentials and internal IPs. This module NEVER requests that layer
 // and drops the IP column of the page's camera list. Only whitelisted, public fields leave this file.
 
-export const BMA_PAGE = 'https://cpudapp.bangkok.go.th/bmatraffic/';
+export const BMA_PAGE = 'http://www.bmatraffic.com/';
 export const ARC = 'http://110.170.214.37:6080/arcgis/rest/services/TRAFFIC_CCTV_P2/MapServer';
 export const BMA_LINKS = {
-  bma: 'https://cpudapp.bangkok.go.th/bmatraffic/',
+  bma: BMA_PAGE,
   itic: 'https://live.iticfoundation.org/',
   longdo: 'https://traffic.longdo.com/main/',
   // Longdo Traffic's own share-link format: opens its live map (cameras + events) centred on a point
