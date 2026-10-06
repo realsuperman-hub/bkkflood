@@ -3,7 +3,7 @@
 // Question it answers: does the risk score separate flooded places from dry ones, which part of it misleads, and would a different low-ground rule be better?
 import { traffyDayUrl, normalizeFloods } from '../src/lib/traffy.js';
 import { sampleGrid, labelSamples, contingency } from '../src/lib/accuracy.js';
-import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, coverageMask, componentLift } from '../src/lib/accuracy-analysis.js';
+import { auc, bandRates, spearman, cellStats, variantReport, VARIANTS, coverageMask, componentLift, obsPoints } from '../src/lib/accuracy-analysis.js';
 import { COMP } from '../src/lib/risk.js';
 import { loadRain, MARINE, GULF_POINT } from '../src/lib/forecast.js';
 
@@ -72,6 +72,36 @@ const report = (rows) => ({
   variants: Object.fromEntries(Object.entries(VARIANTS).map(([k, f]) => [k, variantReport(rows, f)])),
 });
 const cells = cellStats(annotated, grid);
+
+// Re-calibration what-ifs (v3 samples where complaints can be seen): drop the observed parts that did not separate flooded from dry places, then pick cut-offs.
+// warnAt: for every cut-off, how warnings at "score >= th" would have scored. byDay: are the events spread over many days or one or two storms?
+const NOISE = ['nearLight', 'obsRain1hLight', 'gaugeOver', 'gaugeHigh', 'gaugeRising', 'regional', 'upstream'];
+const SIGNAL = ['nearHeavy', 'nearMedium', 'official', 'obsRain1hHeavy', 'obsRain1h', 'obsRain24h'];
+const v3 = annotated.filter((s) => (s.v ?? 2) >= 3 && mask.has(s.i));
+const recal = {
+  current: (s) => s.score,
+  dropNoise: (s) => s.fcScore + obsPoints(s, COMP, Object.keys(COMP).filter((k) => !NOISE.includes(k))),
+  signalOnly: (s) => s.fcScore + obsPoints(s, COMP, SIGNAL),
+  forecastOnly: (s) => s.fcScore,
+};
+const bkkDay = (ms) => new Date(ms + 7 * 3600e3).toISOString().slice(0, 10);
+const byDay = {};
+for (const s of v3) {
+  const d = (byDay[bkkDay(s.t)] ||= { samples: 0, events: 0, fcFired: 0, fcFiredEvents: 0 });
+  d.samples++;
+  if (s.event) d.events++;
+  if ((s.comp >> COMP.fcNext24) & 1) { d.fcFired++; if (s.event) d.fcFiredEvents++; }
+}
+const recalibration = {
+  samples: v3.length,
+  events: v3.filter((s) => s.event).length,
+  byDay,
+  variants: Object.fromEntries(Object.entries(recal).map(([k, f]) => [k, {
+    auc: auc(v3, f),
+    rateByScore: bandRates(v3, f),
+    warnAt: [1, 2, 3, 4, 5, 6, 7].map((th) => ({ th, ...contingency(v3, (s) => f(s) >= th) })),
+  }])),
+};
 const out = {
   generatedAt: new Date(now).toISOString(),
   data: { runs: records.length, days: records.length ? +((records.at(-1).t - records[0].t) / 86400e3).toFixed(1) : 0, samples: annotated.length, events: annotated.filter((s) => s.event).length, complaints: uniq.length, hotComplaints: uniq.filter((c) => c.lvl >= 2).length },
@@ -92,6 +122,7 @@ const out = {
   coverage: { gridPoints: grid.length, coveredPoints: mask.size, uncoveredPoints: grid.map((g, i) => (mask.has(i) ? null : g)).filter(Boolean) },
   onlyWhereComplaintsExist: report(covered),
   componentLift: { allPoints: componentLift(annotated, COMP), onlyWhereComplaintsExist: componentLift(covered, COMP), v3Samples: annotated.filter((s) => (s.v ?? 2) >= 3).length },
+  recalibration,
   spatial: {
     spearmanMeanScoreVsEventRate: spearman(cells.map((c) => c.meanScore), cells.map((c) => c.eventRate)),
     spearmanElevationVsEventRate: spearman(cells.map((c) => elevAt(c.i) ?? 0), cells.map((c) => c.eventRate)),

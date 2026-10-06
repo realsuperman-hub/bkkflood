@@ -80,6 +80,22 @@ export const VARIANTS = {
   elevOnlyWetAndHighTide: (s) => s.score - s.elev + (s.elev && s.wet && s.tideHigh ? 1 : 0),
 };
 
+// Points each OBSERVED score part adds in risk.js (fixed per part; the forecast part varies, so it is taken from fcScore). Keep in step with risk.js.
+// With these, any re-weighting of the observed parts can be replayed exactly on v3 samples (which log the comp bit mask).
+export const OBS_PTS = {
+  nearHeavy: 3, nearMedium: 2, nearLight: 1, official: 2, obsRain1hHeavy: 3, obsRain1h: 2, obsRain1hLight: 1, obsRain24h: 1,
+  gaugeOver: 3, gaugeHigh: 1, gaugeRising: 1, regional: 1, upstream: 1,
+};
+// observed points of a sample, counting only the parts in `keep` (all when omitted), with optional new weights
+export function obsPoints(s, comp, keep = null, weights = OBS_PTS) {
+  let pts = 0;
+  for (const [name, p] of Object.entries(OBS_PTS)) {
+    if (keep && !keep.includes(name)) continue;
+    if ((s.comp >> comp[name]) & 1) pts += weights[name] ?? p;
+  }
+  return pts;
+}
+
 export function variantReport(samples, scoreOf) {
   const lvl = (s) => levelOfScore(scoreOf(s));
   return {
