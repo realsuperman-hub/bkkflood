@@ -18,14 +18,13 @@ on:
   push:
     branches: [main]
 
-concurrency:
-  group: refresh-data
-  cancel-in-progress: false
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency: # one refresh at a time; a run that is waiting is replaced by a newer one. (Job level, so the waiting job `next` below never blocks a push.)
+      group: refresh-data
+      cancel-in-progress: false
     permissions:
       contents: write # the daily repeat-flood history update commits data-static/ back (GITHUB_TOKEN pushes do not start another run)
     steps:
@@ -141,3 +140,24 @@ jobs:
       - name: Remove credentials
         if: always()
         run: rm -f "$GOOGLE_APPLICATION_CREDENTIALS"
+
+  # Keeps the ~15-minute rhythm without any computer of mine: GitHub's own cron fires only a few times a day for this repo, so each run, once finished, waits and then asks for the
+  # next one (workflow_dispatch started with GITHUB_TOKEN IS allowed to start a run; only other events are not). Self-healing and never piles up: only one waiting `next` exists at a
+  # time (a newer one cancels the older), the scheduled runs and every push restart the chain if it ever breaks, and `deploy` above still runs one at a time.
+  next:
+    needs: deploy
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    permissions:
+      actions: write
+    concurrency:
+      group: refresh-data-next
+      cancel-in-progress: true
+    steps:
+      - name: Wait, then start the next refresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sleep 600
+          gh workflow run refresh-data.yml --repo "$GITHUB_REPOSITORY" --ref main
