@@ -160,4 +160,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           sleep 600
-          gh workflow run refresh-data.yml --repo "$GITHUB_REPOSITORY" --ref main
+          gh workflow run refresh.yml --repo "$GITHUB_REPOSITORY" --ref main
